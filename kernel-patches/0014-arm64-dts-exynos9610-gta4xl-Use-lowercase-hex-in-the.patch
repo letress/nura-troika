@@ -1,0 +1,33 @@
+From b877adbae9cf43ce7e828d08089baf0c8ccc66fa Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:37:13 +0100
+Subject: [PATCH 14/17] arm64: dts: exynos9610-gta4xl: Use lowercase hex in the
+ memory node
+
+DTS coding style wants lowercase hex. From review of v1:
+
+  "Lowercase hex everywhere."
+
+Link: https://lore.kernel.org/all/9f255174-bfa4-4dfb-8c19-6488286fca21@kernel.org/
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+index d59a0fc..65ef4f2 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+@@ -34,9 +34,9 @@ framebuffer0: framebuffer@ca000000 {
+ 
+ 	memory@80000000 {
+ 		device_type = "memory";
+-		reg = <0x0 0x80000000 0x3AB00000>,
+-		      <0x0 0xC0000000 0x20000000>,
+-		      <0x0 0xE1900000 0x1E700000>,
++		reg = <0x0 0x80000000 0x3ab00000>,
++		      <0x0 0xc0000000 0x20000000>,
++		      <0x0 0xe1900000 0x1e700000>,
+ 		      <0x8 0x80000000 0x80000000>;
+ 	};
+ 

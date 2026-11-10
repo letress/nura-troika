@@ -1,0 +1,32 @@
+From 2cef1cf257962606d617b0ba9a554b7469752e2f Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:36:47 +0100
+Subject: [PATCH 08/17] arm64: dts: exynos9610: Fix GIC unit address
+
+The GIC node is named interrupt-controller@12300000 while its first reg
+entry (the distributor) is at 0x12301000, so dtc warns:
+
+  Warning (simple_bus_reg): /soc@0/interrupt-controller@12300000:
+  simple-bus unit address format error, expected "12301000"
+
+The vendor device tree has the same mismatch. Use the address of the
+first reg entry.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 852f711..1249ba3 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -196,7 +196,7 @@ pinctrl_cmgp: pinctrl@11c20000 {
+ 			reg = <0x11c20000 0x1000>;
+ 		};
+ 
+-		gic: interrupt-controller@12300000 {
++		gic: interrupt-controller@12301000 {
+ 			compatible = "arm,gic-400";
+ 			#interrupt-cells = <3>;
+ 			#address-cells = <0>;

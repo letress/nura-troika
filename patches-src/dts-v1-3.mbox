@@ -1,0 +1,139 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alexandru Chimac <alex@chimac.ro>
+Date: Sun, 14 Sep 2025 20:44:21 +0000
+Subject: [PATCH 3/3] arm64: dts: exynos: Add initial support for Samsung Galaxy Tab S6 Lite (gta4xl)
+Message-ID: <20250914-exynos9610-devicetree-v1-3-2000fc3bbe0b@chimac.ro>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add initial support for the Samsung Galaxy Tab S6 Lite (SM-P610/P615):
+
+- Framebuffer, through SimpleFB
+- RAM
+- Buttons
+
+Signed-off-by: Alexandru Chimac <alex@chimac.ro>
+---
+ arch/arm64/boot/dts/exynos/Makefile              |  1 +
+ arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts | 97 ++++++++++++++++++++++++
+ 2 files changed, 98 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/Makefile b/arch/arm64/boot/dts/exynos/Makefile
+index bdb9e9813e506de3a8ff6d1c3115382cca6ea9d9..8aacff968fa10d6b645bafe910c71fb65e8569f8 100644
+--- a/arch/arm64/boot/dts/exynos/Makefile
++++ b/arch/arm64/boot/dts/exynos/Makefile
+@@ -12,6 +12,7 @@ dtb-$(CONFIG_ARCH_EXYNOS) += \
+ 	exynos7885-jackpotlte.dtb	\
+ 	exynos850-e850-96.dtb		\
+ 	exynos8895-dreamlte.dtb		\
++	exynos9610-gta4xl.dtb		\
+ 	exynos9810-starlte.dtb		\
+ 	exynos990-c1s.dtb		\
+ 	exynos990-r8s.dtb               \
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+new file mode 100644
+index 0000000000000000000000000000000000000000..f455af22ff872c6f07b9bcfc68b1ae1f45d0def3
+--- /dev/null
++++ b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+@@ -0,0 +1,97 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Galaxy Tab S6 Lite device tree
++ *
++ * Copyright (c) 2025, Alexandru Chimac <alexchimac@protonmail.com>
++ */
++
++/dts-v1/;
++
++#include "exynos9610.dtsi"
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
++
++/ {
++	compatible = "samsung,gta4xl", "samsung,exynos9610";
++	#address-cells = <2>;
++	#size-cells = <1>;
++
++	chosen {
++		#address-cells = <2>;
++		#size-cells = <1>;
++		ranges;
++
++		framebuffer0: framebuffer@ca000000 {
++			compatible = "simple-framebuffer";
++			memory-region = <&cont_splash_rmem>;
++			width = <1200>;
++			height = <2000>;
++			stride = <(1200 * 4)>;
++			format = "a8r8g8b8";
++		};
++	};
++
++	memory@80000000 {
++		device_type = "memory";
++		reg = <0x0 0x80000000 0x3AB00000>,
++		      <0x0 0xC0000000 0x20000000>,
++		      <0x0 0xE1900000 0x1E700000>,
++		      <0x8 0x80000000 0x80000000>;
++	};
++
++	reserved-memory {
++		cont_splash_rmem: framebuffer@ca000000 {
++			reg = <0 0xca000000 (1200 * 2000 * 4)>;
++			no-map;
++		};
++	};
++
++	gpio-keys {
++		compatible = "gpio-keys";
++
++		pinctrl-0 = <&key_voldown &key_volup &key_power>;
++		pinctrl-names = "default";
++
++		volup-key {
++			label = "Volume UP";
++			linux,code = <KEY_VOLUMEUP>;
++			gpios = <&gpa1 5 GPIO_ACTIVE_LOW>;
++		};
++
++		voldown-key {
++			label = "Volume Down";
++			linux,code = <KEY_VOLUMEDOWN>;
++			gpios = <&gpa1 6 GPIO_ACTIVE_LOW>;
++		};
++
++		power-key {
++			label = "Power";
++			linux,code = <KEY_POWER>;
++			gpios = <&gpa1 7 GPIO_ACTIVE_LOW>;
++			wakeup-source;
++		};
++	};
++};
++
++&pinctrl_alive {
++	key_volup: key-volup-pins {
++		samsung,pins = "gpa1-5";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_EINT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-drv = <EXYNOS5420_PIN_DRV_LV1>;
++	};
++
++	key_voldown: key-voldown-pins {
++		samsung,pins = "gpa1-6";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_EINT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-drv = <EXYNOS5420_PIN_DRV_LV1>;
++	};
++
++	key_power: key-power-pins {
++		samsung,pins = "gpa1-7";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_EINT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-drv = <EXYNOS5420_PIN_DRV_LV1>;
++	};
++};
+
+-- 
+2.47.3

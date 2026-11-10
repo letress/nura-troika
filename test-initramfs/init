@@ -1,0 +1,53 @@
+#!/bin/busybox sh
+# Testovací initramfs pro první boot mainline kernelu na troice.
+# Nic nezapisuje na úložiště; jen vypíše stav na konzoli a čeká na tlačítka.
+
+/bin/busybox --install -s /bin
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs dev /dev 2>/dev/null
+
+# Pis primo na displej. Kdyz bootloader preda "console=null" (jako u
+# puvodniho systemu), /dev/console nikam nevede a nebylo by nic videt.
+[ -c /dev/tty0 ] && exec > /dev/tty0 2>&1 < /dev/tty0
+
+# Vypiš jen chyby kernelu, ať se výstup testu nepřepisuje.
+echo 3 > /proc/sys/kernel/printk
+
+echo
+echo "=================================================="
+echo " TROIKA MAINLINE TEST - initramfs bezi"
+echo "=================================================="
+echo "kernel:  $(uname -r)"
+echo "model:   $(cat /proc/device-tree/model 2>/dev/null | tr -d '\0')"
+echo "soc_id:  $(cat /sys/devices/soc0/soc_id 2>/dev/null)  rev $(cat /sys/devices/soc0/revision 2>/dev/null)"
+echo "cpu:     $(grep -c ^processor /proc/cpuinfo) online"
+echo "$(grep MemTotal /proc/meminfo)"
+echo "fb:      $(cat /sys/class/graphics/fb0/virtual_size 2>/dev/null) $(cat /sys/class/graphics/fb0/bits_per_pixel 2>/dev/null) bpp"
+echo "cmdline: $(cat /proc/cmdline)"
+echo
+echo "Barevny test (ma byt CERVENA ZELENA MODRA):"
+printf '\033[41m   CERVENA   \033[42m   ZELENA   \033[44m   MODRA   \033[0m\n'
+echo
+echo "Vstupni zarizeni:"
+grep -E '^N: Name|^H: Handlers' /proc/bus/input/devices 2>/dev/null
+echo
+
+ev=$(ls /dev/input/event* 2>/dev/null | head -n 1)
+if [ -z "$ev" ]; then
+	echo "!! Zadne /dev/input/event* - gpio-keys se nenacetly."
+	echo "dmesg (pinctrl/gpio/keys):"
+	dmesg | grep -i -E 'pinctrl|gpio|keys' | tail -n 15
+	echo "Cekam. Vypni telefon podrzenim Power + Vol-."
+	while true; do sleep 60; done
+fi
+
+echo "Mackej tlacitka (Vol+ = 115, Vol- = 114, Power = 116)."
+echo "Vypnuti: podrz Power + Vol- asi 10 s."
+echo
+# struct input_event na arm64: 16 B cas, u16 type, u16 code, s32 value.
+# od vypise 16 B na radek, takze type/code/value jsou na druhem radku.
+while true; do
+	dd if="$ev" bs=24 count=1 2>/dev/null | od -An -v -tu2 |
+		awk 'NR == 2 && $1 == 1 { printf "KLAVESA code=%d %s\n", $2, ($3 ? "STISK" : "UVOLNENI") }'
+done

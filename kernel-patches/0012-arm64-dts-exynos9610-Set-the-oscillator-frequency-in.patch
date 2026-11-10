@@ -1,0 +1,48 @@
+From ee285b21cd78acc5b2a99cf877939f08e861eb67 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:37:13 +0100
+Subject: [PATCH 12/17] arm64: dts: exynos9610: Set the oscillator frequency in
+ the board
+
+The external oscillator is a board component, so its frequency should
+not be hard-coded in the SoC dtsi. From review of v1:
+
+  "clock-frequency is board property."
+
+Keep the fixed-clock node in the dtsi so SoC nodes can reference it,
+and set clock-frequency from exynos9610-gta4xl.dts.
+
+Link: https://lore.kernel.org/all/ede52fd2-fe20-4648-be7b-de10b14d7e3f@kernel.org/
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts | 4 ++++
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi       | 1 -
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+index 6b7cd5f..24232bd 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+@@ -91,6 +91,10 @@ power-key {
+ 	};
+ };
+ 
++&oscclk {
++	clock-frequency = <26000000>;
++};
++
+ &pinctrl_alive {
+ 	key_volup: key-volup-pins {
+ 		samsung,pins = "gpa1-5";
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index b67df8c..ae7444e 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -158,7 +158,6 @@ oscclk: clock-osc {
+ 		compatible = "fixed-clock";
+ 		#clock-cells = <0>;
+ 		clock-output-names = "oscclk";
+-		clock-frequency = <26000000>;
+ 	};
+ 
+ 	soc: soc@0 {

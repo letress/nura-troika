@@ -1,0 +1,52 @@
+From ba71a678efe945e9f3f5f6d054b9f8d4d3aa0862 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:36:25 +0100
+Subject: [PATCH 06/17] arm64: dts: exynos9610: Use two interrupt cells for the
+ gpa wakeup banks
+
+The gpa0, gpa1 and gpa2 banks declare #interrupt-cells = <3>. The
+Samsung pinctrl binding requires two cells for GPIO bank interrupt
+controllers (pin number and trigger type), the driver translates
+specifiers with irq_domain_xlate_twocell(), and every other bank in
+this file already uses two. dtbs_check reports:
+
+  pinctrl@11850000: gpa1-gpio-bank:#interrupt-cells: 2 was expected
+
+The value 3 was carried over from the vendor device tree.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-pinctrl.dtsi | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-pinctrl.dtsi b/arch/arm64/boot/dts/exynos/exynos9610-pinctrl.dtsi
+index 91b9018..79a2251 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-pinctrl.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610-pinctrl.dtsi
+@@ -23,7 +23,7 @@ gpa0: gpa0-gpio-bank {
+ 		#gpio-cells = <2>;
+ 
+ 		interrupt-controller;
+-		#interrupt-cells = <3>;
++		#interrupt-cells = <2>;
+ 		interrupt-parent = <&gic>;
+ 		interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>,
+ 			     <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>,
+@@ -40,7 +40,7 @@ gpa1: gpa1-gpio-bank {
+ 		#gpio-cells = <2>;
+ 
+ 		interrupt-controller;
+-		#interrupt-cells = <3>;
++		#interrupt-cells = <2>;
+ 		interrupt-parent = <&gic>;
+ 		interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>,
+ 			     <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>,
+@@ -57,7 +57,7 @@ gpa2: gpa2-gpio-bank {
+ 		#gpio-cells = <2>;
+ 
+ 		interrupt-controller;
+-		#interrupt-cells = <3>;
++		#interrupt-cells = <2>;
+ 		interrupt-parent = <&gic>;
+ 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>,
+ 			     <GIC_SPI 17 IRQ_TYPE_LEVEL_HIGH>,

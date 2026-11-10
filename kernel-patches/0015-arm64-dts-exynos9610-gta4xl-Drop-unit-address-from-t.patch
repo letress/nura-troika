@@ -1,0 +1,30 @@
+From f4ea55996481e18bb807220c6b0fb70a72445cdd Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:37:13 +0100
+Subject: [PATCH 15/17] arm64: dts: exynos9610-gta4xl: Drop unit address from
+ the simplefb node
+
+The simple-framebuffer node gets its memory through memory-region and
+has no reg property, so it must not have a unit address:
+
+  Warning (unit_address_vs_reg): /chosen/framebuffer@ca000000: node has
+  a unit name, but no reg or ranges property
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+index 65ef4f2..315e9ab 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+@@ -22,7 +22,7 @@ chosen {
+ 		#size-cells = <1>;
+ 		ranges;
+ 
+-		framebuffer0: framebuffer@ca000000 {
++		framebuffer0: framebuffer {
+ 			compatible = "simple-framebuffer";
+ 			memory-region = <&cont_splash_rmem>;
+ 			width = <1200>;

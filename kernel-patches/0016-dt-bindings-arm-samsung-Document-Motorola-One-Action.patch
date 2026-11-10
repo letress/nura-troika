@@ -1,0 +1,29 @@
+From a4f534419ec612a60f7785c811e19eee377f06c7 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:39:07 +0100
+Subject: [PATCH 16/17] dt-bindings: arm: samsung: Document Motorola One Action
+ (troika)
+
+Motorola One Action (XT2013, codename troika) is a phone based on the
+Exynos9609. The 9609 is a lower-clocked Exynos9610: the chip-id
+register reads the Exynos9610 product ID (0xE9610000) and the vendor
+kernel treats it as an Exynos9610 throughout, so the board is listed
+under the existing Exynos9610 fallback.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../devicetree/bindings/arm/samsung/samsung-boards.yaml          | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/arm/samsung/samsung-boards.yaml b/Documentation/devicetree/bindings/arm/samsung/samsung-boards.yaml
+index 4564283..aae51d4 100644
+--- a/Documentation/devicetree/bindings/arm/samsung/samsung-boards.yaml
++++ b/Documentation/devicetree/bindings/arm/samsung/samsung-boards.yaml
+@@ -250,6 +250,7 @@ properties:
+       - description: Exynos9610 based boards
+         items:
+           - enum:
++              - motorola,troika                 # Motorola One Action (XT2013)
+               - samsung,gta4xl                  # Samsung Galaxy Tab S6 Lite (SM-P610/P615)
+           - const: samsung,exynos9610
+ 

@@ -1,0 +1,16 @@
+# Cizí zdroje a nástroje (stažené, velké)
+/refs/
+/dl/
+/toolchain/
+/tools/pmbootstrap/
+# Výstupy buildu a sestavené image
+/build/
+/out/
+# Data vyčtená z telefonu – obsahují sériové číslo a další identifikátory
+/device-info/
+# Samostatné repozitáře
+/linux/
+/uniLoader-src/
+/pmaports/
+# Místní nastavení nástrojů
+/.claude/

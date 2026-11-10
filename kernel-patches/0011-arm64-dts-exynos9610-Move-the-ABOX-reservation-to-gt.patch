@@ -1,0 +1,78 @@
+From ed87af798df14a39987e6e24417d6f00942d5c5e Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:37:13 +0100
+Subject: [PATCH 11/17] arm64: dts: exynos9610: Move the ABOX reservation to
+ gta4xl
+
+The SoC dtsi reserves 40 MiB at 0xe9400000 for ABOX (the audio DSP)
+with compatible = "reserved-memory". That string is not a documented
+compatible, so dtbs_check reports:
+
+  /reserved-memory/abox@e9400000: failed to match any schema with
+  compatible: ['reserved-memory']
+
+Krzysztof also asked what the node is in review of v1. Like ramoops,
+the region is chosen by the board firmware: the Motorola vendor tree
+reserves only 0x400000 at the same address.
+
+Move the node to exynos9610-gta4xl.dts with its address and size
+unchanged and drop the bogus compatible; "no-map" alone is enough to
+keep the kernel out of it. With that the SoC dtsi no longer has a
+reserved-memory node, so give the board node its own address/size cells
+and ranges.
+
+Link: https://lore.kernel.org/all/ede52fd2-fe20-4648-be7b-de10b14d7e3f@kernel.org/
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts |  9 +++++++++
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi       | 12 ------------
+ 2 files changed, 9 insertions(+), 12 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+index 99218fb..6b7cd5f 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+@@ -40,11 +40,20 @@ memory@80000000 {
+ 	};
+ 
+ 	reserved-memory {
++		#address-cells = <2>;
++		#size-cells = <1>;
++		ranges;
++
+ 		cont_splash_rmem: framebuffer@ca000000 {
+ 			reg = <0 0xca000000 (1200 * 2000 * 4)>;
+ 			no-map;
+ 		};
+ 
++		abox_rmem: abox@e9400000 {
++			reg = <0x0 0xe9400000 0x2800000>;
++			no-map;
++		};
++
+ 		ramoops@f9d10000 {
+ 			compatible = "ramoops";
+ 			reg = <0x0 0xf9d10000 0x200000>;
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 15f5aab..b67df8c 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -237,18 +237,6 @@ timer {
+ 		/* Stock Samsung bootloader doesn't configure CNTFRQ_EL0 */
+ 		clock-frequency = <26000000>;
+ 	};
+-
+-	reserved-memory {
+-		#address-cells = <2>;
+-		#size-cells = <1>;
+-		ranges;
+-
+-		abox_rmem: abox@e9400000 {
+-			compatible = "reserved-memory";
+-			reg = <0x0 0xe9400000 0x2800000>;
+-			no-map;
+-		};
+-	};
+ };
+ 
+ #include "exynos9610-pinctrl.dtsi"

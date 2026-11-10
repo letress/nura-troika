@@ -1,0 +1,54 @@
+From 9417755a2e9ee65cf2f8ad0c9df34d468356248e Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:36:47 +0100
+Subject: [PATCH 09/17] arm64: dts: exynos9610: Use GIC defines for the PMU
+ interrupts
+
+The two PMU nodes describe their interrupts with raw numbers
+("<0 82 4>"). Krzysztof asked for the proper defines in review of v1:
+
+  "You need to use proper defines."
+
+0 is GIC_SPI and 4 is IRQ_TYPE_LEVEL_HIGH, so this is a no-op for the
+compiled device tree.
+
+Link: https://lore.kernel.org/all/ede52fd2-fe20-4648-be7b-de10b14d7e3f@kernel.org/
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 1249ba3..80f21d0 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -132,10 +132,10 @@ psci {
+ 
+ 	arm-a53-pmu {
+ 		compatible = "arm,cortex-a53-pmu";
+-		interrupts = <0 82 4>,
+-			     <0 83 4>,
+-			     <0 84 4>,
+-			     <0 85 4>;
++		interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>,
++			     <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>,
++			     <GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>,
++			     <GIC_SPI 85 IRQ_TYPE_LEVEL_HIGH>;
+ 		interrupt-affinity = <&cpu0>,
+ 				     <&cpu1>,
+ 				     <&cpu2>,
+@@ -144,10 +144,10 @@ arm-a53-pmu {
+ 
+ 	arm-a73-pmu {
+ 		compatible = "arm,cortex-a73-pmu";
+-		interrupts = <0 96 4>,
+-			     <0 97 4>,
+-			     <0 98 4>,
+-			     <0 99 4>;
++		interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>,
++			     <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH>,
++			     <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>,
++			     <GIC_SPI 99 IRQ_TYPE_LEVEL_HIGH>;
+ 		interrupt-affinity = <&cpu100>,
+ 				     <&cpu101>,
+ 				     <&cpu102>,

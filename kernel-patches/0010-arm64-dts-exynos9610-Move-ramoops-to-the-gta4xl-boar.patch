@@ -1,0 +1,64 @@
+From 94126577da7d96179293889f4e8a9de3fb9df0db Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:37:13 +0100
+Subject: [PATCH 10/17] arm64: dts: exynos9610: Move ramoops to the gta4xl
+ board
+
+The SoC dtsi reserves a ramoops region at 0xf9d10000. Where a bootloader
+leaves room for pstore is a property of the board firmware, not of the
+SoC. Krzysztof pointed out in review of v1 that the node belongs to the
+board.
+
+It is also wrong for other Exynos9610 boards: on Motorola troika the
+bootloader passes a debug-snapshot "log_pstore" region at 0xf9c10000
+with size 0x200000, so 0xf9d10000 lands in the middle of it.
+
+Move the node to exynos9610-gta4xl.dts unchanged.
+
+Link: https://lore.kernel.org/all/ede52fd2-fe20-4648-be7b-de10b14d7e3f@kernel.org/
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts | 9 +++++++++
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi       | 9 ---------
+ 2 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+index f455af2..99218fb 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-gta4xl.dts
+@@ -44,6 +44,15 @@ cont_splash_rmem: framebuffer@ca000000 {
+ 			reg = <0 0xca000000 (1200 * 2000 * 4)>;
+ 			no-map;
+ 		};
++
++		ramoops@f9d10000 {
++			compatible = "ramoops";
++			reg = <0x0 0xf9d10000 0x200000>;
++			record-size = <0x80000>;
++			console-size = <0x80000>;
++			ftrace-size = <0x80000>;
++			pmsg-size = <0x80000>;
++		};
+ 	};
+ 
+ 	gpio-keys {
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 80f21d0..15f5aab 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -248,15 +248,6 @@ abox_rmem: abox@e9400000 {
+ 			reg = <0x0 0xe9400000 0x2800000>;
+ 			no-map;
+ 		};
+-
+-		ramoops@f9d10000 {
+-			compatible = "ramoops";
+-			reg = <0x0 0xf9d10000 0x200000>;
+-			record-size = <0x80000>;
+-			console-size = <0x80000>;
+-			ftrace-size = <0x80000>;
+-			pmsg-size = <0x80000>;
+-		};
+ 	};
+ };
+ 

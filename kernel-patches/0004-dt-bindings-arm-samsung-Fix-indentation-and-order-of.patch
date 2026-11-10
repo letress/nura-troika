@@ -1,0 +1,49 @@
+From cb844f8a5289176c491818a20843a9dcc2102e27 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:36:24 +0100
+Subject: [PATCH 04/17] dt-bindings: arm: samsung: Fix indentation and order of
+ gta4xl entry
+
+yamllint rejects the Exynos9610 entry added for gta4xl:
+
+  samsung-boards.yaml:250:13: [warning] wrong indentation: expected 14
+  but found 12 (indentation)
+
+This was reported by the DT bindings bot on v1 of the series and never
+addressed. Indent the enum like the neighbouring entries and move the
+block before Exynos9810 so the list stays sorted by SoC.
+
+Link: https://lore.kernel.org/all/175794237027.2496748.5518990883398170186.robh@kernel.org/
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../bindings/arm/samsung/samsung-boards.yaml         | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/arm/samsung/samsung-boards.yaml b/Documentation/devicetree/bindings/arm/samsung/samsung-boards.yaml
+index 9f7ecee..4564283 100644
+--- a/Documentation/devicetree/bindings/arm/samsung/samsung-boards.yaml
++++ b/Documentation/devicetree/bindings/arm/samsung/samsung-boards.yaml
+@@ -247,17 +247,17 @@ properties:
+               - samsung,dreamlte                # Samsung Galaxy S8 (SM-G950F)
+           - const: samsung,exynos8895
+ 
+-      - description: Exynos9810 based boards
++      - description: Exynos9610 based boards
+         items:
+           - enum:
+-              - samsung,starlte                 # Samsung Galaxy S9 (SM-G960F)
+-          - const: samsung,exynos9810
++              - samsung,gta4xl                  # Samsung Galaxy Tab S6 Lite (SM-P610/P615)
++          - const: samsung,exynos9610
+ 
+-      - description: Exynos9610 based boards
++      - description: Exynos9810 based boards
+         items:
+           - enum:
+-            - samsung,gta4xl # Samsung Galaxy Tab S6 Lite (SM-P610/P615)
+-          - const: samsung,exynos9610
++              - samsung,starlte                 # Samsung Galaxy S9 (SM-G960F)
++          - const: samsung,exynos9810
+ 
+       - description: Exynos990 based boards
+         items:
