@@ -581,3 +581,16 @@ Známé slabiny návrhu:
   ruční sestavení z upstream tarballu + patchů znovu prošlo.
 - `out/troika-test-P2.img` a `out/troika-test-P.img` přestavěny (00:18). Čeká se
   na opakování P2.
+
+## Repozitáře na GitHubu (2026-11-11, všechny soukromé)
+
+- `letress/nura-troika` – tento adresář: dokumenty, `tools/`, `test-initramfs/`,
+  `patches-src/`, `kernel-patches/` (export větve `troika-mainline`; po změně
+  kernelu znovu `git -C linux format-patch -o ../kernel-patches v7.3.3..troika-mainline`).
+  Remote `origin`, větev `main`.
+- `letress/uniLoader-troika` – `uniLoader-src/`, větev `troika`, remote `letress`.
+- `letress/pmaports-troika` – `pmaports/`, větev `motorola-troika-mainline`, remote `letress`.
+
+Nepushuje se (`.gitignore`): `device-info/` (identifikátory telefonu), `refs/`,
+`dl/`, `toolchain/`, `build/`, `out/`, strom `linux/` (jen jako patche).
+`~/troika-backup` je mimo projekt a na GitHub nepatří.
