@@ -1036,3 +1036,13 @@ přes `troika-clk-test`). Nic není pushnuté. pmaports beze změny (kernel r4).
   program `import`, který ukládá snímek obrazovky. Necommitnuto; může
   obsahovat obsah obrazovky uživatele, smazání je na uživateli.
 
+### 2026-11-11 ~21:20 – push ověřen; dohoda o sestavování balíčku
+
+Push ověřen: `origin/main` = d950823, `letress/motorola-troika-mainline` =
+cfcf09c10 (oba repozitáře soukromé).
+
+Dohoda s uživatelem: balíček kernelu (sestavení 1,5 h) se sestaví až na konci
+kola změn. Do té doby se testuje místními testovacími image
+(`tools/make-clk-test-bootimg.sh`), které stojí uživatele asi minutu. UFS tedy
+zatím do pmaports nejde; počká na další změny kernelu.
+
