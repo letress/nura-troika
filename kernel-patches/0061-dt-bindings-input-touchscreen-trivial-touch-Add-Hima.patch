@@ -1,7 +1,7 @@
 From 82e80cb4e5ad8f7df629af894eb32ddb413eacb2 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 21:01:35 +0100
-Subject: [PATCH 61/64] dt-bindings: input: touchscreen: trivial-touch: Add
+Subject: [PATCH 61/67] dt-bindings: input: touchscreen: trivial-touch: Add
  Himax HX83112A
 
 The HX83112A is a display driver with a touch controller in it, like the

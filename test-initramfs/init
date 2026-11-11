@@ -171,6 +171,32 @@ if [ -n "$tev" ] || [ "${test_tag#ts}" != "$test_tag" ]; then
 	echo
 fi
 
+# Restart a vypnuti: co nechal bootloader v registrech PMU (ladici radky
+# kernelu "PMUDBG" prijdou az 3 s po startu ovladace PMU) a jestli se
+# navazaly ovladace syscon-reboot, syscon-poweroff a syscon-reboot-mode.
+rb_test=
+[ "${test_tag#rb}" != "$test_tag" ] && rb_test=1
+if [ -n "$rb_test" ]; then
+	echo "--- RESTART A VYPNUTI ---"
+	i=0
+	while [ $i -lt 8 ] && ! dmesg | grep -q "PMUDBG SYSIP_DAT0"; do
+		sleep 1
+		i=$((i + 1))
+	done
+	dmesg | sed -n 's/^.*PMUDBG \([A-Z_0-9]* = .*\)$/\1/p'
+	dmesg | grep -q "PMUDBG SYSIP_DAT0" || echo "!! Vypis PMUDBG neni uplny."
+	for d in syscon-reboot syscon-poweroff reboot-mode; do
+		n=$(ls -d /sys/bus/platform/devices/*:$d 2>/dev/null | head -n 1)
+		if [ -n "$n" ] && [ -e "$n/driver" ]; then
+			echo "$d: ovladac navazan"
+		else
+			echo "!! $d: ovladac NENI navazan"
+		fi
+	done
+	dmesg | grep -i -E "syscon-(reboot|poweroff)|reboot-mode|exynos-pmu|Internal error" | grep -v PMUDBG | tail -n 5 | cut -c1-110
+	echo
+fi
+
 echo "Vstupni zarizeni:"
 grep -E '^N: Name|^H: Handlers' /proc/bus/input/devices 2>/dev/null
 echo
@@ -186,10 +212,37 @@ fi
 
 echo "Mackej tlacitka (Vol+ = 115, Vol- = 114, Power = 116)."
 echo "Vypnuti: podrz Power + Vol- asi 10 s."
+if [ -n "$rb_test" ]; then
+	echo
+	echo "TEST RESTARTU - akce se provede po PUSTENI tlacitka:"
+	echo "  Vol+   restart do bootloaderu (fastboot)"
+	echo "  Power  obycejny restart"
+	echo "  Vol-   vypnuti"
+fi
 echo
+
+# Provede restart nebo vypnuti; kdyz se prikaz vrati, nepovedlo se to.
+rb_action() {
+	echo ">>> $1"
+	echo 7 > /proc/sys/kernel/printk
+	sleep 1
+	shift
+	"$@"
+	sleep 5
+	echo "!! Prikaz se vratil, telefon bezi dal."
+	echo 3 > /proc/sys/kernel/printk
+}
+
 # struct input_event na arm64: 16 B cas, u16 type, u16 code, s32 value.
 # od vypise 16 B na radek, takze type/code/value jsou na druhem radku.
 while true; do
-	dd if="$ev" bs=24 count=1 2>/dev/null | od -An -v -tu2 |
-		awk 'NR == 2 && $1 == 1 { printf "KLAVESA code=%d %s\n", $2, ($3 ? "STISK" : "UVOLNENI") }'
+	key=$(dd if="$ev" bs=24 count=1 2>/dev/null | od -An -v -tu2 |
+		awk 'NR == 2 && $1 == 1 { printf "KLAVESA code=%d %s\n", $2, ($3 ? "STISK" : "UVOLNENI") }')
+	[ -n "$key" ] && echo "$key"
+	[ -n "$rb_test" ] || continue
+	case "$key" in
+	"KLAVESA code=115 UVOLNENI") rb_action "Restart do bootloaderu" /bin/reboot-arg bootloader ;;
+	"KLAVESA code=116 UVOLNENI") rb_action "Obycejny restart" reboot -f ;;
+	"KLAVESA code=114 UVOLNENI") rb_action "Vypnuti" poweroff -f ;;
+	esac
 done

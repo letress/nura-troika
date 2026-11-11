@@ -1,7 +1,7 @@
 From 96afb3688402178da5c815f56d8de01526fda556 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:47:25 +0100
-Subject: [PATCH 43/64] dt-bindings: clock: exynos9610: Name CMU_CORE inputs
+Subject: [PATCH 43/67] dt-bindings: clock: exynos9610: Name CMU_CORE inputs
  after the dividers
 
 The three clocks CMU_CORE takes from CMU_TOP are called

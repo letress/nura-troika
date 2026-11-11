@@ -1,0 +1,43 @@
+From 70ba88af2b334367dea0f00ede7457416bc4b7e3 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 22:51:41 +0100
+Subject: [PATCH 66/67] arm64: dts: exynos9610: Add reboot and poweroff
+
+Restart through SWRESET and power off by releasing PS_HOLD, as the
+vendor kernel does (drivers/soc/samsung/exynos-reboot.c: SWRESET at
+0x400 is written with 1, bit 8 of PS_HOLD_CONTROL at 0x330c is
+cleared). The firmware does not reset the system through PSCI.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index a309643..12079a8 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -235,6 +235,20 @@ wakeup-interrupt-controller {
+ 		pmu_system_controller: system-controller@11860000 {
+ 			compatible = "samsung,exynos9610-pmu", "syscon";
+ 			reg = <0x11860000 0x10000>;
++
++			poweroff: syscon-poweroff {
++				compatible = "syscon-poweroff";
++				offset = <0x330c>; /* PS_HOLD_CONTROL */
++				mask = <0x100>;
++				value = <0x0>;
++			};
++
++			reboot: syscon-reboot {
++				compatible = "syscon-reboot";
++				offset = <0x400>; /* SWRESET */
++				mask = <0x1>;
++				value = <0x1>;
++			};
+ 		};
+ 
+ 		cmu_cmgp: clock-controller@11c00000 {
+-- 
+2.56.0
+

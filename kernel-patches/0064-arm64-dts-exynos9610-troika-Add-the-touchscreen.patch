@@ -1,7 +1,7 @@
 From 0d78a804da3d0be1579afe399b0b42cca87d6af3 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 21:01:55 +0100
-Subject: [PATCH 64/64] arm64: dts: exynos9610-troika: Add the touchscreen
+Subject: [PATCH 64/67] arm64: dts: exynos9610-troika: Add the touchscreen
 
 Add the Himax HX83112A touch controller on I2C4. It is part of the
 display driver IC and gets its supply with the panel, which the

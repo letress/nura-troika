@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: UFS ověřeno (UFS1, UFS2); dotyková obrazovka ověřena (TS2; FINDINGS.md 15.5). UFS ani dotyk nejsou v balíčku pmaports a dotyk není commitnutý v hlavním repozitáři
+## Stav: UFS, dotyk a restart/vypnutí z kernelu ověřeny a pushnuty do hlavního repozitáře. Nic z toho zatím není v balíčku pmaports (jedno sestavení na konci kola)
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -587,10 +587,10 @@ Známé slabiny návrhu:
 ## Repozitáře na GitHubu (2026-11-11, všechny soukromé)
 
 - `letress/nura-troika` – tento adresář: dokumenty, `tools/`, `test-initramfs/`,
-  `patches-src/`, `kernel-patches/` (export větve `troika-clk`, 64 patchů: DT,
-  hodiny, USB, UFS, dotyk; po změně kernelu smazat a znovu
+  `patches-src/`, `kernel-patches/` (export větve `troika-clk`, 67 patchů: DT,
+  hodiny, USB, UFS, dotyk, restart; po změně kernelu smazat a znovu
   `git -C linux format-patch -o ../kernel-patches v7.3.3..troika-clk`),
-  `kernel-patches-debug/` (4 ladicí commity větve `troika-clk-test`, jen pro
+  `kernel-patches-debug/` (5 ladicích commitů větve `troika-clk-test`, jen pro
   testovací image, ne pro balíček).
   Remote `origin`, větev `main`.
 - `letress/uniLoader-troika` – `uniLoader-src/`, větev `troika`, remote `letress`.
@@ -1078,7 +1078,7 @@ registraci přerušení a po 300 ms. `out/troika-test-TS2.img` připraven a
 zkontrolován; **na telefonu nezkoušeno**. Nevím, jestli při TS1 zůstal obraz
 (uživatel se ještě nevyjádřil). Vše stále necommitnuté v hlavním repozitáři.
 
-### 2026-11-11 ~22:50–23:05 – test TS2
+### 2026-11-11 ~22:35–22:40 – test TS2
 
 Uživatel spustil TS2 (z TS1 přes Power + Vol−). Log:
 `device-info/dmesg-mainline-TS2.txt`. Ovladač se navázal (ID `83112a`),
@@ -1093,7 +1093,7 @@ displej a do `/touch.txt` v RAM telefonu). **Čeká se na dotyk uživatele:
 ověřit rozsah a orientaci souřadnic.** Otevřená otázka: zůstal při resetu
 dotyku obraz?
 
-### 2026-11-11 ~23:10 – TS2: souřadnice ověřeny
+### 2026-11-11 ~22:42 – TS2: souřadnice ověřeny
 
 Uživatel přejel prstem z levého horního rohu do pravého dolního; záznam
 z `/touch.txt` v RAM telefonu: 326 hlášení, x 30 → 1016, y 27 → 2513, plynule,
@@ -1106,10 +1106,69 @@ pmaports (pkgrel 5, ovladač dotyku `=y` nebo modul do initramfs) a jedno
 sestavení balíčku. Pozor: plný systém z balíčku uvidí UFS bez ochrany
 „jen pro čtení“.
 
-### 2026-11-11 ~23:20 – commit a push dotykové obrazovky
+### 2026-11-11 ~22:45 – commit a push dotykové obrazovky
 
 Uživatel: „Commit a push“. `kernel-patches/` znovu exportováno z `troika-clk`
 (64; prvních 60 se liší jen číslováním `[PATCH n/64]`), `kernel-patches-debug/`
 z `troika-clk..troika-clk-test` (4). Commitnuto spolu s FINDINGS kap. 15,
 TESTING 5i, PROGRESS a opraveným `test-initramfs/init` a pushnuto do
 `origin/main`. pmaports beze změny (UFS a dotyk tam stále nejsou).
+
+### 2026-11-11 ~22:45–22:56 – restart a vypnutí z kernelu: průzkum, souhlas, image RB1
+
+Uživatel: „vrhni se na Restart a vypnutí z kernelu“. Zdroje: původní
+`exynos-reboot.c`, uzel `reboot` v DT, pmucal (FINDINGS.md kap. 16).
+
+**Souhlas se zápisem do PMU** (otázka s přesnými registry, odpověď „Ano,
+všechny tři“): `0x11860400` SWRESET = 1; `0x1186330c` PS_HOLD_CONTROL bit 8
+= 0; `0x1186081c` SYSIP_DAT3 = důvod restartu (0x77665501 / …00 / …02).
+Na SYSIP_DAT0 (`0x810`) ani RESET_SEQUENCER_CONFIGURATION (`0x500`) souhlas
+není.
+
+**Moje chyba při průzkumu:** čtení registrů PMU přes debugfs regmapu na
+běžícím TS2 shodilo proces chybou kernelu (external abort na offsetu 0x8;
+jen čtení). Zámek regmapu zůstal držený; telefon je nutné restartovat
+tlačítky. Podrobnosti FINDINGS.md 16.3.
+
+Kernel: `troika-clk` = 67 commitů nad v7.3.3 (nové 3: exynos-pmu compatible,
+syscon-reboot + syscon-poweroff v dtsi, reboot-mode v troika.dts).
+`troika-clk-test` = +5 DEBUG (nově PMUDBG: čtení 0x500, 0x330c, 0x81c, 0x810
+z pracovní fronty 3 s po startu). Sestaveno, `dtbs_check` beze změny.
+
+Testovací init: oddíl `--- RESTART A VYPNUTI ---` a pro značku `rb*` akce na
+tlačítkách (Vol+ bootloader, Power restart, Vol− vypnutí, po puštění).
+Nový `test-initramfs/reboot-arg.S` (reboot(2) s argumentem; busybox to
+neumí), skript ho překládá do image.
+
+`out/troika-test-RB1.img` připraven a zkontrolován; **na telefonu
+nezkoušeno**. Necommitnuto v hlavním repozitáři, `kernel-patches/` není
+znovu exportováno.
+
+### 2026-11-11 ~22:58 – RB1 spuštěn, stav před akcemi
+
+Uživatel spustil RB1. Log stažen před stiskem tlačítek
+(`device-info/dmesg-mainline-RB1.txt`): RESET_SEQUENCER_CONFIGURATION = 0,
+PS_HOLD_CONTROL = 0x80005300, SYSIP_DAT3 = 0, SYSIP_DAT0 = 0; všechny tři
+ovladače navázané (FINDINGS.md 16.4). **Výsledky tří akcí (Vol+, Power,
+Vol−) čekají na uživatele.**
+
+### 2026-11-11 ~23:05 – RB1 prošel
+
+Uživatel po třech bězích RB1: „restart do bootloaderu funguje, vypnutí
+funguje, klasický restart taky funguje“. Zapsáno do FINDINGS.md 16.5.
+Bootloaderu stačí SYSIP_DAT3. Od teď jde z testovacího image do fastbootu
+přes telnet (`tools/phone-sh.py 'reboot-arg bootloader'`) – spouštět jen
+když to uživatel chce, restart telefonu je jeho rozhodnutí.
+
+Zbývá (až uživatel řekne): commit hlavního repozitáře + export
+`kernel-patches/` (67) a `kernel-patches-debug/` (5) + push; pak přenést
+UFS, dotyk a restart do pmaports (pkgrel 5) a jedno sestavení balíčku.
+
+### 2026-11-11 ~23:08 – commit a push restartu a vypnutí
+
+Uživatel: „Commit a push“. `kernel-patches/` znovu exportováno z `troika-clk`
+(67; prvních 64 se liší jen číslováním), `kernel-patches-debug/` (5).
+Commitnuto spolu s FINDINGS kap. 16, TESTING 5j, PROGRESS, testovacím initem,
+`test-initramfs/reboot-arg.S` a úpravou `tools/make-clk-test-bootimg.sh`;
+pushnuto do `origin/main`. pmaports beze změny.
+

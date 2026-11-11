@@ -1,7 +1,7 @@
 From 2e046a426ddf02c25fdd1a6cb194c5c9f7c596c3 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 20:42:50 +0100
-Subject: [PATCH 55/64] phy: samsung-ufs: Add support for the Exynos9610 UFS
+Subject: [PATCH 55/67] phy: samsung-ufs: Add support for the Exynos9610 UFS
  PHY
 
 Add the M-PHY settings of the Exynos9610. They are the PMA writes of the

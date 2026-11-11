@@ -1,7 +1,7 @@
 From ca31424bc318cc0bac6bf6ddefa5f0e37af3d0af Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:30 +0100
-Subject: [PATCH 34/64] clk: samsung: exynos9610: Fix the width of the AUD FM
+Subject: [PATCH 34/67] clk: samsung: exynos9610: Fix the width of the AUD FM
  dividers
 
 dout_clk_aud_fm and dout_clk_aud_fm_spdy are both registered with a 9

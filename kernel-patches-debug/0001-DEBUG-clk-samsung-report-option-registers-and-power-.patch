@@ -1,7 +1,7 @@
-From 135d804077696b16f1ae36664807267122350cb6 Mon Sep 17 00:00:00 2001
+From d6d8909dfefc7c532ddc4948dc9a1fce3c656f93 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:53:55 +0100
-Subject: [PATCH 1/4] DEBUG: clk: samsung: report option registers and power
+Subject: [PATCH 1/5] DEBUG: clk: samsung: report option registers and power
  domain state
 
 Not for upstream and not for the package. Prints the CMU option

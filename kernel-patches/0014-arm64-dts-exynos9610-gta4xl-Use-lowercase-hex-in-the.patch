@@ -1,7 +1,7 @@
 From b877adbae9cf43ce7e828d08089baf0c8ccc66fa Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:37:13 +0100
-Subject: [PATCH 14/64] arm64: dts: exynos9610-gta4xl: Use lowercase hex in the
+Subject: [PATCH 14/67] arm64: dts: exynos9610-gta4xl: Use lowercase hex in the
  memory node
 
 DTS coding style wants lowercase hex. From review of v1:

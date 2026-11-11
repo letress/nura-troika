@@ -1,7 +1,7 @@
 From 53a343ffc99a8bbb74036a9019cceeac7bba082e Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:28 +0100
-Subject: [PATCH 23/64] clk: samsung: exynos9610: Register the CMU_CORE
+Subject: [PATCH 23/67] clk: samsung: exynos9610: Register the CMU_CORE
  dividers
 
 core_div_clks is defined but never referenced from core_cmu_info, so

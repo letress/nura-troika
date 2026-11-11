@@ -1,0 +1,45 @@
+From ca94daba8ca54ea49979688a235b65bfa8e5957d Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 22:51:41 +0100
+Subject: [PATCH 67/67] arm64: dts: exynos9610-troika: Add reboot modes
+
+The vendor kernel leaves the reason for a restart in SYSIP_DAT3 of the
+PMU for the bootloader: 0x77665501 for a plain restart, 0x77665500 for
+the bootloader and 0x77665502 for the recovery
+(drivers/soc/samsung/exynos-reboot.c). It also writes a mode to
+SYSIP_DAT0 for the bootloader and the recovery; that is left out, as
+syscon-reboot-mode handles a single register.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 9be2bf9..67b2316 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -164,6 +164,20 @@ touchscreen@48 {
+ 	};
+ };
+ 
++/*
++ * The vendor kernel leaves the reason for a restart in SYSIP_DAT3 for the
++ * bootloader. It also puts a mode into SYSIP_DAT0, which is not done here.
++ */
++&pmu_system_controller {
++	reboot-mode {
++		compatible = "syscon-reboot-mode";
++		offset = <0x81c>; /* SYSIP_DAT3 */
++		mode-normal = <0x77665501>;
++		mode-bootloader = <0x77665500>;
++		mode-recovery = <0x77665502>;
++	};
++};
++
+ /*
+  * The storage is supplied through a switch on gpg4-0 that the bootloader turns
+  * on and that is left alone here: the PMIC and the regulators are not
+-- 
+2.56.0
+

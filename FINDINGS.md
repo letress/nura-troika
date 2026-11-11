@@ -1323,3 +1323,110 @@ kontrolního součtu.
 **Dotyková obrazovka funguje.** Nezjištěno: nastavení firmwaru (viz výše) a
 jestli obraz při resetu dotyku blikne (uživatel se nevyjádřil; test probíhal
 podle pokynů na displeji). Více prstů najednou nezkoušeno.
+
+## 16. Restart a vypnutí z kernelu (2026-11-11)
+
+### 16.1 Jak to dělá původní kernel
+
+Firmware restart přes PSCI neumí (kap. 10, `PSCI reset returned`). Původní
+kernel má `CONFIG_EXYNOS_REBOOT=y` (`exynos9610_defconfig:543`), bez
+`SEC_REBOOT`; uzel `reboot { compatible = "exynos,reboot"; pmu_base =
+<0x11860000>; }` je v původním DT (`exynos9610.dtsi:3259`) i v živém DT
+telefonu. Vše v `drivers/soc/samsung/exynos-reboot.c`:
+
+| Akce | Registr PMU | Co se zapíše | Zdroj |
+|---|---|---|---|
+| restart | `0x400` SWRESET | `0x1` | `exynos_reboot()`, konec funkce |
+| vypnutí | `0x330c` PS_HOLD_CONTROL | vynulovat bit 8 (`& 0xFFFFFEFF`) | `exynos_power_off()` |
+| důvod restartu | `0x81c` SYSIP_DAT3 | `0x77665501` běžný, `0x77665500` bootloader, `0x77665502` recovery, `0x77665505` panika | `exynos_reboot()` |
+| režim restartu | `0x810` SYSIP_DAT0 | `0xFC` bootloader/fastboot, `0xFF` recovery, `0x0A` charge | `exynos_reboot()` |
+
+PS_HOLD_CONTROL na `0x330C` s bitem 8 potvrzuje i
+`cal-if/exynos9610/pmucal_system_exynos9610.h:60-61` (sekvence
+`pmucal_lpm_init` nastavuje bity 31 a 8).
+
+Co původní kernel dělá navíc a tady chybí:
+
+- Při startu zapíše do SYSIP_DAT3 `0x77665505`, aby neočekávaný reset vypadal
+  jako panika.
+- Před restartem, pokud je v `0x500` RESET_SEQUENCER_CONFIGURATION nastavený
+  bit 0 (výpis registrů při pádu), ho shazuje a upravuje `0x41c`, `0x414` a
+  registry velkých jader. Komentář v kódu říká, že bez toho může telefon po
+  resetu skončit ve fastbootu.
+- Před vypnutím čeká na puštění vypínače (jinak PMIC telefon hned zase zapne)
+  a volá ACPM (`exynos_acpm_reboot`).
+
+### 16.2 Mainline
+
+`syscon-reboot`, `syscon-poweroff` a `syscon-reboot-mode` jako potomci uzlu
+PMU; stejně to mají Exynos5433 (`offset = <0x400>`, SWRESET) a Exynos850
+(`PS_HOLD_CONTROL`, `mask = <0x100>`, `value = <0>`). Potomky vytváří ovladač
+`exynos-pmu`, který Exynos9610 neznal.
+
+Implementace (větev `troika-clk`, 3 commity, celkem 67 nad v7.3.3):
+
+| Commit | Co |
+|---|---|
+| `soc: samsung: exynos-pmu: Add Exynos9610` | compatible v ovladači (bez dat, jako Exynos850) |
+| `arm64: dts: exynos9610: Add reboot and poweroff` | `syscon-reboot` (0x400, bit 0 = 1), `syscon-poweroff` (0x330c, bit 8 = 0) |
+| `arm64: dts: exynos9610-troika: Add reboot modes` | `reboot-mode` nad SYSIP_DAT3: normal, bootloader, recovery |
+
+Uživatel zápisy povolil 2026-11-11 („Ano, všechny tři“): `0x11860400`,
+`0x1186330c`, `0x1186081c`. SYSIP_DAT0 a RESET_SEQUENCER_CONFIGURATION se
+nezapisují (souhlas na ně není a `syscon-reboot-mode` umí jen jeden registr).
+
+`dtbs_check` beze změny (jen známé `vdd33-supply`). Ovladače čtou registr před
+zápisem (`regmap_update_bits`); původní kernel SWRESET ani SYSIP_DAT3 nečte.
+
+Neověřeno před testem RB1: že bootloaderu stačí SYSIP_DAT3 bez SYSIP_DAT0, co
+udělá reset při nastaveném RESET_SEQUENCER_CONFIGURATION, a jestli vypnutí
+projde přes ukončení UFS (při restartu se poprvé volá vypínací cesta ovladače).
+
+### 16.3 Chyba při průzkumu: čtení PMU přes debugfs
+
+Při hledání, jak registry jen přečíst, jsem na telefonu běžícím z TS2 četl
+`/sys/kernel/debug/regmap/dummy-system-controller@…11860000/registers`. Ten
+soubor čte registry od nuly po řadě; na offsetu `0x8` přišel „synchronous
+external abort“ a kernel proces zabil (oops, jen čtení, nic se nezapsalo).
+Zámek regmapu PMU zůstal držený, takže ten běh kernelu už na PMU sahat
+nesmí; telefon je potřeba restartovat tlačítky. **Výpis PMU přes debugfs
+nepoužívat**; neimplementované offsety PMU na tomto SoC nejdou číst.
+Ladicí commit proto čte jen čtyři jmenované registry (`PMUDBG`), z pracovní
+fronty a po jednom.
+
+### 16.4 Test RB1 (2026-11-11) – stav před akcemi
+
+Log: `device-info/dmesg-mainline-RB1.txt` (stažen 9 s po startu, před
+stiskem tlačítek).
+
+| Registr PMU | Hodnota po bootloaderu |
+|---|---|
+| `0x500` RESET_SEQUENCER_CONFIGURATION | `0x00000000` – výpis po pádu není zapnutý, úklid z původního kernelu tedy není potřeba |
+| `0x330c` PS_HOLD_CONTROL | `0x80005300` – bit 31 (povolení) a bit 8 (držet napájení) nastavené |
+| `0x81c` SYSIP_DAT3 | `0x00000000` |
+| `0x810` SYSIP_DAT0 | `0x00000000` – bootloader oba registry po startu nuluje |
+
+Všechny tři ovladače se navázaly (`syscon-reboot`, `syscon-poweroff`,
+`syscon-reboot-mode`). Vedlejší hláška: `exynos-clkout: cannot match parent
+device` (−22) – buňku CLKOUT přidává ovladač PMU každému SoC a Exynos9610
+v jejím seznamu není; neškodné, stejné je to u Exynos850.
+
+### 16.5 Test RB1 – výsledky akcí (2026-11-11)
+
+Tři běhy image, akce z tlačítek testovacího initu; výsledek podle hlášení
+uživatele („restart do bootloaderu funguje, vypnutí funguje, klasický restart
+taky funguje“):
+
+| Akce | Co kernel zapsal | Výsledek |
+|---|---|---|
+| Vol+ – `reboot-arg bootloader` | SYSIP_DAT3 = `0x77665500`, SWRESET = 1 | telefon naběhl do fastbootu |
+| Power – `reboot -f` | SYSIP_DAT3 = `0x77665501`, SWRESET = 1 | běžný restart (po něm šlo `adb reboot bootloader`, tedy běžel LineageOS) |
+| Vol− – `poweroff -f` | PS_HOLD_CONTROL bit 8 = 0 | telefon se vypnul |
+
+Bootloaderu tedy stačí SYSIP_DAT3; SYSIP_DAT0, který původní kernel zapisuje
+navíc, není potřeba. Restart ani vypnutí se nezasekly na ukončení UFS.
+
+Neověřeno: režim `recovery` (0x77665502), chování vypnutí s kabelem
+a bez něj zvlášť (uživatel nerozlišil), restart z plného systému (systemd) –
+ten přijde na řadu s balíčkem.
+

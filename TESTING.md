@@ -836,6 +836,38 @@ Napiš mi, jestli se čísla objevují a jestli rohy sedí. Kabel nech zapojený
 log si stáhnu sám. Kdyby po bootu zhasl obraz, napiš to také – log přes USB
 půjde stáhnout i tak.
 
+## 5j. Test RB1: restart a vypnutí z kernelu
+
+Cíl: ověřit restart, restart do bootloaderu a vypnutí (FINDINGS.md kap. 16).
+Kernel při tom zapisuje do PMU jen to, co jsi povolil: `0x11860400` (SWRESET),
+`0x1186330c` (PS_HOLD_CONTROL, bit 8) a `0x1186081c` (důvod restartu).
+
+**RB1 (2026-11-11): prošel.** Restart do bootloaderu, obyčejný restart
+i vypnutí fungují (FINDINGS.md 16.4–16.5). Z testovacích image od RB1 výš se
+dá do fastbootu dostat přes telnet příkazem `reboot-arg bootloader`, bez
+držení tlačítek.
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-RB1.img
+```
+
+Na displeji hledej oddíl `--- RESTART A VYPNUTI ---` (čtyři řádky registrů,
+tři řádky „ovladac navazan“) a na konci nabídku:
+
+- **Vol+** – restart do bootloaderu. Očekávám menu fastbootu.
+- **Power** – obyčejný restart. Očekávám start LineageOS.
+- **Vol−** – vypnutí. Očekávám zhasnutí; se zapojeným kabelem se telefon
+  nejspíš sám zapne do nabíjecí obrazovky.
+
+Akce se provede po puštění tlačítka. Každá ukončí test, takže pro všechny tři
+je potřeba image spustit třikrát. Doporučené pořadí: **Vol+** (když vyjde,
+jsi rovnou ve fastbootu a můžeš image spustit znovu), pak **Power**, nakonec
+**Vol−**.
+
+Napiš mi ke každé akci, co telefon udělal. Když se místo restartu objeví
+`!! Prikaz se vratil` nebo výpis chyby kernelu, pošli fotku a ukonči to
+Power + Vol−.
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):
