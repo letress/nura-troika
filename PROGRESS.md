@@ -1035,6 +1035,7 @@ přes `troika-clk-test`). Nic není pushnuté. pmaports beze změny (kernel r4).
   spustil jako shellový skript a řádek `import socket, sys, time` zavolal
   program `import`, který ukládá snímek obrazovky. Necommitnuto; může
   obsahovat obsah obrazovky uživatele, smazání je na uživateli.
+  (Uživatel ho smazal tentýž večer.)
 
 ### 2026-11-11 ~21:20 – push ověřen; dohoda o sestavování balíčku
 
