@@ -1,8 +1,10 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: MAINLINE KERNEL NA TROICE BOOTUJE (test K, 2026-11-10 23:2x) – RAM, simplefb, tlačítka fungují
+## Stav: testy UFS1 a UFS2 prošly – kernel vidí vnitřní úložiště (jen pro čtení); UFS zatím není v balíčku pmaports
 
-Fáze 2 nezačala. Nic se nestavělo, neflashovalo, na telefon se nesahalo.
+USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
+ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
+pak kontrola boot image a netboot (TESTING.md kap. 5f). Nic se neflashovalo.
 
 ## Pravidla (platí pořád)
 
@@ -585,8 +587,11 @@ Známé slabiny návrhu:
 ## Repozitáře na GitHubu (2026-11-11, všechny soukromé)
 
 - `letress/nura-troika` – tento adresář: dokumenty, `tools/`, `test-initramfs/`,
-  `patches-src/`, `kernel-patches/` (export větve `troika-mainline`; po změně
-  kernelu znovu `git -C linux format-patch -o ../kernel-patches v7.3.3..troika-mainline`).
+  `patches-src/`, `kernel-patches/` (export větve `troika-clk`, 60 patchů: DT,
+  hodiny, USB, UFS; po změně kernelu smazat a znovu
+  `git -C linux format-patch -o ../kernel-patches v7.3.3..troika-clk`),
+  `kernel-patches-debug/` (3 ladicí commity větve `troika-clk-test`, jen pro
+  testovací image, ne pro balíček).
   Remote `origin`, větev `main`.
 - `letress/uniLoader-troika` – `uniLoader-src/`, větev `troika`, remote `letress`.
 - `letress/pmaports-troika` – `pmaports/`, větev `motorola-troika-mainline`, remote `letress`.
@@ -594,3 +599,440 @@ Známé slabiny návrhu:
 Nepushuje se (`.gitignore`): `device-info/` (identifikátory telefonu), `refs/`,
 `dl/`, `toolchain/`, `build/`, `out/`, strom `linux/` (jen jako patche).
 `~/troika-backup` je mimo projekt a na GitHub nepatří.
+
+### 2026-11-11 ~00:25 – opakovaný test P2: ÚSPĚCH
+
+`fastboot boot out/troika-test-P2.img` (uniLoader bez vloženého ramdisku, na
+`0x94000000`, kernel na `0x98000000`, initramfs jako ramdisk boot image, původní
+DTB ve „second“) → uniLoader → kernel → rámeček testu, tlačítka reagují.
+
+Fotka přišla jen vložená do chatu (na disku není), takže jsem ji nemohl zvětšit.
+Co z ní čtu:
+- jistě: rámeček testu je vidět, tedy **initramfs z boot image se načetl** – a
+  protože uniLoader v tomhle buildu má jen 4KiB zástupný ramdisk, znamená to, že
+  **převzetí `linux,initrd-start/end` z DTB bootloaderu funguje**;
+- `clk: Not disabling unused clocks` v logu kernelu → kernel dostal
+  `clk_ignore_unused`, tedy **převzetí bootargs funguje**;
+- `cmdline:` začíná `swiotlb=512 rootwait ro init=/init clk_ignore_unused …`
+  (bez `console=null` – filtr zabral) a v pátém řádku je
+  `… revision=0x46 fbcon=font:TER16x32 pmos_test=1 skip_initramfs root=PARTUUID=…`;
+- `console=tty0` z cmdline boot image tam **nevidím** – buď ho bootloader
+  odstraňuje (stejně jako si sám dosazuje `console=null`), nebo ho v malém obrázku
+  přehlížím. Neověřeno; konzole na displeji funguje i bez něj.
+- `kernel: 7.3.3-troika-gd6ace9a1fea0`, `soc_id: EXYNOS9610 rev 2`, `cpu: 8 online`,
+  `MemTotal` ≈ 3,77 GB, `fb: 1080,2520 32 bpp`, barvy správně, tlačítka 115/114/116.
+
+Stav balíčku: `pmaports` 10f8d94 obsahuje přesně tento kód uniLoaderu (větev
+`troika-pkg` = `troika` bez krokovací desky). Varianta bez pauzy je
+`out/troika-test-P.img` (přestavěná 00:18, na telefonu neběžela).
+
+Zbývá:
+1. Sestavit balíčky přes pmbootstrap (uživatel, sudo) a vyzkoušet image z
+   `pmbootstrap install` přes `fastboot boot` – teprve to ověří APKBUILD, deviceinfo
+   a mechanismus boot-deploy/mkinitfs.
+2. Ověřit, jestli bootloader z cmdline boot image opravdu maže `console=`.
+3. Dál: restart z kernelu, clocky, úložiště, USB.
+
+### 2026-11-11 00:35 – cmdline z testu P2 potvrzena ze zvětšené fotky
+
+Uživatel uložil původní fotku do `photos/20261111_002654.heic` (3000×4000; obsahuje
+sériové číslo a MAC adresy – nesdílet). Převedeno přes ffmpeg, čteno ze zvětšených
+výřezů prvních pěti řádků:
+
+```
+cmdline: swiotlb=512 rootwait ro init=/init clk_ignore_unused bcm_setup=0xffffff80f8e00000
+androidboot.hardware=exynos9610 androidboot.debug_level=0x4948
+firmware_class.path=/vendor/firmware ecd_setup=disable reserve-fimc=0xffffff80f9fe0000
+pmic_info=0x3 ccic_info=0x1 epx_activate=true revision=0x46 fbcon=font:TER16x32
+pmos_test=1 skip_initramfs root=PARTUUID=… androidboot.…
+```
+
+- **`pmos_test=1` tam je** → příkazová řádka z boot image se ke kernelu dostane.
+- **`console=tty0` tam není**, ačkoli v boot image bylo hned před `fbcon=…`.
+  Bootloader tedy z cmdline boot image argument `console=` odstraňuje. Konzole na
+  displeji funguje i tak (tty0 je výchozí).
+- Bootloader sám přidává `skip_initramfs root=PARTUUID=…` a řadu `androidboot.*`.
+
+### 2026-11-11 00:36–02:03 – první sestavení `linux-motorola-troika-mainline` přes pmbootstrap
+
+Uživatel spustil `pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64
+linux-motorola-troika-mainline`. Balíček **vznikl** (1 h 26 min):
+`~/.local/var/pmbootstrap/packages/edge/aarch64/linux-motorola-troika-mainline-7.3.3-r1.apk`
+(37,7 MB), index podepsán. Chyba na konci výpisu (`sudo losetup --json --list`)
+je jen úklid po sestavení: sudo čekalo 5 minut na heslo a vzdalo to. Na balíček
+nemá vliv; další příkaz pmbootstrapu si uklidí sám.
+
+Zkontrolováno v balíčku:
+
+- `usr/share/u-boot/motorola-troika/uniLoader` je tam (27 540 216 B = Image + ~78 kB),
+  obsahuje řetězce z patche pro převzetí initrd/bootargs. Krok s uniLoaderem
+  v APKBUILD tedy pod pmbootstrapem funguje.
+- `boot/dtbs/exynos/exynos9610-troika.dtb` je bajt po bajtu stejný jako ten z ručního
+  sestavení (ten, co prošel testy K a P2).
+- 932 modulů, `boot/vmlinuz` 27,5 MB.
+
+Nalezené chyby balíčku (moje, opraveno v pmaports commitu 745530f71, pkgrel 2):
+
+1. **V `makedepends` chyběl `pahole`.** Bez něj oldconfig v chrootu potichu vypnul
+   `DEBUG_INFO_BTF` a `DEBUG_INFO_BTF_MODULES` (proto je Image o 7 MB menší než
+   ručně sestavený). Sestavený r1 tak neodpovídá konfiguraci, která prochází
+   `pmbootstrap kconfig check`. Na boot to vliv nemá.
+2. **Konfigurace byla vygenerovaná gcc 16.2**, chroot má Alpine gcc 15.2 → oldconfig
+   se ptal na volby, které existují jen tam (`GCC_PLUGINS`, `RANDSTRUCT_*`,
+   `KSTACK_ERASE`, `DEBUG_INFO_COMPRESSED_ZSTD`) a bral výchozí odpovědi. Tyto
+   odpovědi jsou teď přímo v konfiguraci balíčku. `kconfig check` dál prochází.
+
+`tools/update-kernel-pkg.sh` už konfiguraci z `build/linux` nekopíruje sám
+(přepsal by ji verzí pro gcc 16.2); bere ji jen jako volitelný argument.
+
+Neověřeno: sestavení r2 (s pahole), `device-motorola-troika`, image z `pmbootstrap install`.
+
+### 2026-11-11 11:00–12:35 – kernel r2 a `device-motorola-troika` sestaveny
+
+- `linux-motorola-troika-mainline-7.3.3-r2.apk` (47,6 MB), 1 h 30 min. Mezipaměť
+  ccache nepomohla, můj odhad „výrazně rychleji“ byl špatně.
+  - oldconfig se už na nic neptal (0 dotazů v logu druhého běhu),
+  - `boot/config` v balíčku se shoduje s konfigurací v pmaports (BTF zapnuté,
+    `BTF [M]` u modulů v logu),
+  - `exynos9610-troika.dtb` je dál bajt po bajtu shodný s otestovaným,
+  - `vmlinuz` 34 478 592 B, uniLoader 34 556 664 B.
+- `device-motorola-troika-1-r1.apk` (30 kB), 2 minuty, skončilo `DONE!`.
+  Obsahuje `usr/share/deviceinfo/device-motorola-troika`, `etc/machine-info`
+  a `boot/dtbs/vendor/exynos9610-troika-vendor.dtb` (shodný s `second` ze zálohy).
+- Nastaveno `pmbootstrap config device motorola-troika` (dřív qemu-amd64), aby šel
+  spustit `pmbootstrap install`. Nic dalšího v konfiguraci jsem neměnil.
+
+Neověřeno: `pmbootstrap install`, `pmbootstrap export`, boot.img z balíčků na telefonu.
+
+
+### 2026-11-11 13:05–13:15 – `pmbootstrap install` a `export` prošly, připraven test PM
+
+- `install` (console UI, systemd) skončil `DONE!` za 7 minut; rootfs image
+  `motorola-troika.img` 1422 MB. `export` vytvořil odkazy v `/tmp/postmarketOS-export`.
+  Hláška „chroot not initialized! This is a bug!“ při `export` je chyba pmbootstrapu,
+  export i tak doběhl.
+- V logu mkinitfs: `initramfs: replace kernel with file …/uniLoader` a
+  `Installing: /boot/exynos9610-troika-vendor.dtb` → `deviceinfo_uboot_boardname`,
+  `deviceinfo_bootimg_override_payload` i `deviceinfo_bootimg_dtb_second` fungují
+  tak, jak jsem je vyčetl ze zdrojáků.
+- Rozbor `boot.img` (47 532 032 B, zkopírováno do `out/troika-test-PM.img`):
+  hlavička v1, stránka 2048, kernel @0x10008000 = uniLoader shodný s balíčkem r2
+  (sha256 14724dc5…), second = původní DTB (1e5671b9…, shodný s P2 a zálohou),
+  ramdisk 12 836 090 B zstd, cmdline
+  `console=tty0  pmos_boot_uuid=… pmos_root_uuid=… pmos_rootfsopts=defaults`.
+- Rozdíly proti P2: `os_version` = 0 (boot-deploy ho nenastavuje), chybí
+  `fbcon=font:TER16x32` (CONFIG_CMDLINE se použije jen při prázdných bootargs),
+  větší ramdisk (končí na 0x84c3e000, pod DTB bootloaderu na 0x8a000000).
+- Initramfs pmOS (mkinitfs 3.12.5): plymouth (`drm.so`, `frame-buffer.so`, téma
+  `pmos-spin`), po 30 s bez kořenového oddílu `root partition not found!` a
+  `fail_halt_boot` (smyčka). To je očekávaný konec, dokud není UFS/SD.
+
+### 2026-11-11 ~13:25 – test PM (`out/troika-test-PM.img`): ÚSPĚCH, initramfs pmOS běží
+
+`fastboot boot` → `Booting OKAY`. Bootloaderu tedy `os_version` = 0 v hlavičce nevadí.
+Fotka: `device-info/photos/test-PM-pmos-debug-shell.png` (čteno ze zvětšených výřezů;
+rozlišení 638×850, časové značky jsou čitelné jen přibližně).
+
+- `input: gpio-keys as /devices/platform/gpio-keys/input/input0`
+- `Freeing initrd memory: 12532K` → celý initramfs z boot image (12,8 MB) se načetl
+  přes převzetí `linux,initrd-*` v uniLoaderu.
+- `[pmOS-rd]: PMOS STAGE 1`, `initramfs version: 3.12.5-r0`, `PMOS STAGE 2`
+- `Trying to mount subpartitions for 10 seconds...` → `ERROR: failed to mount subpartitions!`
+- kolem 43. sekundy (po 30 s čekání na kořenový oddíl): `Creating logs disk`,
+  `Making logs available via mass storage`, `Couldn't write new UDC` (USB řadič
+  v mainline není), `Entering debug shell`, spuštěn `buffyboard`
+  (`input: buffyboard as /devices/virtual/input/input1`), `telnetd: bind: Address not available`.
+- Obrazovka debug shellu: `Device: Motorola One Action (motorola-troika)`,
+  `Kernel: 7.3.3-troika`, `OS ver: edge`, `initrd: 3.12.5-r0`, výzva `~ #`
+  a klávesnice buffyboard na displeji.
+
+Závěr: `deviceinfo`, balíček kernelu s uniLoaderem, mkinitfs i boot-deploy dávají
+dohromady image, který na telefonu bootuje. Konec v debug shellu je očekávaný
+(žádné úložiště). Klávesnice na displeji nejde použít – dotyková vrstva nemá
+v mainline DTS uzel ani napájení. Jestli se před debug shellem ukázala grafická
+obrazovka plymouth, nevím (uživatel popsal až konečný stav).
+
+## Fáze 4 – ovladač hodin (zahájeno 2026-11-11 ~13:30 na pokyn uživatele)
+
+### 2026-11-11 13:30–14:00 – větev `troika-clk`, kontrola a opravy v3
+
+- Patche v3 staženy z lore přes vestavěný prohlížeč do `refs/lore/clk-v3/{1..5}.mbox`.
+  `git am` 1–4 na `troika-mainline` bez konfliktu, 5/5 (MAINTAINERS) přeskočen.
+- Nový nástroj `tools/check-clk-driver.py` (porovnání s downstream cmucal). Na v3:
+  REG 0 skutečných, FIELD 3, DUP 6, PARENT 57, ORPHAN 54, NREGS 4, MISSING 16.
+  Po opravách zůstává jen to, co je v FINDINGS 11.3/11.4 vysvětleno.
+- 24 commitů oprav + `arm64: dts: exynos9610: Add clock controllers` (9 CMU: top,
+  apm, cmgp, core, cpucl0, peri, fsys, usb, dispaud; reg 0x10000). CAM/G2D/G3D
+  vynechány kvůli napájecím doménám. Podrobnosti a zdroje: FINDINGS.md kap. 11.
+- Kontroly: dtbs_check, dt_binding_check, W=1, checkpatch – viz FINDINGS 11.6.
+- Větev `troika-clk-test` = `troika-clk` + 1 ladicí commit (výpis registrů OPTION
+  před/po zápisu a stavu napájecích domén; jen čtení). Není pro balíček.
+- `build/linux` je teď sestavený z `troika-clk-test` (ne z `troika-mainline`).
+  Image v `out/` z dřívějška (K, P, P2, PM) zůstaly beze změny; `tools/make-test-bootimg.sh`
+  teď NESPOUŠTĚT bez přepnutí větve a přestavění, přepsal by je kernelem s hodinami.
+- `test-initramfs/init` vypisuje navíc sekci „HODINY“ (počet hodin, sirotci,
+  13 frekvencí, řádky CLKDBG), pokud kernel hodiny má.
+- `tools/make-clk-test-bootimg.sh` → `out/troika-test-CLK1.img` (uniLoader jako
+  v balíčku, původní DTB ve second, cmdline s `clk_ignore_unused`).
+
+Poznámka uživatele k testu PM: klávesnice na displeji nereaguje na dotyk. Očekávané –
+dotykový řadič nemá v mainline DTS uzel; potřebuje I2C (hodiny) a napájení
+(regulátory, které podle pravidel zatím nepovolujeme).
+
+### 2026-11-11 ~14:10 – test CLK1: ÚSPĚCH
+
+`fastboot boot out/troika-test-CLK1.img` → rámeček testu se sekcí HODINY.
+Hodnoty a jejich kontrola: FINDINGS.md 11.7. Stručně: 566 hodin, 0 sirotků;
+shared0 1599 MHz, shared1 1332,5 MHz; OPTION `0x30000000 -> 0x70000000` u všech
+devíti CMU; všech sedm napájecích domén zapnutých (`…f`). Displej, konzole
+i tlačítka fungují dál. Fotka: `device-info/photos/test-CLK1-clocks.png`
+(obsahuje cmdline se sériovým číslem a MAC – nesdílet).
+
+### 2026-11-11 ~14:30 – průzkum USB (na pokyn uživatele „USB pro SSH“)
+
+Jen čtení zdrojů, nic se nestavělo. Výsledek: FINDINGS.md kap. 12. Mainline má
+ovladač pro stejnou rodinu PHY (Exynos 850); pro 9610 chybí varianta se třemi
+rozdíly (bity v PMU, bity resetu, bez zápisu SSPPLLCTL), uzel PMU a uzly v DT.
+**Čeká na souhlas uživatele se zápisem do registru PMU 0x11860704** (bity 0, 1, 16).
+
+### 2026-11-11 ~14:35 – uživatel povolil zápis do PMU 0x11860704; USB implementováno
+
+- Souhlas: „Ano, povoluji“ na otázku, zda smím při zapínání USB PHY zapisovat do
+  registru PMU 0x11860704 (bity 0, 1, 16). Jiné zápisy do PMU povolené nejsou.
+- 7 commitů na `troika-clk` (FINDINGS.md 12.6). Kontroly: dtbs_check hlásí jen
+  chybějící `vdd33-supply` (záměrně), ostatní čisté.
+- `troika-clk-test` = `troika-clk` + 2 ladicí commity (CLKDBG, USBDBG – výpis PMU
+  0x704 před/po a registrů PHY před/po inicializaci).
+- `test-initramfs/init`: nová sekce USB (gadget NCM přes configfs, 172.16.42.1,
+  DHCP a telnet z binárek initramfs pmOS uložených v `dl/pmos-bits/`), cmdline se
+  vypisuje zkráceně (bez sériového čísla), podrobnosti hodin jen při `pmos_test=clk…`.
+- `tools/make-clk-test-bootimg.sh [JMÉNO]` → `out/troika-test-USB1.img`.
+
+### 2026-11-11 14:57 – test USB1: ÚSPĚCH
+
+Počítač vidí telefon jako síťové zařízení (cdc_ncm, 18d1:d001), DHCP přidělilo
+172.16.42.2, ping 3/3, shell přes telnet funguje. Stav gadgetu `configured`,
+`high-speed`. Registry před/po: FINDINGS.md 12.7. Log kernelu stažený po síti:
+`device-info/dmesg-mainline-USB1.txt` (obsahuje cmdline se sériovým číslem).
+Nový nástroj `tools/phone-sh.py '<příkaz>'` – spustí příkaz v shellu telefonu.
+
+### 2026-11-11 ~15:05 – hodiny a USB do balíčku, příprava netbootu (na pokyn „Ano, připrav to“)
+
+- `tools/update-kernel-pkg.sh` bere větev `troika-clk` (jde změnit přes `KBRANCH`)
+  a přepisuje i seznam patchů v `source=`. Ladicí commity z `troika-clk-test`
+  v balíčku nejsou.
+- pmaports commit 224302493: kernel pkgrel 3 (52 patchů), zařízení pkgrel 2
+  (`deviceinfo_kernel_cmdline="console=tty0 clk_ignore_unused"`).
+- Ověřeno: 52 patchů aplikováno přes `patch -p1` na čistý strom v7.3.3, výsledek
+  je bez rozdílu proti větvi `troika-clk`; `pmbootstrap kconfig check` prochází;
+  součty v APKBUILD odpovídají souborům. `pmbootstrap checksum --verify` jsem
+  spustit nemohl (chce sudo).
+- `pmbootstrap config extra_packages postmarketos-mkinitfs-hook-netboot`
+  (dřív `none`). Vrácení: `pmbootstrap config extra_packages none`.
+- Netboot dohledán: hook `main/postmarketos-mkinitfs-hook-netboot` (NBD na
+  172.16.42.2:9999), server `pmbootstrap netboot serve`. Firewall na počítači
+  (zóna FedoraWorkstation) porty nad 1024 pouští. Kernel má `BLK_DEV_NBD=m`.
+- Kvůli místu na disku (12 GB volných) jsem vyčistil objektové soubory v
+  `build/linux` (`make clean`, uvolnilo 4 GB, `.config` zůstal). Před dalším
+  místním testem je potřeba kernel znovu sestavit (~20 min). Image v `out/` zůstaly.
+
+### 2026-11-11 15:17–15:30 – kernel r3 sestaven přes pmbootstrap
+
+`linux-motorola-troika-mainline-7.3.3-r3.apk` (47,6 MB), sestavení 12 minut
+(tentokrát ccache zabrala). Chyba `sudo losetup` na konci je zase jen úklid
+(vypršelo čekání na heslo). Zkontrolováno: konfigurace v balíčku = konfigurace
+v pmaports, žádné dotazy oldconfigu, DTB má uzly CMU, PMU, USB PHY a dwc3,
+uniLoader obsahuje kernel s ovladači hodin a USB a žádné ladicí výpisy,
+`nbd.ko` je v balíčku. Zbývá: `device-motorola-troika` r2, `install`, `export`.
+
+### 2026-11-11 16:15–17:25 – zařízení r2, install, export; připraven NET1
+
+`device-motorola-troika-1-r2.apk` sestaven (16:15), `pmbootstrap install` doběhl
+(17:19, `DONE!`), `pmbootstrap export` také (17:23; hláška „chroot not
+initialized! This is a bug!“ je vada pmbootstrapu, chroot si připojil sám).
+
+Kontrola `/tmp/postmarketOS-export/boot.img` (uloženo jako
+`out/troika-test-NET1.img`, sha256 začíná `31fb237f`):
+
+- hlavička v1, os_version 0, stránka 2048; „kernel“ = uniLoader, bajt po bajtu
+  stejný jako v balíčku r3; „second“ = původní DTB z balíčku zařízení;
+- cmdline `console=tty0 clk_ignore_unused` + `pmos_boot_uuid`, `pmos_root_uuid`,
+  `pmos_rootfsopts`;
+- kernel 7.3.3-troika #4 (Alpine gcc 15.2), bez ladicích výpisů CLKDBG/USBDBG;
+- initramfs obsahuje `hooks/netboot.sh`, `nbd.ko.zst`, `unudhcpd`, busybox
+  (nbd-client je applet busyboxu); konfigurace má `USB_CONFIGFS_NCM=y`,
+  `USB_DWC3_EXYNOS=y`, `PHY_EXYNOS5_USBDRD=y`, `BLK_DEV_NBD=m`.
+
+`images_netboot/` je prázdný, takže `netboot serve` si zkopíruje čerstvý obraz
+(1,4 GB; volných 16 GB). Zbývá na uživateli: TESTING.md 5f kroky 3–5.
+
+### 2026-11-11 17:40–17:52 – test NET1 prošel (netboot + SSH)
+
+Průběh: `fastboot boot out/troika-test-NET1.img` (OKAY) → telefon v initramfs
+čekal na NBD (ping na 172.16.42.1 šel, port 22 odmítal, počítač dostal
+172.16.42.2) → `pmbootstrap netboot serve` spuštěn až potom (17:49 „Found
+postmarketOS device, serving image...“) → `ssh user@172.16.42.1` se přihlásil,
+uvítání „Welcome to Nura!“.
+
+Co to dokládá:
+
+- boot image z `pmbootstrap install/export` (kernel r3 s hodinami a USB,
+  zařízení r2) bootuje a USB síť funguje i z balíčkového kernelu (Alpine gcc);
+- netboot hook funguje: kořenový systém připojený přes NBD po USB;
+- USB síť přežije přechod z initramfs do plného systému se systemd, sshd běží;
+- nic se nezapsalo na úložiště telefonu.
+
+Nezjištěno: stav služeb v běžícím systému (`systemctl --failed`), dmesg z
+tohoto bootu, chování po vytažení kabelu (kořenový systém na něm visí).
+Server se na sudo heslo zeptal jen jednou.
+
+### 2026-11-11 18:0x – kontrola běžícího systému (NET1)
+
+Výpis přes SSH (heslo zadal uživatel) → `device-info/net1-status.txt`;
+vyhodnocení ve FINDINGS.md kap. 13. Shrnutí: systém `degraded` jen kvůli
+`postmarketos-zram-swap.service` (v konfiguraci kernelu chybí `CONFIG_ZRAM`);
+varování kernelu jsou stejná jako v USB1; žádná chyba ovladačů hodin ani USB.
+Návrh dalšího kroku: `CONFIG_ZRAM=m` do balíčku (pkgrel 4) – čeká na rozhodnutí.
+
+Poznámka: uživatel omylem spustil druhý `netboot serve`; ten se jen opakovaně
+nepřipojí na obsazený port, první server a telefon to neovlivnilo.
+
+### 2026-11-11 – zram do balíčku kernelu (pkgrel 4)
+
+Uživatel: „Ano, přidej zram“. pmaports commit cfcf09c10 (jen místně):
+`CONFIG_ZRAM=y`, `ZSMALLOC=y` a šest kompresních backendů podle kategorie
+`zram` v `kconfigcheck.toml` (služba pmOS používá zstd). Změny v konfiguraci
+jsem spočítal jako rozdíl dvou `olddefconfig` (s volbami a bez) a přenesl do
+konfigurace balíčku, aby zůstaly odpovědi pro Alpine gcc 15; vedlejší změny:
+`842_COMPRESS/DECOMPRESS=y`, `LZ4HC_COMPRESS=y`, `ZSTD_COMPRESS` m→y.
+Ověřeno: `pmbootstrap kconfig check --categories zram` prochází, součty
+v APKBUILD sedí. Nesestaveno, na telefonu nezkoušeno.
+
+Zbývá na uživateli: TESTING.md kap. 5g (test NET2).
+
+### 2026-11-11 18:02–19:37 – kernel r4 sestaven, install, export; připraven NET2
+
+`linux-motorola-troika-mainline-7.3.3-r4.apk` (47,8 MB), sestavení 1 h 30 min,
+skončilo `DONE!`. `install` (19:35) a `export` (19:36) doběhly.
+
+Kontrola boot image (uloženo jako `out/troika-test-NET2.img`): hlavička v1,
+os_version 0; uniLoader = balíček r4 (bajt po bajtu); „second“ = stejný původní
+DTB jako u NET1; cmdline `console=tty0 clk_ignore_unused` + nová UUID; kernel
+7.3.3-troika #5, bez ladicích výpisů, obsahuje ovladač zram; konfigurace
+v balíčku = konfigurace v pmaports (`ZRAM=y`, `ZSMALLOC=y`, `ZRAM_BACKEND_ZSTD=y`);
+initramfs má `netboot.sh` a `nbd.ko`.
+
+Zbývá na uživateli: TESTING.md 5g kroky 3–4 (`netboot serve --replace`,
+`fastboot boot`, ssh) a pak kontrola `systemctl --failed`.
+
+### 2026-11-11 19:39–19:50 – test NET2 prošel (zram)
+
+`netboot serve --replace` (19:37), `fastboot boot out/troika-test-NET2.img`
+(OKAY), server 19:39 „Found postmarketOS device“. Výpis přes SSH (heslo zadal
+uživatel) → `device-info/net2-status.txt`:
+
+- kernel `7.3.3-troika #5-postmarketOS`; `systemctl is-system-running` = `running`,
+  0 spadlých služeb;
+- `/dev/zram0` zstd 5,4 GB jako swap (150 % RAM), priorita 300;
+- start 6,8 s kernel + 8,9 s userspace (server tentokrát běžel předem);
+- varování kernelu beze změny proti NET1 (FINDINGS.md kap. 13).
+
+pmaports commity 745530f71, 224302493, cfcf09c10 jsou pořád jen místně.
+
+### 2026-11-11 – průzkum úložiště (UFS, SD)
+
+Uživatel: „Úložiště UFS/SD“. Jen průzkum, výsledky ve FINDINGS.md kap. 14.
+UFS je proveditelné bez regulátorů (VCC drží bootloader), ale chce zápis do
+PMU 0x11860724 (izolace PHY) – **čeká na souhlas uživatele** – a port ovladače
+(tabulka PHY + varianta v ufs-exynos.c). SD karta potřebuje regulátory PMIC
+S2MPU09 přes SPEEDY, pro které mainline nemá ovladač → odloženo.
+V kernelu ani pmaports se nic nezměnilo.
+
+### 2026-11-11 – souhlas se zápisem do PMU pro UFS
+
+Uživatel: „Ano, povoluji“ na otázku „Povoluješ zápis do PMU 0x11860724 (bit 0,
+izolace UFS PHY), jak to dělá původní kernel?“. Platí jen pro tento registr a
+bit. Začíná port ovladače UFS (větev `troika-clk`), test UFS1 poběží
+s testovacím initramfs a diskem jen pro čtení.
+
+### 2026-11-11 večer – port ovladače UFS (větev `troika-clk`, +10 commitů, celkem 62 nad v7.3.3)
+
+Viz FINDINGS.md 14.5 (seznam commitů, mapování na původní kernel, odchylky).
+Stručně: nová tabulka PHY `phy-exynos9610-ufs.c`, varianta hosta
+`exynos9610_ufs_drvs` v `ufs-exynos.c`, tři menší obecné úpravy (linky před
+háčkem, `lanes-per-direction`, volitelné `PA_TxTrailingClocks`), obecná úprava
+PHY pro méně aktivních linek, uzly v DT, na desce 1 linka.
+
+- `troika-clk-test` = `troika-clk` + 3 DEBUG commity (CLKDBG, USBDBG, nově
+  UFSDBG: stav po bootloaderu, PMU 0x724 před/po, PMA, atributy UniPro).
+- checkpatch: jen očekávané (chybí Signed-off-by, Co-Authored-By) a dvě
+  zarovnání v přesunutém původním kódu.
+- Testovací init: nový oddíl `--- UFS ---`, disky se hned přepínají na jen
+  pro čtení; USBDBG se vypisuje už jen v testech USB. `make-clk-test-bootimg.sh`
+  přidává `scsi_mod.scan=sync`.
+- Otevřené: perioda hodin (3 podle původního kernelu vs. 7/8 podle skutečných
+  hodin UniPro) – rozhodne výpis z testu UFS1.
+- V balíčku pmaports UFS zatím není (až po úspěšném testu).
+
+### 2026-11-11 20:17–20:30 – kernel s UFS sestaven, image UFS1 připraven
+
+- První sestavení spadlo na mé chybě v ladicím commitu (funkce použité před
+  definicí); doplněny dopředné deklarace, druhé sestavení bez chyb a bez
+  varování z nových souborů.
+- `dtbs_check` pro troiku: jen známé `vdd33-supply` u USB; uzly UFS, PHY
+  a sysreg procházejí. `dt_binding_check` obou upravených bindingů prochází.
+- `tools/make-clk-test-bootimg.sh UFS1` → `out/troika-test-UFS1.img`
+  (35 850 240 B). Zkontrolováno: hlavička v1, původní DTB ve „second“, cmdline
+  `… clk_ignore_unused scsi_mod.scan=sync pmos_test=ufs1`, kernel obsahuje
+  ovladač UFS pro 9610 a výpisy UFSDBG, init má oddíl UFS s `blockdev --setro`;
+  v DTB je `ufs@13520000` (okay, 1 linka), `phy@13524000`, sysreg FSYS.
+- Na telefonu nezkoušeno. Zbývá na uživateli: TESTING.md 5h.
+
+### 2026-11-11 20:35–20:50 – test UFS1 prošel, úklid větve, image UFS2
+
+`fastboot boot out/troika-test-UFS1.img` (OKAY). Výsledky ve FINDINGS.md 14.6:
+Micron 128 GB, `FAST series_B G_3 L_1`, 42 oddílů, hashe čtyř oddílů shodné se
+zálohou, čtení 454 MB/s, vše `ro=1`, nic připojeno. Uživatel poslal i fotku
+displeje, souhlasí s logem.
+
+Úklid `troika-clk` (teď 60 commitů nad v7.3.3, UFS = posledních 8):
+- zahozeny `phy: … fewer lanes` a `ufs: exynos: Honour lanes-per-direction`
+  a tabulka pro nepoužitou linku (řadič má jen jednu linku);
+- `lanes-per-direction = <1>` přesunuto do dtsi;
+- nová volba `EXYNOS_UFS_OPT_NO_SYNC_PATTERN_MASK` pro 9610 (odstraní tři
+  neúspěšné `dme-set`).
+`troika-clk-test` přestavěna nad tím (3 DEBUG commity). Kernel sestaven bez
+chyb, `dtbs_check` beze změny. `out/troika-test-UFS2.img` připraven –
+**na telefonu nezkoušeno**.
+
+UFS zatím není v balíčku pmaports. Zápis na úložiště telefonu (instalace
+systému) by byl proti pravidlu „nikdy neflashovat“ a nenavrhuju ho.
+
+### 2026-11-11 ~21:00 – test UFS2 prošel (uklizený kód)
+
+`fastboot boot out/troika-test-UFS2.img`, log v
+`device-info/dmesg-mainline-UFS2.txt`. Stejný výsledek jako UFS1: `FAST
+series_B G_3 L_1`, `sda` 42 oddílů + `sdb`, `sdc`, vše `ro=1`, nic připojeno,
+hashe `boot_a`/`dtbo_a`/`vbmeta_a`/`logo_a` shodné se zálohou, čtení 440 MB/s.
+Žádné `dme-set … failed`, žádná chyba v logu. Hláška o záložní GPT trvá
+(stav úložiště).
+
+Stav větví kernelu: `troika-clk` 60 commitů nad v7.3.3 (ověřeno na telefonu
+přes `troika-clk-test`). Nic není pushnuté. pmaports beze změny (kernel r4).
+
+### 2026-11-11 ~21:15 – commit a push (na pokyn uživatele „Commit a push“)
+
+- `letress/nura-troika` (`origin/main`): dokumentace, nástroje, testovací
+  init, `kernel-patches/` nově z větve `troika-clk` (60 patchů),
+  `kernel-patches-debug/` (3).
+- `letress/pmaports-troika` (`letress/motorola-troika-mainline`): tři místní
+  commity (pahole + konfigurace, hodiny + USB r3, zram r4). UFS v balíčku není.
+- `letress/uniLoader-troika`: beze změny.
+- Strom `linux/` se nepushuje (jen jako patche), `device-info/`, `photos/`,
+  `out/`, `build/` také ne.
+- V kořeni projektu leží nesledovaný soubor `time` (35 MB, PostScript
+  z ImageMagicku, 15:01). Vznikl, když se `tools/phone-sh.py` bez shebangu
+  spustil jako shellový skript a řádek `import socket, sys, time` zavolal
+  program `import`, který ukládá snímek obrazovky. Necommitnuto; může
+  obsahovat obsah obrazovky uživatele, smazání je na uživateli.
+

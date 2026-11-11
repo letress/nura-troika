@@ -24,11 +24,118 @@ echo "soc_id:  $(cat /sys/devices/soc0/soc_id 2>/dev/null)  rev $(cat /sys/devic
 echo "cpu:     $(grep -c ^processor /proc/cpuinfo) online"
 echo "$(grep MemTotal /proc/meminfo)"
 echo "fb:      $(cat /sys/class/graphics/fb0/virtual_size 2>/dev/null) $(cat /sys/class/graphics/fb0/bits_per_pixel 2>/dev/null) bpp"
-echo "cmdline: $(cat /proc/cmdline)"
+# Cela prikazova radka ma pres 1000 znaku a je v ni seriove cislo a MAC adresy;
+# staci zacatek a nase znacka testu.
+echo "cmdline: $(cut -c1-120 /proc/cmdline)..."
+test_tag=$(tr ' ' '\n' < /proc/cmdline | sed -n 's/^pmos_test=//p')
+echo "test:    $test_tag"
 echo
 echo "Barevny test (ma byt CERVENA ZELENA MODRA):"
 printf '\033[41m   CERVENA   \033[42m   ZELENA   \033[44m   MODRA   \033[0m\n'
 echo
+# Hodiny: jen kdyz kernel ma ovladac CMU (vetev troika-clk). Pocet hodin,
+# sirotci (hodiny bez dohledatelneho rodice), vybrane frekvence a ladici
+# radky kernelu "CLKDBG" (registry option a stav napajecich domen).
+mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
+s=/sys/kernel/debug/clk/clk_summary
+o=/sys/kernel/debug/clk/clk_orphan_summary
+if [ "$(awk 'NR > 3 && NF > 4' $s 2>/dev/null | wc -l)" -gt 1 ]; then
+	echo "--- HODINY ---"
+	echo "hodin: $(awk 'NR > 3 && NF > 4' $s | wc -l)  sirotku: $(awk 'NR > 3 && NF > 4' $o | wc -l)"
+	awk 'NR > 3 && NF > 4 { printf "%s ", $1 }' $o | cut -c1-200
+	echo
+fi
+# Podrobnosti o hodinach jen v testech hodin (pmos_test=clk...), jinak se
+# vysledek testu nevejde na displej.
+if [ -r $s ] && [ "${test_tag#clk}" != "$test_tag" ]; then
+	for c in fout_shared0_pll fout_shared1_pll fout_mmc_pll fout_cpucl0_pll \
+		fout_aud_pll dout_cmu_fsys_bus dout_cmu_fsys_ufs_embd \
+		gout_fsys_ufs_embd_clk_unipro dout_cmu_fsys_mmc_card dout_cmu_usb_bus \
+		dout_cmu_usb_usb30drd dout_cmu_peri_uart dout_cmu_dispaud_disp; do
+		awk -v c="$c" '$1 == c { printf " %-30s %s\n", $1, $5 }' $s
+	done
+	dmesg | sed -n 's/^.*CLKDBG //p'
+	echo
+fi
+
+# UFS: nic se nepripojuje a nic se nezapisuje. Kazdy disk se hned po nalezeni
+# prepne na "jen pro cteni" (plati i pro jeho oddily). Hledani disku bezi
+# v kernelu na pozadi, proto se na ne chvili ceka.
+ufs_host=$(ls -d /sys/bus/platform/drivers/exynos-ufshc/*.ufs 2>/dev/null | head -n 1)
+if [ -n "$ufs_host" ] || [ "${test_tag#ufs}" != "$test_tag" ]; then
+	echo "--- UFS ---"
+	i=0
+	while [ $i -lt 15 ] && ! ls /sys/block/sd* > /dev/null 2>&1; do
+		sleep 1
+		i=$((i + 1))
+	done
+	[ $i -gt 0 ] && sleep 2
+	for d in /sys/block/sd*; do
+		[ -e "$d" ] || continue
+		n=${d##*/}
+		blockdev --setro /dev/$n
+		echo "$n: $(cat $d/device/vendor) $(cat $d/device/model) $(($(cat $d/size) / 2048)) MiB ro=$(cat $d/ro) oddilu=$(ls -d $d/$n[0-9]* 2> /dev/null | wc -l)"
+	done
+	if ! ls /sys/block/sd* > /dev/null 2>&1; then
+		echo "!! Zadny disk. Ovladac: ${ufs_host:-nenavazan}"
+	fi
+	dmesg | grep -E "ufshc|ufs-phy|ufshcd|scsi " | grep -v UFSDBG | tail -n 7 | cut -c1-110
+	echo
+fi
+
+# USB: kdyz kernel nabidne radic (UDC), zapni sitovy gadget NCM se stejnymi ID
+# jako initramfs pmOS, nastav adresu 172.16.42.1 a spust DHCP a telnet
+# (binarky z initramfs pmOS, pokud jsou pribalene).
+udc=$(ls /sys/class/udc 2>/dev/null | head -n 1)
+if [ -n "$udc" ]; then
+	echo "--- USB ---"
+	# Ladici radky USB jen v testech USB, jinak zabiraji misto na displeji.
+	[ "${test_tag#usb}" != "$test_tag" ] && dmesg | sed -n 's/^.*USBDBG //p'
+	mount -t configfs configfs /sys/kernel/config
+	g=/sys/kernel/config/usb_gadget/g1
+	mkdir -p $g/strings/0x409 $g/configs/c.1/strings/0x409 $g/functions/ncm.usb0
+	echo 0x18d1 > $g/idVendor
+	echo 0xd001 > $g/idProduct
+	echo Motorola > $g/strings/0x409/manufacturer
+	echo "troika mainline test" > $g/strings/0x409/product
+	echo troika > $g/strings/0x409/serialnumber
+	echo NCM > $g/configs/c.1/strings/0x409/configuration
+	ln -s $g/functions/ncm.usb0 $g/configs/c.1/
+	if echo "$udc" > $g/UDC; then
+		echo "gadget NCM zapnut na $udc"
+	else
+		echo "!! gadget se nepodarilo zapnout"
+	fi
+	ifconfig usb0 172.16.42.1 netmask 255.255.255.0 up
+	mkdir -p /dev/pts
+	mount -t devpts devpts /dev/pts
+	if [ -x /usr/bin/unudhcpd ]; then
+		unudhcpd -i usb0 -s 172.16.42.1 -c 172.16.42.2 > /dev/null 2>&1 &
+	fi
+	if [ -x /usr/bin/busybox-extras ]; then
+		busybox-extras telnetd -b 172.16.42.1:23 -l /bin/sh
+		echo "Na pocitaci zkus: ping 172.16.42.1 a telnet 172.16.42.1"
+	fi
+	# Stav spojeni: "not attached" = pocitac nas nevidi, "configured" = funguje.
+	(
+		last=
+		while true; do
+			st=$(cat /sys/class/udc/$udc/state 2>/dev/null)
+			[ "$st" != "$last" ] && echo "USB stav: $st"
+			last=$st
+			sleep 1
+		done
+	) &
+	sleep 3
+	echo
+elif [ "${test_tag#usb}" != "$test_tag" ]; then
+	echo "--- USB ---"
+	echo "!! Zadny USB radic (UDC). Hlasky kernelu:"
+	dmesg | sed -n 's/^.*USBDBG //p'
+	dmesg | grep -i -E "dwc3|usbdrd|13200000|131d0000" | tail -n 8
+	echo
+fi
+
 echo "Vstupni zarizeni:"
 grep -E '^N: Name|^H: Handlers' /proc/bus/input/devices 2>/dev/null
 echo

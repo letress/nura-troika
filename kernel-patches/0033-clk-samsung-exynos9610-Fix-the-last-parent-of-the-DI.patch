@@ -1,0 +1,33 @@
+From 53a6412086cc712d53c85fafe1247a21e4802bba Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:43:30 +0100
+Subject: [PATCH 33/60] clk: samsung: exynos9610: Fix the last parent of the
+ DISPAUD display mux
+
+mout_cmu_dispaud_disp lists "dout_cmu_shared0_div4" twice. In the vendor
+kernel's clock tables
+(drivers/soc/samsung/cal-if/exynos9610/cmucal-node.c and cmucal-sfr.c)
+the inputs of MUX_CLKCMU_DISPAUD_DISP are PLL_SHARED0_DIV3,
+PLL_SHARED1_DIV3, PLL_SHARED0_DIV4 and PLL_SHARED1_DIV4.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index 06c0ac3..a7f9452 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -392,7 +392,7 @@ PNAME(mout_cmu_dispaud_cpu_p)	= { "fout_shared1_pll",
+ PNAME(mout_cmu_dispaud_disp_p)	= { "dout_cmu_shared0_div3",
+ 				    "dout_cmu_shared1_div3",
+ 				    "dout_cmu_shared0_div4",
+-				    "dout_cmu_shared0_div4" };
++				    "dout_cmu_shared1_div4" };
+ PNAME(mout_cmu_fsys_bus_p)	= { "dout_cmu_shared0_div2",
+ 				    "dout_cmu_shared1_div2" };
+ PNAME(mout_cmu_fsys_mmc_card_p)	= { "oscclk",
+-- 
+2.56.0
+

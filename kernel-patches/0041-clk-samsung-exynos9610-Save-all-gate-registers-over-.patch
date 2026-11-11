@@ -1,0 +1,49 @@
+From 86226eaa2e90b6ff0d8d46dbfc62f1895f0d5408 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:43:32 +0100
+Subject: [PATCH 41/60] clk: samsung: exynos9610: Save all gate registers over
+ suspend
+
+Four gate registers that have a clock registered on them are missing
+from the lists of registers saved and restored over suspend:
+
+- CMU_CAM: PGEN_LITE_CAM1 PCLK and LHS_ACEL_D
+- CMU_FSYS: MMC_CARD and MMC_EMBD SDCLKIN
+
+The same lists decide which gates are put into manual mode when a CMU
+is registered without automatic clock gating, so these four would have
+been left out there as well.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index 82fbb3a..e3054b2 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -1703,8 +1703,10 @@ static const unsigned long cam_clk_regs[] __initconst = {
+ 	CLK_CON_GAT_GOUT_CAM_IS6P10P0_ACLK_SMMU_CAM,
+ 	CLK_CON_GAT_GOUT_CAM_IS6P10P0_ACLK_XIU_D_CAM,
+ 	CLK_CON_GAT_GOUT_CAM_IS6P10P0_PCLK_PGEN_LITE_CAM0,
++	CLK_CON_GAT_GOUT_CAM_IS6P10P0_PCLK_PGEN_LITE_CAM1,
+ 	CLK_CON_GAT_GOUT_CAM_IS6P10P0_PCLK_PPMU_CAM,
+ 	CLK_CON_GAT_GOUT_CAM_LHM_AXI_P_CLK,
++	CLK_CON_GAT_GOUT_CAM_LHS_ACEL_D_CLK,
+ 	CLK_CON_GAT_GOUT_CAM_LHS_ATB_CAMISP_CLK,
+ 	CLK_CON_GAT_GOUT_CAM_BUSD_CLK,
+ 	CLK_CON_GAT_GOUT_CAM_BUSP_CLK,
+@@ -3149,7 +3151,9 @@ static const unsigned long fsys_clk_regs[] __initconst = {
+ 	CLK_CON_GAT_GOUT_FSYS_LHM_AXI_P_CLK,
+ 	CLK_CON_GAT_GOUT_FSYS_LHS_ACEL_D_CLK,
+ 	CLK_CON_GAT_GOUT_FSYS_MMC_CARD_ACLK,
++	CLK_CON_GAT_GOUT_FSYS_MMC_CARD_SDCLKIN,
+ 	CLK_CON_GAT_GOUT_FSYS_MMC_EMBD_ACLK,
++	CLK_CON_GAT_GOUT_FSYS_MMC_EMBD_SDCLKIN,
+ 	CLK_CON_GAT_GOUT_FSYS_PGEN_LITE_CLK,
+ 	CLK_CON_GAT_GOUT_FSYS_PPMU_ACLK,
+ 	CLK_CON_GAT_GOUT_FSYS_PPMU_PCLK,
+-- 
+2.56.0
+

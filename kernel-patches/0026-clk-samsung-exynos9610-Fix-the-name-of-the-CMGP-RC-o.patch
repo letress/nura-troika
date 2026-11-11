@@ -1,0 +1,41 @@
+From adc2221ca213f35e49e30b77e9af51c083229ea5 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:43:28 +0100
+Subject: [PATCH 26/60] clk: samsung: exynos9610: Fix the name of the CMGP RC
+ oscillator parent
+
+CMU_TOP registers the 30 MHz RC oscillator of the CMGP block as
+"oscclk_rco_cmgp", but the CMGP muxes and the oscclk_rco gate look for
+"oscclk_rco". No clock of that name exists, so the first input of the
+I2C and USI muxes cannot be resolved and the gate is an orphan.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index 4c033d0..c19df3a 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -1923,7 +1923,7 @@ static const unsigned long cmgp_clk_regs[] __initconst = {
+ };
+ 
+ PNAME(mout_clk_cmgp_adc_p)	= { "oscclk", "dout_clk_cmgp_adc" };
+-PNAME(mout_clk_cmgp_bus_user_p)	= { "oscclk_rco",
++PNAME(mout_clk_cmgp_bus_user_p)	= { "oscclk_rco_cmgp",
+ 				    "gout_cmu_cmgp_bus" };
+ 
+ static const struct samsung_mux_clock cmgp_mux_clks[] __initconst = {
+@@ -1964,7 +1964,7 @@ static const struct samsung_gate_clock cmgp_gate_clks[] __initconst = {
+ 	GATE(CLK_GOUT_CMGP_CMU_PCLK, "gout_cmgp_cmu_pclk", "gout_cmu_cmgp_bus",
+ 	     CLK_CON_GAT_CMGP_CMU_PCLK, 21, 0, 0),
+ 	GATE(CLK_GOUT_CLK_CMGP_OSCCLK_RCO_CLK, "gout_clk_cmgp_oscclk_rco_clk",
+-	     "oscclk_rco", CLK_CON_GAT_CLK_CMGP_OSCCLK_RCO_CLK, 21, 0, 0),
++	     "oscclk_rco_cmgp", CLK_CON_GAT_CLK_CMGP_OSCCLK_RCO_CLK, 21, 0, 0),
+ 	GATE(CLK_GOUT_CMGP_ADC_PCLK_S0, "gout_clk_cmgp_adc_pclk_s0",
+ 	     "gout_cmu_cmgp_bus", CLK_CON_GAT_GOUT_CMGP_ADC_PCLK_S0,
+ 	     21, 0, 0),
+-- 
+2.56.0
+

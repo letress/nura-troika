@@ -1,7 +1,7 @@
 From a4f534419ec612a60f7785c811e19eee377f06c7 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:39:07 +0100
-Subject: [PATCH 16/17] dt-bindings: arm: samsung: Document Motorola One Action
+Subject: [PATCH 16/60] dt-bindings: arm: samsung: Document Motorola One Action
  (troika)
 
 Motorola One Action (XT2013, codename troika) is a phone based on the
@@ -27,3 +27,6 @@ index 4564283..aae51d4 100644
                - samsung,gta4xl                  # Samsung Galaxy Tab S6 Lite (SM-P610/P615)
            - const: samsung,exynos9610
  
+-- 
+2.56.0
+

@@ -1,5 +1,9 @@
 # TESTING – první boot mainline kernelu na troice
 
+> **Stav 2026-11-11: prošel i test P2 (kap. 5b)** – image poskládaný tak, jak ho má
+> vyrábět balíček (uniLoader bez vloženého ramdisku, initramfs a příkazová řádka
+> v boot image, původní DTB ve „second“).
+>
 > **Stav 2026-11-10 večer: test K (kap. 4f) prošel.** Mainline kernel na troice
 > nabootoval do testovacího initramfs: RAM, 8 CPU, konzole na displeji a všechna
 > tři tlačítka fungují. Úvodní odstavec níže („nic ještě neběželo“) a kap. 4a–4e
@@ -442,6 +446,351 @@ buď `inherited linux,initrd-start` atd., nebo varování. Pak kernel:
 Příkazová řádka v rámečku obsahuje sériové číslo a MAC adresy; při posílání
 fotky tu část ořízni.
 
+## 5c. Test PM: boot image z balíčků (`pmbootstrap install`)
+
+`out/troika-test-PM.img` je kopie `/tmp/postmarketOS-export/boot.img` z 2026-11-11
+13:14 (sha256 začíná `556aae996ccec75c`). Nic se neflashuje.
+
+Co jsem na něm ověřil rozborem (bez telefonu):
+
+- hlavička v1, stránka 2048, stejné adresy jako P2;
+- „kernel“ je uniLoader bajt po bajtu shodný s tím v balíčku kernelu r2;
+- „second“ je původní DTB, shodný s P2 i se zálohou;
+- ramdisk je initramfs pmOS (12,8 MB, zstd; kernel má `RD_ZSTD`).
+
+Čím se liší od P2 (a co proto může dopadnout jinak):
+
+- `os_version` v hlavičce je 0 (P2 mělo 15.0.0 / 2025-04). Jestli to bootloaderu
+  vadí, nevím; projevilo by se to jako `Booting FAILED` v terminálu.
+- cmdline nemá `fbcon=font:TER16x32`, takže text kernelu bude drobný.
+- initramfs je 20× větší než testovací.
+
+```bash
+adb reboot bootloader
+```
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-PM.img
+```
+
+Co čekat na displeji, když vše funguje:
+
+1. logo bootloaderu, pak výpis uniLoaderu (bez 20s pauzy, takže krátce);
+2. drobný text kernelu;
+3. úvodní obrazovka pmOS (plymouth) s nápisem „Loading“, pak
+   „Waiting for root partition“ asi 30 s;
+4. chybová zpráva „root partition not found!“ a dál se nic neděje.
+
+Bod 4 je **očekávaný konec**: kernel zatím neumí UFS ani SD, takže kořenový
+oddíl najít nemůže. Jestli se plymouth na simple-framebufferu vůbec vykreslí,
+nevím; kdyby ne, zůstane na displeji text kernelu nebo černá obrazovka.
+
+Ukončení: podrž Power + Vol- asi 10 s, telefon se restartuje do LineageOS.
+
+**Výsledek 2026-11-11: prošel.** `Booting OKAY`, kernel i initramfs pmOS běží,
+po ~43 s skončí v debug shellu („postmarketOS debug shell“, `Device: Motorola One
+Action (motorola-troika)`, `Kernel: 7.3.3-troika`) s klávesnicí na displeji.
+Klávesnice nereaguje, protože dotyková vrstva zatím nemá ovladač. Místo bodu 4
+tedy uvidíš textový výpis a výzvu `~ #`.
+
+## 5d. Test CLK1: první boot s ovladačem hodin
+
+`out/troika-test-CLK1.img` (z `tools/make-clk-test-bootimg.sh`): kernel z větve
+`troika-clk-test`, jinak stejné složení jako P (uniLoader jako v balíčku, původní
+DTB ve „second“, testovací initramfs). Nic se neflashuje.
+
+Co je jinak než dosud: kernel poprvé **zapisuje do registrů hodin**. U každého
+z devíti CMU zapne automatické hradlování (jeden registr, offset 0x800). Frekvence
+ani napětí nemění, regulátorů se nedotýká. Co přesně udělají tři z pěti
+zapisovaných bitů na tomto čipu, nevím (FINDINGS.md 11.5). Nejhorší, co čekám,
+je zamrznutí nebo restart; po restartu je vše v původním stavu.
+
+```bash
+adb reboot bootloader
+```
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-CLK1.img
+```
+
+Když vše funguje, uvidíš stejný rámeček testu jako u K a P2 a pod barevným
+testem novou část:
+
+```
+--- HODINY ---
+hodin: (několik set)  sirotku: (ideálně 0)
+(případná jména sirotků)
+ fout_shared0_pll               1599000000
+ fout_shared1_pll               1332500000
+ fout_mmc_pll                   (kolem 800000000)
+ …dalších 10 řádků s frekvencemi…
+clock-controller@12100000: option 0x… -> 0x…     (9 řádků)
+pd dispaud: status 0x…                           (7 řádků)
+```
+
+Frekvence u `shared0`/`shared1` jsou to, co čekám podle tabulek ovladače; jestli
+je bootloader nastavuje stejně, se teprve ukáže. Pak následuje test tlačítek.
+
+**Vyfoť celý displej, ostře a zblízka** – potřebuju přečíst čísla (frekvence
+a hexadecimální hodnoty). Klidně dvě fotky: horní a dolní polovinu.
+
+| Co vidíš | Co to znamená |
+|---|---|
+| `Booting FAILED` v terminálu | bootloader image nepřijal (nečekám, složení je jako P) |
+| logo nebo text uniLoaderu a dál nic | kernel zamrzl dřív, než se rozsvítila konzole – nejspíš při zápisu do hodin |
+| text kernelu, ale žádný rámeček | kernel spadl později; vyfoť poslední řádky |
+| rámeček bez části „HODINY“ | ovladač hodin se nezaregistroval |
+| rámeček i „HODINY“ | úspěch; pošli fotku |
+| displej zhasne nebo se rozpadne obraz | kernel vypnul něco, co displej potřebuje |
+| telefon se sám restartuje | napiš, v jakém okamžiku |
+
+Ukončení: podrž Power + Vol- asi 10 s.
+
+**Výsledek 2026-11-11: prošel.** 566 hodin, 0 sirotků, frekvence odpovídají PLL,
+displej i tlačítka fungují dál. Přečtené hodnoty jsou v FINDINGS.md 11.7.
+
+## 5e. Test USB1: první pokus o USB (síť a telnet přes kabel)
+
+`out/troika-test-USB1.img` (z `tools/make-clk-test-bootimg.sh USB1`): kernel
+s hodinami a USB, testovací initramfs. Nic se neflashuje.
+
+Co je jinak než dosud: kernel zapisuje do registru PMU `0x11860704` (zapnutí USB
+PHY – máš to odsouhlasené) a resetuje USB PHY. Regulátorů se nedotýká a napětí
+na USB nepouští.
+
+**Kabel po celou dobu nevytahuj.** Datové vodiče vedou přes přepínač, který
+kernel neovládá; po `fastboot boot` zůstává přepnutý na USB.
+
+```bash
+adb reboot bootloader
+```
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-USB1.img
+```
+
+Na displeji pod barevným testem:
+
+```
+--- HODINY ---
+hodin: 566  sirotku: 0
+--- USB ---
+pmu 704: 0x… -> 0x…          (po zápisu čekám bity 0, 1 a 16, tedy …10003)
+pre  00=… 04=…               (5 řádků: registry PHY, jak je nechal bootloader)
+post 00=… 04=…               (5 řádků: po inicializaci)
+gadget NCM zapnut na 13200000.usb
+Na pocitaci zkus: ping 172.16.42.1 a telnet 172.16.42.1
+USB stav: configured          ← tohle je úspěch
+```
+
+Na počítači by se mělo objevit nové síťové rozhraní a dostat adresu 172.16.42.2:
+
+```bash
+ip -br addr
+```
+
+```bash
+ping -c 3 172.16.42.1
+```
+
+`telnet` na počítači nainstalovaný nemáš, shell jde otevřít i přes `nc`:
+
+```bash
+nc 172.16.42.1 23
+```
+
+Až napíšeš, že telefon naběhl, zkusím se na něj z počítače podívat sám
+a stáhnu si log kernelu, takže nemusíš nic opisovat.
+
+| Co vidíš | Co to znamená |
+|---|---|
+| `USB stav: configured` a ping odpovídá | USB funguje |
+| `USB stav: not attached` nebo `default` | PHY nebo přepínač D+/D− nepracuje; vyfoť řádky `pmu`, `pre`, `post` |
+| `!! Zadny USB radic (UDC)` | ovladač dwc3 nebo PHY se nenavázal; vyfoť hlášky pod tím |
+| text kernelu a pád (`Internal error`, `SError`) | čtení registrů PHY selhalo; vyfoť konec výpisu |
+| logo nebo uniLoader a dál nic | kernel zamrzl brzy; napiš |
+
+Ukončení: podrž Power + Vol- asi 10 s.
+
+**Výsledek 2026-11-11: prošel.** Počítač telefon vidí (`cdc_ncm`), dostal adresu
+172.16.42.2, ping i shell fungují. Příkaz na telefonu jde spustit z počítače:
+`tools/phone-sh.py 'dmesg | tail'`. Podrobnosti: FINDINGS.md 12.7.
+
+## 5f. Test NET1: pmOS po síti (netboot) a SSH
+
+Cíl: plný pmOS s běžícím SSH, aniž by se cokoli zapsalo na úložiště telefonu.
+Kořenový systém zůstane v souboru na počítači a telefon si ho připojí přes USB
+(NBD). LineageOS v telefonu zůstává nedotčený. Nic se neflashuje.
+
+Předpoklady, které jsou hotové: balíčky v pmaports mají hodiny a USB
+(kernel r3, zařízení r2) a pmbootstrap má nastaveno
+`extra_packages = postmarketos-mkinitfs-hook-netboot`.
+
+1. Sestav balíčky (kernel zase asi 1,5 h):
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64 linux-motorola-troika-mainline
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64 device-motorola-troika
+```
+
+2. Vytvoř systém a vyexportuj boot image:
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports install
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports export
+```
+
+Hotovo 2026-11-11 17:25: boot image je zkontrolovaný (uniLoader = balíček r3,
+původní DTB v „second“, `netboot.sh` a `nbd.ko` v initramfs) a uložený jako
+`out/troika-test-NET1.img`.
+
+3. V samostatné záložce terminálu spusť server s kořenovým systémem a nech ho běžet:
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports netboot serve
+```
+
+Napíše „Waiting for postmarketOS device to appear...“ a čeká.
+
+Server se na sudo heslo ptá dvakrát: hned na začátku (kopie obrazu, 1,4 GB) a
+možná znovu ve chvíli, kdy telefon najde („Found postmarketOS device“), pokud
+mezitím uběhlo víc než pár minut. Sleduj tu záložku; telefon se mezitím
+připojuje pořád dokola, takže pozdě zadané heslo nevadí.
+
+4. Nabootuj telefon (kabel nevytahuj):
+
+```bash
+adb reboot bootloader
+```
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-NET1.img
+```
+
+5. Když server napíše „Found postmarketOS device, serving image...“ a telefon
+doběhne, přihlas se heslem, které jsi zadal při `install`:
+
+```bash
+ssh user@172.16.42.1
+```
+
+**Výsledek 2026-11-11: prošel.** Telefon nabootoval, počkal v initramfs na
+server (ten byl spuštěn až po bootu, nevadí to), po „Found postmarketOS device“
+naběhl plný systém a `ssh user@172.16.42.1` se přihlásil („Welcome to Nura!“).
+USB síť tedy přechod z initramfs do systému se systemd přežije.
+
+Pozor: kořenový systém visí na kabelu. Vytažení kabelu nebo ukončení serveru
+systém v telefonu zasekne; pomůže jen nový boot (držet vypínač, LineageOS v
+telefonu je nedotčený). Změny v běžícím systému se zapisují do kopie obrazu
+v `images_netboot` na počítači.
+
+## 5g. Test NET2: kernel pkgrel 4 se zram
+
+Cíl: ověřit, že po zapnutí `CONFIG_ZRAM` naběhne `postmarketos-zram-swap.service`
+a systém není `degraded`. Postup je stejný jako u NET1, jen s novým kernelem.
+
+1. Ukonči běžící `netboot serve` (Ctrl+C). Systém v telefonu tím zamrzne –
+   telefon restartuj podržením vypínače, naběhne LineageOS.
+
+2. Sestav kernel a vytvoř systém znovu:
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64 linux-motorola-troika-mainline
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports install
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports export
+```
+
+Hotovo 2026-11-11 19:37: boot image je zkontrolovaný (uniLoader = balíček r4,
+kernel se zram) a uložený jako `out/troika-test-NET2.img`.
+
+3. Server spusť s `--replace`, jinak by dál nabízel starý obraz z NET1
+   (zeptá se, jestli ho smí nahradit):
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports netboot serve --replace
+```
+
+4. `adb reboot bootloader`, `fastboot boot ~/nura-troika/out/troika-test-NET2.img`,
+   `ssh user@172.16.42.1` (ssh bude hlásit změněný klíč hostitele – je to nový
+   obraz; starý záznam odstraní `ssh-keygen -R 172.16.42.1`).
+
+**Výsledek 2026-11-11: prošel.** `systemctl is-system-running` vrací `running`,
+žádná spadlá služba, `/dev/zram0` (zstd, 5,4 GB) je aktivní swap.
+
+## 5h. Test UFS1: vnitřní úložiště jen pro čtení
+
+Cíl: zjistit, jestli ovladač UFS (větev `troika-clk`, FINDINGS.md kap. 14.5)
+naváže spojení s úložištěm a kernel uvidí disky a oddíly. Nic se nepřipojuje
+a nic se nezapisuje do oddílů.
+
+Co se při tomhle bootu stane navíc proti dřívějším testům (všechno dělá i
+původní kernel při každém startu):
+
+- zápis do PMU `0x11860724`, bit 0 (izolace UFS PHY) – povoleno 2026-11-11;
+- zápis do sysreg FSYS `0x13411010`, bity 8 a 9 (koherence IO);
+- dvě volání zabezpečeného firmwaru (SMC `FMP_SECURITY`, `SMU`), kterými se
+  nastavuje ochranná jednotka UFS;
+- reset řadiče a zařízení UFS, nové navázání linky, standardní inicializace
+  zařízení (`fDeviceInit` a spol.).
+
+Testovací initramfs každý nalezený disk hned přepne na „jen pro čtení“
+(`blockdev --setro`), vypíše ho a dál na něj nesahá. Android a bootloader na
+úložišti zůstávají, jak jsou. Regulátory se nepopisují, napájení úložiště
+zůstává, jak ho nechal bootloader.
+
+Postup:
+
+```bash
+adb reboot bootloader
+```
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-UFS1.img
+```
+
+Na displeji hledej oddíl `--- UFS ---`:
+
+- **úspěch**: řádky `sda: SAMSUNG … MiB ro=1 oddilu=N` (víc disků je v pořádku,
+  UFS má několik logických jednotek);
+- **neúspěch**: `!! Zadny disk` a pod tím poslední hlášky ovladače.
+
+Kabel nech zapojený. Po naběhnutí USB (`USB stav: configured`) si celý log
+stáhnu sám přes `tools/phone-sh.py`, fotka displeje není nutná – stačí napsat,
+že telefon naběhl.
+
+Kdyby telefon zůstal viset bez výpisu (černý displej, logo), podrž vypínač
+a hlasitost dolů asi 10 s; naběhne LineageOS a nic se nezměnilo.
+
+**Výsledek 2026-11-11: prošel napoprvé.** `sda` (Micron 128 GB, 42 oddílů),
+`sdb`, `sdc`; režim `FAST series_B G_3 L_1`; hashe čtyř oddílů shodné se
+zálohou; všechno `ro=1`. Podrobnosti ve FINDINGS.md 14.6.
+
+### Test UFS2: totéž na uklizeném kódu
+
+Po UFS1 jsem z větve odstranil úpravy pro druhou linku (řadič má jen jednu)
+a vypnul nastavování masky synchronizace, které tady selhávalo. UFS2 je
+stejný test na tomto kódu:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-UFS2.img
+```
+
+Čekám stejný výpis jako u UFS1 a v logu už žádné `dme-set … failed`.
+
+**Výsledek 2026-11-11: prošel**, přesně podle očekávání.
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):
@@ -460,8 +809,17 @@ Co je a není ověřené:
 - `pmbootstrap kconfig check` prochází.
 - Sestavení uniLoaderu z upstream tarballu a dvou patchů jsem vyzkoušel ručně
   mimo pmbootstrap (stejné kroky jako v APKBUILD).
-- Balíčky samotné jsem přes pmbootstrap **nestavěl** (potřebuje sudo) a image
-  z `pmbootstrap install` nikdo nezkoušel.
+- Balíčky bez hodin a USB (kernel r2, zařízení r1) se přes pmbootstrap sestavily
+  a image z nich na telefonu nabootoval (test PM, 2026-11-11).
+- Od 2026-11-11 15:05 je v pmaports kernel **r3** (52 patchů: základ + hodiny +
+  USB) a zařízení **r2** (`clk_ignore_unused`). Stejný kód běžel na telefonu
+  z místně sestaveného kernelu (testy CLK1 a USB1). Jako balíček se r3 ještě
+  **nestavěl**; všech 52 patchů jde aplikovat na čistý strom 7.3.3 a
+  `kconfig check` prochází.
+
+Když pmbootstrap skončí chybou `sudo losetup --json --list` hned po řádku
+`Build complete`, balíček je hotový. Selhal jen úklid, protože sudo se
+nedočkalo hesla.
 
 Sestavení balíčků:
 
@@ -472,6 +830,21 @@ pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64 linux-motorola-troika
 ```bash
 pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64 device-motorola-troika
 ```
+
+Image z balíčků (nic neflashuje; `install` jen vytvoří soubory v pracovním
+adresáři pmbootstrapu a zeptá se na heslo pro uživatele v pmOS):
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports install
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports export
+```
+
+Po `export` je boot image v `/tmp/postmarketOS-export/boot.img`. Oba příkazy
+prošly 2026-11-11; rozbor image a test na telefonu jsou v kapitole 5c.
+`pmbootstrap flasher` nespouštěj.
 
 I kdyby vše fungovalo, pmOS skončí v initramfs: mainline zatím neumí UFS ani
 SD, takže nemá odkud připojit kořenový systém.

@@ -1,0 +1,36 @@
+From ca31424bc318cc0bac6bf6ddefa5f0e37af3d0af Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:43:30 +0100
+Subject: [PATCH 34/60] clk: samsung: exynos9610: Fix the width of the AUD FM
+ dividers
+
+dout_clk_aud_fm and dout_clk_aud_fm_spdy are both registered with a 9
+bit ratio. In the vendor kernel's clock tables
+(drivers/soc/samsung/cal-if/exynos9610/cmucal-node.c and cmucal-sfr.c)
+DIV_CLK_AUD_FM has a 10 bit DIVRATIO field and DIV_CLK_AUD_FM_SPDY a 1
+bit one.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index a7f9452..89e1c9e 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -2920,9 +2920,9 @@ static const struct samsung_div_clock dispaud_div_clks[] __initconst = {
+ 	DIV(CLK_DOUT_CLK_AUD_DSIF, "dout_clk_aud_dsif", "dout_clk_aud_audif",
+ 	    CLK_CON_DIV_DIV_CLK_AUD_DSIF, 0, 9),
+ 	DIV(CLK_DOUT_CLK_AUD_FM, "dout_clk_aud_fm", "mout_clk_aud_fm",
+-	    CLK_CON_DIV_DIV_CLK_AUD_FM, 0, 9),
++	    CLK_CON_DIV_DIV_CLK_AUD_FM, 0, 10),
+ 	DIV(CLK_DOUT_CLK_AUD_FM_SPDY, "dout_clk_aud_fm_spdy", "tick_usb",
+-	    CLK_CON_DIV_DIV_CLK_AUD_FM_SPDY, 0, 9),
++	    CLK_CON_DIV_DIV_CLK_AUD_FM_SPDY, 0, 1),
+ 	DIV(CLK_DOUT_CLK_AUD_UAIF0, "dout_clk_aud_uaif0", "dout_clk_aud_audif",
+ 	    CLK_CON_DIV_DIV_CLK_AUD_UAIF0, 0, 9),
+ 	DIV(CLK_DOUT_CLK_AUD_UAIF1, "dout_clk_aud_uaif1", "dout_clk_aud_audif",
+-- 
+2.56.0
+

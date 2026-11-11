@@ -1,7 +1,7 @@
 From e036c92345689426cb2f59f857db4bbd977df166 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:37:13 +0100
-Subject: [PATCH 13/17] arm64: dts: exynos9610-gta4xl: Add the required model
+Subject: [PATCH 13/60] arm64: dts: exynos9610-gta4xl: Add the required model
  property
 
 The root node has no model, which the root-node schema requires:
@@ -27,3 +27,6 @@ index 24232bd..d59a0fc 100644
  	compatible = "samsung,gta4xl", "samsung,exynos9610";
  	#address-cells = <2>;
  	#size-cells = <1>;
+-- 
+2.56.0
+

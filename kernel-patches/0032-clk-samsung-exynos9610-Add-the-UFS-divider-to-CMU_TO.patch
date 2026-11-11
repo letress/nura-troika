@@ -1,0 +1,38 @@
+From 79058aa2e1a1957d6b3de232a916201ecdb064c1 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:43:30 +0100
+Subject: [PATCH 32/60] clk: samsung: exynos9610: Add the UFS divider to
+ CMU_TOP
+
+mout_pll_fsys_ufs_embd_user in CMU_FSYS takes "dout_cmu_fsys_ufs_embd"
+from CMU_TOP, and both the register (CLK_CON_DIV_CLKCMU_FSYS_UFS_EMBD,
+0x1850) and the clock ID (CLK_DOUT_CMU_FSYS_UFS_EMBD) exist, but the
+divider itself is missing from top_div_clks. The UFS user mux has no
+second parent and the UniPro clock cannot be traced back to a PLL.
+
+In the vendor kernel's clock tables
+(drivers/soc/samsung/cal-if/exynos9610/cmucal-node.c and cmucal-sfr.c)
+it is CLKCMU_FSYS_UFS_EMBD, a 4 bit divider behind
+GATE_CLKCMU_FSYS_UFS_EMBD.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index 7853e87..06c0ac3 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -665,6 +665,8 @@ static const struct samsung_div_clock top_div_clks[] __initconst = {
+ 	    CLK_CON_DIV_CLKCMU_FSYS_MMC_CARD, 0, 9),
+ 	DIV(CLK_DOUT_CMU_FSYS_MMC_EMBD, "dout_cmu_fsys_mmc_embd", "gout_cmu_fsys_mmc_embd",
+ 	    CLK_CON_DIV_CLKCMU_FSYS_MMC_EMBD, 0, 9),
++	DIV(CLK_DOUT_CMU_FSYS_UFS_EMBD, "dout_cmu_fsys_ufs_embd", "gout_cmu_fsys_ufs_embd",
++	    CLK_CON_DIV_CLKCMU_FSYS_UFS_EMBD, 0, 4),
+ 	DIV(CLK_DOUT_CMU_G2D_G2D, "dout_cmu_g2d_g2d", "gout_cmu_g2d_g2d",
+ 	    CLK_CON_DIV_CLKCMU_G2D_G2D, 0, 4),
+ 	DIV(CLK_DOUT_CMU_G2D_MSCL, "dout_cmu_g2d_mscl", "gout_cmu_g2d_mscl",
+-- 
+2.56.0
+

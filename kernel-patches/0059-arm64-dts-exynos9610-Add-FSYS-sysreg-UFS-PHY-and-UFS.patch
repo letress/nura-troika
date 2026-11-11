@@ -1,0 +1,79 @@
+From 4f3af86c9799fa10c1097d7bab44967cdcdd6918 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 20:43:54 +0100
+Subject: [PATCH 59/60] arm64: dts: exynos9610: Add FSYS sysreg, UFS PHY and
+ UFS host
+
+Add the UFS host controller with its M-PHY, and the FSYS system
+controller that holds the IO coherency bits of the host. The host has a
+single lane.
+
+The vendor device tree gives the PHY no clock. Its reference clock is
+taken to be the 26 MHz oscillator.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 41 ++++++++++++++++++++++
+ 1 file changed, 41 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index b45376d..43dbb50 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -355,12 +355,53 @@ cmu_fsys: clock-controller@13400000 {
+ 				      "dout_cmu_fsys_ufs_embd";
+ 		};
+ 
++		sysreg_fsys: system-controller@13410000 {
++			compatible = "samsung,exynos9610-fsys-sysreg", "syscon";
++			reg = <0x13410000 0x1020>;
++			clocks = <&cmu_fsys CLK_GOUT_FSYS_SYSREG_PCLK>;
++		};
++
+ 		pinctrl_fsys: pinctrl@13490000 {
+ 			compatible = "samsung,exynos9610-pinctrl";
+ 			reg = <0x13490000 0x1000>;
+ 			interrupts = <GIC_SPI 150 IRQ_TYPE_LEVEL_HIGH>;
+ 		};
+ 
++		ufs: ufs@13520000 {
++			compatible = "samsung,exynos9610-ufs";
++			reg = <0x13520000 0x200>,  /* 0: HCI standard */
++			      <0x13521100 0x200>,  /* 1: Vendor specified */
++			      <0x13510000 0x8000>, /* 2: UNIPRO */
++			      <0x13530000 0x100>;  /* 3: UFS protector */
++			reg-names = "hci", "vs_hci", "unipro", "ufsp";
++			interrupts = <GIC_SPI 157 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&cmu_fsys CLK_GOUT_FSYS_UFS_EMBD_ACLK>,
++				 <&cmu_fsys CLK_GOUT_FSYS_UFS_EMBD_CLK_UNIPRO>;
++			clock-names = "core_clk", "sclk_unipro_main";
++			freq-table-hz = <0 0>, <0 0>;
++			pinctrl-names = "default";
++			pinctrl-0 = <&ufs_rst_n &ufs_refclk_out>;
++			phys = <&ufs_phy>;
++			phy-names = "ufs-phy";
++			samsung,sysreg = <&sysreg_fsys 0x1010>;
++			lanes-per-direction = <1>;
++			dma-coherent;
++
++			status = "disabled";
++		};
++
++		ufs_phy: phy@13524000 {
++			compatible = "samsung,exynos9610-ufs-phy";
++			reg = <0x13524000 0x800>;
++			reg-names = "phy-pma";
++			clocks = <&oscclk>;
++			clock-names = "ref_clk";
++			samsung,pmu-syscon = <&pmu_system_controller>;
++			#phy-cells = <0>;
++
++			status = "disabled";
++		};
++
+ 		pinctrl_top: pinctrl@139b0000 {
+ 			compatible = "samsung,exynos9610-pinctrl";
+ 			reg = <0x139b0000 0x1000>;
+-- 
+2.56.0
+

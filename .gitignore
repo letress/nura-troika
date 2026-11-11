@@ -8,6 +8,8 @@
 /out/
 # Data vyčtená z telefonu – obsahují sériové číslo a další identifikátory
 /device-info/
+# Původní fotky displeje od uživatele (sériové číslo, MAC adresy)
+/photos/
 # Samostatné repozitáře
 /linux/
 /uniLoader-src/

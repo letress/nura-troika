@@ -1,0 +1,87 @@
+From 44d81c601b4e3856e6f7a590542536cd8b78fc66 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 14:33:59 +0100
+Subject: [PATCH 51/60] arm64: dts: exynos9610: Add PMU, USB PHY and USB
+ controller
+
+Add the PMU as a syscon, the USB 2.0 PHY and the DWC3 controller. The
+addresses, the interrupt and the freeclk quirk are those of the vendor
+device tree (system-controller@11860000, phy@131D0000, usb@13200000
+with SPI 186). The vendor tree does not give a trigger type for the
+interrupt; level-high is what every other Exynos DWC3 node uses.
+
+The PHY takes its reference from the 26 MHz oscillator through a buffer
+in the PMU, not from the USB30DRD reference clock of CMU_USB (which
+runs at 49.97 MHz), so "ref" points at oscclk, as "phy_refclk" does in
+the vendor tree.
+
+The USB 3.0 PHY at 0x131f0000 is not described; the vendor kernel keeps
+it isolated.
+
+The controller node has no vdd33-supply, which the binding requires:
+the supplies come from the PMIC, which is not described yet.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 38 ++++++++++++++++++++++
+ 1 file changed, 38 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index faa3030..b45376d 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -232,6 +232,11 @@ wakeup-interrupt-controller {
+ 			};
+ 		};
+ 
++		pmu_system_controller: system-controller@11860000 {
++			compatible = "samsung,exynos9610-pmu", "syscon";
++			reg = <0x11860000 0x10000>;
++		};
++
+ 		cmu_cmgp: clock-controller@11c00000 {
+ 			compatible = "samsung,exynos9610-cmu-cmgp";
+ 			reg = <0x11c00000 0x10000>;
+@@ -300,6 +305,39 @@ cmu_usb: clock-controller@13030000 {
+ 				      "dout_cmu_usb_usb30drd";
+ 		};
+ 
++		usbdrd_phy: phy@131d0000 {
++			compatible = "samsung,exynos9610-usbdrd-phy";
++			reg = <0x131d0000 0x200>;
++			clocks = <&cmu_usb CLK_GOUT_USB_USB30DRD_ACLK_PHYCTRL_20>,
++				 <&oscclk>;
++			clock-names = "phy", "ref";
++			samsung,pmu-syscon = <&pmu_system_controller>;
++			#phy-cells = <1>;
++
++			status = "disabled";
++		};
++
++		usbdrd: usb@13200000 {
++			compatible = "samsung,exynos9610-dwusb3";
++			ranges = <0x0 0x13200000 0x10000>;
++			clocks = <&cmu_usb CLK_GOUT_USB_USB30DRD_BUS_CLK_EARLY>,
++				 <&cmu_usb CLK_GOUT_USB_USB30DRD_REF_CLK>;
++			clock-names = "bus_early", "ref";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			status = "disabled";
++
++			usbdrd_dwc3: usb@0 {
++				compatible = "snps,dwc3";
++				reg = <0x0 0x10000>;
++				interrupts = <GIC_SPI 186 IRQ_TYPE_LEVEL_HIGH>;
++				phys = <&usbdrd_phy 0>;
++				phy-names = "usb2-phy";
++				snps,dis-u2-freeclk-exists-quirk;
++			};
++		};
++
+ 		cmu_fsys: clock-controller@13400000 {
+ 			compatible = "samsung,exynos9610-cmu-fsys";
+ 			reg = <0x13400000 0x10000>;
+-- 
+2.56.0
+

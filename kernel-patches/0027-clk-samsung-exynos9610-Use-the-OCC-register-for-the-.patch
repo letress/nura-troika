@@ -1,0 +1,35 @@
+From 27ca89697faa27ad88fe79e6b64457e82760132f Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:43:29 +0100
+Subject: [PATCH 27/60] clk: samsung: exynos9610: Use the OCC register for the
+ CCI OCC gate
+
+gout_core_cci_occ_clk is registered on CLK_CON_GAT_GOUT_CORE_CCI_CLK
+(0x2158), the register of gout_core_cci_clk, so both clocks drive the
+same bit and the OCC gate at 0x215c is never touched. Use
+CLK_CON_GAT_GOUT_CORE_CCI_OCC_CLK, which is already defined.
+
+Offset checked against the vendor kernel's clock tables
+(drivers/soc/samsung/cal-if/exynos9610/cmucal-node.c and cmucal-sfr.c).
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index c19df3a..25ee303 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -2616,7 +2616,7 @@ static const struct samsung_gate_clock core_gate_clks[] __initconst = {
+ 	GATE(CLK_GOUT_CORE_CCI_CLK, "gout_core_cci_clk", "mout_pll_core_cci_user",
+ 	     CLK_CON_GAT_GOUT_CORE_CCI_CLK, 21, 0, 0),
+ 	GATE(CLK_GOUT_CORE_CCI_OCC_CLK, "gout_core_cci_occ_clk",
+-	     "mout_pll_core_cci_user", CLK_CON_GAT_GOUT_CORE_CCI_CLK,
++	     "mout_pll_core_cci_user", CLK_CON_GAT_GOUT_CORE_CCI_OCC_CLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_CORE_G3D_CLK, "gout_core_g3d_clk", "mout_pll_core_g3d_user",
+ 	     CLK_CON_GAT_GOUT_CORE_G3D_CLK, 21, 0, 0),
+-- 
+2.56.0
+

@@ -1,0 +1,215 @@
+From 058f54a390ac93ef8e3eae46b0c07abe59c25d58 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 20:43:54 +0100
+Subject: [PATCH 58/60] scsi: ufs: exynos: Add support for Exynos9610
+
+Add the UFS host controller of the Exynos9610. The hooks follow what the
+vendor kernel does for this SoC (ufs-exynos.c and ufs-cal-9610.c there):
+
+- before link startup the clock gating of the controller is switched
+  off, the clock period is given to UniPro and to the lane, and the
+  vendor M-PHY attributes are set;
+- after link startup the 1 us tick, the write burst length,
+  PA_SaveConfigTime and four more receiver attributes are set;
+- before the power mode change the same timer values are used as on
+  gs101.
+
+The vendor kernel takes the clock period from the rate of the FSYS bus
+clock rather than from the UniPro clock; do the same.
+
+Setting PA_DBG_OV_TM fails on this host, and so does the sync pattern
+mask the driver sets under it before a high speed power mode change. The
+vendor kernel does not set the mask; skip it.
+
+The UFS protector is set up through the secure monitor as on gs101, with
+the same calls the vendor kernel makes. The IO coherency bits are bits 8
+and 9 of the FSYS sysreg register given in the device tree.
+
+Clock gating and hibern8 with clock gating are not enabled.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/ufs/host/ufs-exynos.c | 119 +++++++++++++++++++++++++++++++++-
+ drivers/ufs/host/ufs-exynos.h |   1 +
+ 2 files changed, 119 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/ufs/host/ufs-exynos.c b/drivers/ufs/host/ufs-exynos.c
+index b2e2ddb..c54d044 100644
+--- a/drivers/ufs/host/ufs-exynos.c
++++ b/drivers/ufs/host/ufs-exynos.c
+@@ -77,6 +77,8 @@
+ 				 UNIPRO_PCLK_CTRL_EN |\
+ 				 UNIPRO_MCLK_CTRL_EN)
+ 
++#define HCI_UFS_ACG_DISABLE	0xFC
++#define HCI_UFS_ACG_DISABLE_EN	BIT(0)
+ #define HCI_IOP_ACG_DISABLE	0x100
+ #define HCI_IOP_ACG_DISABLE_EN	BIT(0)
+ 
+@@ -101,6 +103,7 @@
+ #define UFS_EXYNOSAUTOV920_RD_SHARABLE	BIT(2)
+ #define UFS_EXYNOSAUTOV920_SHARABLE	(UFS_EXYNOSAUTOV920_WR_SHARABLE |\
+ 					 UFS_EXYNOSAUTOV920_RD_SHARABLE)
++#define UFS_EXYNOS9610_SHARABLE		GENMASK(9, 8)
+ #define UFS_GS101_WR_SHARABLE		BIT(1)
+ #define UFS_GS101_RD_SHARABLE		BIT(0)
+ #define UFS_GS101_SHARABLE		(UFS_GS101_WR_SHARABLE | \
+@@ -927,7 +930,8 @@ static int exynos_ufs_pre_pwr_mode(struct ufs_hba *hba,
+ 		ufs->drv_data->pre_pwr_change(ufs, dev_req_params);
+ 
+ 	if (ufshcd_is_hs_mode(dev_req_params)) {
+-		exynos_ufs_config_sync_pattern_mask(ufs, dev_req_params);
++		if (!(ufs->opts & EXYNOS_UFS_OPT_NO_SYNC_PATTERN_MASK))
++			exynos_ufs_config_sync_pattern_mask(ufs, dev_req_params);
+ 
+ 		switch (dev_req_params->hs_rate) {
+ 		case PA_HS_MODE_A:
+@@ -2109,6 +2113,94 @@ static int gs101_ufs_pre_pwr_change(struct exynos_ufs *ufs,
+ 	return 0;
+ }
+ 
++/*
++ * The vendor kernel works out the clock period and the 1 us tick from the rate
++ * of the FSYS bus clock: that is the clock it gets when it asks for the UniPro
++ * one. It rounds the period down.
++ */
++static u32 exynos9610_ufs_clk_period(struct exynos_ufs *ufs)
++{
++	return NSEC_PER_SEC / ufs->pclk_rate;
++}
++
++static int exynos9610_ufs_pre_link(struct exynos_ufs *ufs)
++{
++	struct ufs_hba *hba = ufs->hba;
++	u32 period = exynos9610_ufs_clk_period(ufs);
++	u32 reg;
++	int i;
++
++	/* leave the clock gating to UFS_ACG_DISABLE, and switch it off */
++	reg = hci_readl(ufs, HCI_IOP_ACG_DISABLE);
++	hci_writel(ufs, reg & ~HCI_IOP_ACG_DISABLE_EN, HCI_IOP_ACG_DISABLE);
++	reg = hci_readl(ufs, HCI_UFS_ACG_DISABLE);
++	hci_writel(ufs, reg | HCI_UFS_ACG_DISABLE_EN, HCI_UFS_ACG_DISABLE);
++
++	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_DBG_CLK_PERIOD), period);
++
++	ufshcd_dme_set(hba, UIC_ARG_MIB(0x200), 0x40);
++
++	for_each_ufs_rx_lane(ufs, i)
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(VND_RX_CLK_PRD, i), period);
++
++	for_each_ufs_tx_lane(ufs, i)
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(VND_TX_CLK_PRD, i), period);
++
++	for_each_ufs_rx_lane(ufs, i) {
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x5c, i), 0x38);
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x0f, i), 0x0);
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x65, i), 0x1);
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x69, i), 0x1);
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x21, i), 0x0);
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x22, i), 0x0);
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x84, i), 0x1);
++	}
++
++	for_each_ufs_tx_lane(ufs, i) {
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x04, i), 0x1);
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x8f, i), 0x3e);
++	}
++
++	ufshcd_dme_set(hba, UIC_ARG_MIB(0x200), 0x0);
++
++	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_DBG_AUTOMODE_THLD), 0x4e20);
++	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_DBG_OPTION_SUITE), 0x2e820183);
++	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_LOCAL_TX_LCC_ENABLE), 0x0);
++	ufshcd_dme_set(hba, UIC_ARG_MIB(N_DEVICEID), 0x0);
++	ufshcd_dme_set(hba, UIC_ARG_MIB(N_DEVICEID_VALID), 0x1);
++	ufshcd_dme_set(hba, UIC_ARG_MIB(T_PEERDEVICEID), 0x1);
++	ufshcd_dme_set(hba, UIC_ARG_MIB(T_CONNECTIONSTATE), CPORT_CONNECTED);
++
++	return 0;
++}
++
++static int exynos9610_ufs_post_link(struct exynos_ufs *ufs)
++{
++	struct ufs_hba *hba = ufs->hba;
++	int i;
++
++	hci_writel(ufs, (ufs->pclk_rate / USEC_PER_SEC) & CNT_VAL_1US_MASK,
++		   HCI_1US_TO_CNT_VAL);
++	hci_writel(ufs, WLU_EN | WLU_BURST_LEN(3), HCI_AXIDMA_RWDATA_BURST_LEN);
++
++	exynos_ufs_enable_dbg_mode(hba);
++	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_SAVECONFIGTIME), 0xfa);
++	exynos_ufs_disable_dbg_mode(hba);
++
++	ufshcd_dme_set(hba, UIC_ARG_MIB(0x200), 0x40);
++
++	for_each_ufs_rx_lane(ufs, i) {
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x35, i), 0x05);
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x73, i), 0x01);
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x41, i), 0x02);
++		ufshcd_dme_set(hba, UIC_ARG_MIB_SEL(0x42, i), 0xac);
++	}
++
++	ufshcd_dme_set(hba, UIC_ARG_MIB(0x200), 0x0);
++
++	return 0;
++}
++
+ static const struct ufs_hba_variant_ops ufs_hba_exynos_ops = {
+ 	.name				= "exynos_ufs",
+ 	.init				= exynos_ufs_init,
+@@ -2302,6 +2394,29 @@ static const struct exynos_ufs_drv_data gs101_ufs_drvs = {
+ 	.suspend		= gs101_ufs_suspend,
+ };
+ 
++/* The SoC keeps the reset values of the attributes the other SoCs set here */
++static struct exynos_ufs_uic_attr exynos9610_uic_attr;
++
++static const struct exynos_ufs_drv_data exynos9610_ufs_drvs = {
++	.uic_attr		= &exynos9610_uic_attr,
++	.quirks			= UFSHCD_QUIRK_PRDT_BYTE_GRAN |
++				  UFSHCI_QUIRK_SKIP_RESET_INTR_AGGR |
++				  UFSHCI_QUIRK_BROKEN_REQ_LIST_CLR |
++				  UFSHCD_QUIRK_BROKEN_OCS_FATAL_ERROR |
++				  UFSHCI_QUIRK_SKIP_MANUAL_WB_FLUSH_CTRL |
++				  UFSHCD_QUIRK_SKIP_DEF_UNIPRO_TIMEOUT_SETTING,
++	.opts			= EXYNOS_UFS_OPT_BROKEN_AUTO_CLK_CTRL |
++				  EXYNOS_UFS_OPT_SKIP_CONFIG_PHY_ATTR |
++				  EXYNOS_UFS_OPT_UFSPR_SECURE |
++				  EXYNOS_UFS_OPT_TIMER_TICK_SELECT |
++				  EXYNOS_UFS_OPT_NO_SYNC_PATTERN_MASK,
++	.iocc_mask		= UFS_EXYNOS9610_SHARABLE,
++	.drv_init		= exynosauto_ufs_drv_init,
++	.pre_link		= exynos9610_ufs_pre_link,
++	.post_link		= exynos9610_ufs_post_link,
++	.pre_pwr_change		= gs101_ufs_pre_pwr_change,
++};
++
+ static const struct exynos_ufs_drv_data exynosautov920_ufs_drvs = {
+ 	.uic_attr               = &exynos7_uic_attr,
+ 	.quirks                 = UFSHCD_QUIRK_SKIP_DEF_UNIPRO_TIMEOUT_SETTING,
+@@ -2322,6 +2437,8 @@ static const struct of_device_id exynos_ufs_of_match[] = {
+ 	  .data	      = &gs101_ufs_drvs },
+ 	{ .compatible = "samsung,exynos7-ufs",
+ 	  .data	      = &exynos_ufs_drvs },
++	{ .compatible = "samsung,exynos9610-ufs",
++	  .data	      = &exynos9610_ufs_drvs },
+ 	{ .compatible = "samsung,exynosautov9-ufs",
+ 	  .data	      = &exynosauto_ufs_drvs },
+ 	{ .compatible = "samsung,exynosautov9-ufs-vh",
+diff --git a/drivers/ufs/host/ufs-exynos.h b/drivers/ufs/host/ufs-exynos.h
+index abe7e47..3dfe16f 100644
+--- a/drivers/ufs/host/ufs-exynos.h
++++ b/drivers/ufs/host/ufs-exynos.h
+@@ -245,6 +245,7 @@ struct exynos_ufs {
+ #define EXYNOS_UFS_OPT_SKIP_CONFIG_PHY_ATTR	BIT(5)
+ #define EXYNOS_UFS_OPT_UFSPR_SECURE		BIT(6)
+ #define EXYNOS_UFS_OPT_TIMER_TICK_SELECT	BIT(7)
++#define EXYNOS_UFS_OPT_NO_SYNC_PATTERN_MASK	BIT(8)
+ };
+ 
+ #define for_each_ufs_rx_lane(ufs, i) \
+-- 
+2.56.0
+

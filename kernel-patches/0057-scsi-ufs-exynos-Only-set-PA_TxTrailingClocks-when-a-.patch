@@ -1,0 +1,36 @@
+From 3f36f5ed93cef72753344153235b09ab14627e9b Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 20:04:28 +0100
+Subject: [PATCH 57/60] scsi: ufs: exynos: Only set PA_TxTrailingClocks when a
+ value is given
+
+exynos_ufs_config_unipro() writes PA_TxTrailingClocks for every SoC, so
+one whose data leaves tx_trailingclks out gets it set to zero. The other
+optional attributes in there are skipped when unset.
+
+Do the same for PA_TxTrailingClocks, for SoCs that keep the reset value.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/ufs/host/ufs-exynos.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/ufs/host/ufs-exynos.c b/drivers/ufs/host/ufs-exynos.c
+index 87fbb27..b2e2ddb 100644
+--- a/drivers/ufs/host/ufs-exynos.c
++++ b/drivers/ufs/host/ufs-exynos.c
+@@ -1081,8 +1081,9 @@ static void exynos_ufs_config_unipro(struct exynos_ufs *ufs)
+ 		ufshcd_dme_set(hba, UIC_ARG_MIB(attr->pa_dbg_clk_period_off),
+ 			       DIV_ROUND_UP(NSEC_PER_SEC, ufs->mclk_rate));
+ 
+-	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_TXTRAILINGCLOCKS),
+-			ufs->drv_data->uic_attr->tx_trailingclks);
++	if (attr->tx_trailingclks)
++		ufshcd_dme_set(hba, UIC_ARG_MIB(PA_TXTRAILINGCLOCKS),
++			       attr->tx_trailingclks);
+ 
+ 	if (attr->pa_dbg_opt_suite1_off)
+ 		ufshcd_dme_set(hba, UIC_ARG_MIB(attr->pa_dbg_opt_suite1_off),
+-- 
+2.56.0
+

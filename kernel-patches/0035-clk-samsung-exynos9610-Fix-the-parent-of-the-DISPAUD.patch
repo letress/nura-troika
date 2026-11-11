@@ -1,0 +1,33 @@
+From 6d5e6a607a1e0e3d41eb7e98310e646729efd18a Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:43:31 +0100
+Subject: [PATCH 35/60] clk: samsung: exynos9610: Fix the parent of the DISPAUD
+ LHM_AXI_P gate
+
+gout_dispaud_lhm_axi_p_dispaud_clk is parented to the audio bus mux. In
+the vendor kernel's clock tables
+(drivers/soc/samsung/cal-if/exynos9610/cmucal-node.c and cmucal-sfr.c)
+the gate sits behind DIV_CLK_DISPAUD_BUSP like the other APB clocks of
+the block.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index 89e1c9e..ee65e26 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -3011,7 +3011,7 @@ static const struct samsung_gate_clock dispaud_gate_clks[] __initconst = {
+ 	     "mout_clk_aud_bus", CLK_CON_GAT_GOUT_DISPAUD_GPIO_DISPAUD_PCLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_DISPAUD_LHM_AXI_P_DISPAUD_CLK, "gout_dispaud_lhm_axi_p_dispaud_clk",
+-	     "mout_clk_aud_bus", CLK_CON_GAT_GOUT_DISPAUD_LHM_AXI_P_DISPAUD_CLK,
++	     "dout_clk_dispaud_busp", CLK_CON_GAT_GOUT_DISPAUD_LHM_AXI_P_DISPAUD_CLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_DISPAUD_LHS_ACEL_D_DPU_CLK, "gout_dispaud_lhs_acel_d_dpu_clk",
+ 	     "mout_pll_dispaud_disp_user", CLK_CON_GAT_GOUT_DISPAUD_LHS_ACEL_D_DPU_CLK,
+-- 
+2.56.0
+

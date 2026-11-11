@@ -1,0 +1,249 @@
+From b858244d41fa4273b6c88d407286b70c0474e2d1 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 20:44:08 +0100
+Subject: [PATCH 3/3] DEBUG: ufs: exynos: dump the state left by the bootloader
+ and after init
+
+Not for upstream. Prints the vendor HCI registers, the FSYS sysreg word,
+a set of UniPro attributes and the PMA registers the Exynos9610 tables
+touch, before the host is reset and after link startup and the power
+mode change.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/phy/samsung/phy-samsung-ufs.c |  44 ++++++++++-
+ drivers/ufs/host/ufs-exynos.c         | 101 ++++++++++++++++++++++++++
+ 2 files changed, 144 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/phy/samsung/phy-samsung-ufs.c b/drivers/phy/samsung/phy-samsung-ufs.c
+index 1587827..2cc5261 100644
+--- a/drivers/phy/samsung/phy-samsung-ufs.c
++++ b/drivers/phy/samsung/phy-samsung-ufs.c
+@@ -87,6 +87,9 @@ static int samsung_ufs_phy_calibrate(struct phy *phy)
+ 		return -EINVAL;
+ 	}
+ 
++	dev_info(ufs_phy->dev, "UFSDBG calibrate state %d, lanes %u\n",
++		 ufs_phy->ufs_phy_state, ufs_phy->lane_cnt);
++
+ 	cfg = cfgs[ufs_phy->ufs_phy_state];
+ 	if (!cfg)
+ 		goto out;
+@@ -161,6 +164,32 @@ static int samsung_ufs_phy_clks_init(struct samsung_ufs_phy *phy)
+ 	return devm_clk_bulk_get(phy->dev, num_clks, phy->clks);
+ }
+ 
++/* DEBUG: the PMA registers the Exynos9610 tables touch, for both lanes */
++static void samsung_ufs_phy_dbg_dump(struct samsung_ufs_phy *ufs_phy,
++				     const char *when)
++{
++	static const u8 comn[] = { 0x01, 0x1d, 0x1e, 0x23 };
++	static const u8 trsv[] = { 0x31, 0x32, 0x38, 0x3a, 0x3c, 0x44, 0x48,
++				   0x4a, 0x4b, 0x4d, 0x59, 0x5b, 0x5e, 0x6c, 0x7f };
++	char buf[160];
++	int i, l, n;
++
++	n = 0;
++	for (i = 0; i < ARRAY_SIZE(comn); i++)
++		n += scnprintf(buf + n, sizeof(buf) - n, " %02x=%02x", comn[i],
++			       readl(ufs_phy->reg_pma + PHY_APB_ADDR(comn[i])) & 0xff);
++	dev_info(ufs_phy->dev, "UFSDBG pma %s comn:%s\n", when, buf);
++
++	for (l = 0; l < 2; l++) {
++		n = 0;
++		for (i = 0; i < ARRAY_SIZE(trsv); i++)
++			n += scnprintf(buf + n, sizeof(buf) - n, " %02x=%02x", trsv[i],
++				       readl(ufs_phy->reg_pma +
++					     PHY_APB_ADDR(trsv[i] + l * 0x50)) & 0xff);
++		dev_info(ufs_phy->dev, "UFSDBG pma %s lane%d:%s\n", when, l, buf);
++	}
++}
++
+ static int samsung_ufs_phy_init(struct phy *phy)
+ {
+ 	struct samsung_ufs_phy *ss_phy = get_samsung_ufs_phy(phy);
+@@ -176,7 +205,16 @@ static int samsung_ufs_phy_power_on(struct phy *phy)
+ 	struct samsung_ufs_phy *ss_phy = get_samsung_ufs_phy(phy);
+ 	int ret;
+ 
+-	samsung_ufs_phy_ctrl_isol(ss_phy, false);
++	/* DEBUG */
++	{
++		u32 before = 0, after = 0;
++
++		regmap_read(ss_phy->reg_pmu, ss_phy->isol.offset, &before);
++		samsung_ufs_phy_ctrl_isol(ss_phy, false);
++		regmap_read(ss_phy->reg_pmu, ss_phy->isol.offset, &after);
++		dev_info(ss_phy->dev, "UFSDBG pmu[%#x]: %08x -> %08x, lanes %u\n",
++			 ss_phy->isol.offset, before, after, ss_phy->lane_cnt);
++	}
+ 
+ 	ret = clk_bulk_prepare_enable(ss_phy->drvdata->num_clks, ss_phy->clks);
+ 	if (ret) {
+@@ -184,12 +222,16 @@ static int samsung_ufs_phy_power_on(struct phy *phy)
+ 		return ret;
+ 	}
+ 
++	samsung_ufs_phy_dbg_dump(ss_phy, "pre-init");
++
+ 	if (ss_phy->ufs_phy_state == CFG_PRE_INIT) {
+ 		ret = samsung_ufs_phy_calibrate(phy);
+ 		if (ret)
+ 			dev_err(ss_phy->dev, "ufs phy calibration failed\n");
+ 	}
+ 
++	samsung_ufs_phy_dbg_dump(ss_phy, "post-init");
++
+ 	return ret;
+ }
+ 
+diff --git a/drivers/ufs/host/ufs-exynos.c b/drivers/ufs/host/ufs-exynos.c
+index c54d044..0dfd359 100644
+--- a/drivers/ufs/host/ufs-exynos.c
++++ b/drivers/ufs/host/ufs-exynos.c
+@@ -182,6 +182,10 @@ enum {
+ 
+ static void exynos_ufs_auto_ctrl_hcc(struct exynos_ufs *ufs, bool en);
+ static void exynos_ufs_ctrl_clkstop(struct exynos_ufs *ufs, bool en);
++/* DEBUG */
++static void exynos_ufs_dbg_dump(struct exynos_ufs *ufs, const char *when);
++static void exynos_ufs_dbg_dump_dme(struct exynos_ufs *ufs, const char *when,
++				    bool raw);
+ 
+ static inline void exynos_ufs_enable_auto_ctrl_hcc(struct exynos_ufs *ufs)
+ {
+@@ -988,6 +992,7 @@ static int exynos_ufs_post_pwr_mode(struct ufs_hba *hba,
+ 	}
+ 
+ 	dev_info(hba->dev, "Power mode changed to : %s\n", pwr_str);
++	exynos_ufs_dbg_dump_dme(ufs, "post-pwr", false);
+ 
+ 	return 0;
+ }
+@@ -1251,6 +1256,9 @@ static int exynos_ufs_post_link(struct ufs_hba *hba)
+ 	if (ufs->drv_data->post_link)
+ 		ufs->drv_data->post_link(ufs);
+ 
++	exynos_ufs_dbg_dump(ufs, "post-link");
++	exynos_ufs_dbg_dump_dme(ufs, "post-link", false);
++
+ 	return 0;
+ }
+ 
+@@ -1542,6 +1550,89 @@ static void exynos_ufs_fmp_resume(struct ufs_hba *hba)
+ 
+ #endif /* !CONFIG_SCSI_UFS_CRYPTO */
+ 
++/* DEBUG: state the bootloader left behind and what the driver made of it */
++static u32 exynos_ufs_dbg_raw_dme_get(struct ufs_hba *hba, u32 attr_sel, u32 *res)
++{
++	int i;
++
++	*res = 0xffffffff;
++	if (!(ufshcd_readl(hba, REG_CONTROLLER_ENABLE) & CONTROLLER_ENABLE) ||
++	    !(ufshcd_readl(hba, REG_CONTROLLER_STATUS) & UIC_COMMAND_READY))
++		return 0xffffffff;
++
++	ufshcd_writel(hba, UIC_COMMAND_COMPL, REG_INTERRUPT_STATUS);
++	ufshcd_writel(hba, attr_sel, REG_UIC_COMMAND_ARG_1);
++	ufshcd_writel(hba, 0, REG_UIC_COMMAND_ARG_2);
++	ufshcd_writel(hba, 0, REG_UIC_COMMAND_ARG_3);
++	ufshcd_writel(hba, UIC_CMD_DME_GET, REG_UIC_COMMAND);
++	for (i = 0; i < 2000; i++) {
++		if (ufshcd_readl(hba, REG_INTERRUPT_STATUS) & UIC_COMMAND_COMPL)
++			break;
++		udelay(10);
++	}
++	*res = ufshcd_readl(hba, REG_UIC_COMMAND_ARG_2) & 0xff;
++	if (i == 2000)
++		*res = 0xfffffffe;
++	ufshcd_writel(hba, UIC_COMMAND_COMPL, REG_INTERRUPT_STATUS);
++
++	return ufshcd_readl(hba, REG_UIC_COMMAND_ARG_3);
++}
++
++static void exynos_ufs_dbg_dump(struct exynos_ufs *ufs, const char *when)
++{
++	struct ufs_hba *hba = ufs->hba;
++	u32 v = 0;
++
++	dev_info(hba->dev, "UFSDBG %s: HCE=%08x HCS=%08x IS=%08x IE=%08x VER=%08x CAP=%08x\n",
++		 when, ufshcd_readl(hba, REG_CONTROLLER_ENABLE),
++		 ufshcd_readl(hba, REG_CONTROLLER_STATUS),
++		 ufshcd_readl(hba, REG_INTERRUPT_STATUS),
++		 ufshcd_readl(hba, REG_INTERRUPT_ENABLE),
++		 ufshcd_readl(hba, REG_UFS_VERSION),
++		 ufshcd_readl(hba, REG_CONTROLLER_CAPABILITIES));
++	dev_info(hba->dev, "UFSDBG %s: 1US=%08x V2P1=%08x GPIO=%08x CLKSTOP=%08x MISC=%08x\n",
++		 when, hci_readl(ufs, HCI_1US_TO_CNT_VAL), hci_readl(ufs, HCI_V2P1_CTRL),
++		 hci_readl(ufs, HCI_GPIO_OUT), hci_readl(ufs, HCI_CLKSTOP_CTRL),
++		 hci_readl(ufs, HCI_MISC));
++	dev_info(hba->dev, "UFSDBG %s: UFSACG=%08x IOPACG=%08x REFSEL=%08x AXIDMA=%08x TXPRDT=%08x RXPRDT=%08x\n",
++		 when, hci_readl(ufs, HCI_UFS_ACG_DISABLE), hci_readl(ufs, HCI_IOP_ACG_DISABLE),
++		 hci_readl(ufs, 0x108), hci_readl(ufs, HCI_AXIDMA_RWDATA_BURST_LEN),
++		 hci_readl(ufs, HCI_TXPRDT_ENTRY_SIZE), hci_readl(ufs, HCI_RXPRDT_ENTRY_SIZE));
++	if (ufs->sysreg) {
++		regmap_read(ufs->sysreg, ufs->iocc_offset, &v);
++		dev_info(hba->dev, "UFSDBG %s: sysreg[%#x]=%08x\n", when,
++			 ufs->iocc_offset, v);
++	}
++}
++
++static void exynos_ufs_dbg_dump_dme(struct exynos_ufs *ufs, const char *when,
++				    bool raw)
++{
++	static const u32 attrs[] = {
++		PA_DBG_CLK_PERIOD, PA_DBG_OPTION_SUITE, PA_DBG_AUTOMODE_THLD,
++		PA_AVAILTXDATALANES, PA_AVAILRXDATALANES,
++		PA_CONNECTEDTXDATALANES, PA_CONNECTEDRXDATALANES,
++		PA_ACTIVETXDATALANES, PA_ACTIVERXDATALANES,
++		PA_MAXRXHSGEAR, PA_TXGEAR, PA_RXGEAR, PA_PWRMODE, PA_HSSERIES,
++		PA_TXTRAILINGCLOCKS, PA_GRANULARITY, PA_TACTIVATE,
++		PA_HIBERN8TIME, PA_SAVECONFIGTIME, PA_LOCAL_TX_LCC_ENABLE,
++	};
++	struct ufs_hba *hba = ufs->hba;
++	u32 val, res;
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(attrs); i++) {
++		if (raw) {
++			val = exynos_ufs_dbg_raw_dme_get(hba, UIC_ARG_MIB(attrs[i]), &res);
++		} else {
++			val = 0xffffffff;
++			res = ufshcd_dme_get(hba, UIC_ARG_MIB(attrs[i]), &val);
++		}
++		dev_info(hba->dev, "UFSDBG %s: dme[%04x]=%08x res=%x\n", when,
++			 attrs[i], val, res);
++	}
++}
++
+ static int exynos_ufs_init(struct ufs_hba *hba)
+ {
+ 	struct device *dev = hba->dev;
+@@ -1589,6 +1680,9 @@ static int exynos_ufs_init(struct ufs_hba *hba)
+ 
+ 	exynos_ufs_priv_init(hba, ufs);
+ 
++	exynos_ufs_dbg_dump(ufs, "boot");
++	exynos_ufs_dbg_dump_dme(ufs, "boot", true);
++
+ 	exynos_ufs_fmp_init(hba, ufs);
+ 
+ 	if (ufs->drv_data->drv_init) {
+@@ -1602,6 +1696,13 @@ static int exynos_ufs_init(struct ufs_hba *hba)
+ 	ret = exynos_ufs_get_clk_info(ufs);
+ 	if (ret)
+ 		goto out;
++	dev_info(dev, "UFSDBG clk: pclk=%lu mclk=%lu period(pclk)=%lu period(mclk)=%lu sg_entry=%zu caps=%x\n",
++		 (unsigned long)ufs->pclk_rate, (unsigned long)ufs->mclk_rate,
++		 (unsigned long)(ufs->pclk_rate ? NSEC_PER_SEC / ufs->pclk_rate : 0),
++		 (unsigned long)(ufs->mclk_rate ? NSEC_PER_SEC / ufs->mclk_rate : 0),
++		 ufshcd_sg_entry_size(hba), hba->caps);
++	exynos_ufs_dbg_dump(ufs, "init");
++
+ 	exynos_ufs_specify_phy_time_attr(ufs);
+ 
+ 	exynos_ufs_config_smu(ufs);
+-- 
+2.56.0
+

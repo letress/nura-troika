@@ -1,0 +1,43 @@
+From 1d85baf05e286e3cde92fcb8433e2c40ebd3e510 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 20:43:54 +0100
+Subject: [PATCH 60/60] arm64: dts: exynos9610-troika: Enable UFS
+
+Enable the UFS host and its PHY for the internal storage.
+
+The supply of the storage is a switch on a GPIO that the bootloader
+leaves on. It is not described: the PMIC is not either, and nothing else
+would keep the supplies of the device in order.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 23d20cf..876f638 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -144,6 +144,19 @@ key_volup: key-volup-pins {
+ 	};
+ };
+ 
++/*
++ * The storage is supplied through a switch on gpg4-0 that the bootloader turns
++ * on and that is left alone here: the PMIC and the regulators are not
++ * described yet.
++ */
++&ufs {
++	status = "okay";
++};
++
++&ufs_phy {
++	status = "okay";
++};
++
+ /*
+  * Device mode only: nothing here can tell which way round the Type-C cable is
+  * or whether there is a host on the other end, and VBUS is never driven. The
+-- 
+2.56.0
+

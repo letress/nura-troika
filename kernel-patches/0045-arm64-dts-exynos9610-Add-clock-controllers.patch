@@ -1,0 +1,201 @@
+From 17c4201ef22502f2d53dad7b6cbc059e098d8618 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:47:55 +0100
+Subject: [PATCH 45/60] arm64: dts: exynos9610: Add clock controllers
+
+Add the clock management units that are always powered: TOP, APM, CMGP,
+CORE, CPUCL0, PERI, FSYS and USB, plus DISPAUD, whose power domain the
+bootloader leaves on for the display.
+
+CMU_CAM, CMU_G2D and CMU_G3D sit in power domains (pd-cam, pd-g2d,
+pd-g3d in the vendor tree) that mainline cannot control yet. Touching
+their registers while the domain is off would fault, so they are left
+out until power domains are supported.
+
+The base addresses are those of the vendor kernel's clock tables
+(SFR_BLOCK entries in cal-if/exynos9610/cmucal-sfr.c). The regions are
+64 KiB long, which is what the Samsung clock code requires before it
+uses automatic clock gating.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 124 +++++++++++++++++++++
+ 1 file changed, 124 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index ae7444e..faa3030 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -5,6 +5,7 @@
+  * Copyright (c) 2025, Alexandru Chimac <alexchimac@protonmail.com>
+  */
+ 
++#include <dt-bindings/clock/samsung,exynos9610-cmu.h>
+ #include <dt-bindings/interrupt-controller/arm-gic.h>
+ 
+ / {
+@@ -173,12 +174,53 @@ chipid@10000000 {
+ 			reg = <0x10000000 0x100>;
+ 		};
+ 
++		cmu_peri: clock-controller@10030000 {
++			compatible = "samsung,exynos9610-cmu-peri";
++			reg = <0x10030000 0x10000>;
++			#clock-cells = <1>;
++
++			clocks = <&oscclk>,
++				 <&cmu_top CLK_DOUT_CMU_PERI_BUS>,
++				 <&cmu_top CLK_DOUT_CMU_PERI_IP>,
++				 <&cmu_top CLK_DOUT_CMU_PERI_UART>;
++			clock-names = "oscclk",
++				      "dout_cmu_peri_bus",
++				      "dout_cmu_peri_ip",
++				      "dout_cmu_peri_uart";
++		};
++
++		cmu_cpucl0: clock-controller@10900000 {
++			compatible = "samsung,exynos9610-cmu-cpucl0";
++			reg = <0x10900000 0x10000>;
++			#clock-cells = <1>;
++
++			clocks = <&oscclk>,
++				 <&cmu_top CLK_DOUT_CMU_CPUCL0_DBG>,
++				 <&cmu_top CLK_DOUT_CMU_CPUCL0_SWITCH>,
++				 <&cmu_top CLK_DOUT_CMU_HPM>;
++			clock-names = "oscclk",
++				      "dout_cmu_cpucl0_dbg",
++				      "dout_cmu_cpucl0_switch",
++				      "dout_cmu_hpm";
++		};
++
+ 		pinctrl_shub: pinctrl@11080000 {
+ 			compatible = "samsung,exynos9610-pinctrl";
+ 			reg = <0x11080000 0x1000>;
+ 			interrupts = <GIC_SPI 116 IRQ_TYPE_LEVEL_HIGH>;
+ 		};
+ 
++		cmu_apm: clock-controller@11800000 {
++			compatible = "samsung,exynos9610-cmu-apm";
++			reg = <0x11800000 0x10000>;
++			#clock-cells = <1>;
++
++			clocks = <&oscclk>,
++				 <&cmu_top CLK_DOUT_CMU_APM_BUS>;
++			clock-names = "oscclk",
++				      "dout_cmu_apm_bus";
++		};
++
+ 		pinctrl_alive: pinctrl@11850000 {
+ 			compatible = "samsung,exynos9610-pinctrl";
+ 			reg = <0x11850000 0x1000>;
+@@ -190,11 +232,46 @@ wakeup-interrupt-controller {
+ 			};
+ 		};
+ 
++		cmu_cmgp: clock-controller@11c00000 {
++			compatible = "samsung,exynos9610-cmu-cmgp";
++			reg = <0x11c00000 0x10000>;
++			#clock-cells = <1>;
++
++			clocks = <&oscclk>,
++				 <&cmu_apm CLK_GOUT_CMU_CMGP_BUS>;
++			clock-names = "oscclk",
++				      "gout_cmu_cmgp_bus";
++		};
++
+ 		pinctrl_cmgp: pinctrl@11c20000 {
+ 			compatible = "samsung,exynos9610-pinctrl";
+ 			reg = <0x11c20000 0x1000>;
+ 		};
+ 
++		cmu_core: clock-controller@120f0000 {
++			compatible = "samsung,exynos9610-cmu-core";
++			reg = <0x120f0000 0x10000>;
++			#clock-cells = <1>;
++
++			clocks = <&oscclk>,
++				 <&cmu_top CLK_DOUT_CMU_CORE_BUS>,
++				 <&cmu_top CLK_DOUT_CMU_CORE_CCI>,
++				 <&cmu_top CLK_DOUT_CMU_CORE_G3D>;
++			clock-names = "oscclk",
++				      "dout_cmu_core_bus",
++				      "dout_cmu_core_cci",
++				      "dout_cmu_core_g3d";
++		};
++
++		cmu_top: clock-controller@12100000 {
++			compatible = "samsung,exynos9610-cmu-top";
++			reg = <0x12100000 0x10000>;
++			#clock-cells = <1>;
++
++			clocks = <&oscclk>;
++			clock-names = "oscclk";
++		};
++
+ 		gic: interrupt-controller@12301000 {
+ 			compatible = "arm,gic-400";
+ 			#interrupt-cells = <3>;
+@@ -208,6 +285,38 @@ gic: interrupt-controller@12301000 {
+ 						 IRQ_TYPE_LEVEL_HIGH)>;
+ 		};
+ 
++		cmu_usb: clock-controller@13030000 {
++			compatible = "samsung,exynos9610-cmu-usb";
++			reg = <0x13030000 0x10000>;
++			#clock-cells = <1>;
++
++			clocks = <&oscclk>,
++				 <&cmu_top CLK_DOUT_CMU_USB_BUS>,
++				 <&cmu_top CLK_DOUT_CMU_USB_DPGTC>,
++				 <&cmu_top CLK_DOUT_CMU_USB_USB30DRD>;
++			clock-names = "oscclk",
++				      "dout_cmu_usb_bus",
++				      "dout_cmu_usb_dpgtc",
++				      "dout_cmu_usb_usb30drd";
++		};
++
++		cmu_fsys: clock-controller@13400000 {
++			compatible = "samsung,exynos9610-cmu-fsys";
++			reg = <0x13400000 0x10000>;
++			#clock-cells = <1>;
++
++			clocks = <&oscclk>,
++				 <&cmu_top CLK_DOUT_CMU_FSYS_BUS>,
++				 <&cmu_top CLK_DOUT_CMU_FSYS_MMC_CARD>,
++				 <&cmu_top CLK_DOUT_CMU_FSYS_MMC_EMBD>,
++				 <&cmu_top CLK_DOUT_CMU_FSYS_UFS_EMBD>;
++			clock-names = "oscclk",
++				      "dout_cmu_fsys_bus",
++				      "dout_cmu_fsys_mmc_card",
++				      "dout_cmu_fsys_mmc_embd",
++				      "dout_cmu_fsys_ufs_embd";
++		};
++
+ 		pinctrl_fsys: pinctrl@13490000 {
+ 			compatible = "samsung,exynos9610-pinctrl";
+ 			reg = <0x13490000 0x1000>;
+@@ -220,6 +329,21 @@ pinctrl_top: pinctrl@139b0000 {
+ 			interrupts = <GIC_SPI 266 IRQ_TYPE_LEVEL_HIGH>;
+ 		};
+ 
++		cmu_dispaud: clock-controller@14980000 {
++			compatible = "samsung,exynos9610-cmu-dispaud";
++			reg = <0x14980000 0x10000>;
++			#clock-cells = <1>;
++
++			clocks = <&oscclk>,
++				 <&cmu_top CLK_DOUT_CMU_DISPAUD_AUD>,
++				 <&cmu_top CLK_DOUT_CMU_DISPAUD_CPU>,
++				 <&cmu_top CLK_DOUT_CMU_DISPAUD_DISP>;
++			clock-names = "oscclk",
++				      "dout_cmu_dispaud_aud",
++				      "dout_cmu_dispaud_cpu",
++				      "dout_cmu_dispaud_disp";
++		};
++
+ 		pinctrl_dispaud: pinctrl@14a60000 {
+ 			compatible = "samsung,exynos9610-pinctrl";
+ 			reg = <0x14a60000 0x1000>;
+-- 
+2.56.0
+

@@ -1,0 +1,60 @@
+From 7ec79dd1292e6edf7ba693d7def1d91772c91759 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:43:30 +0100
+Subject: [PATCH 31/60] clk: samsung: exynos9610: Fix the CMU_APM mux parents
+ and add the DLL clock
+
+Three problems with the muxes in CMU_APM:
+
+- mout_cmu_shub_bus lists "oscclk" as input 0. In the vendor kernel's
+  clock tables (drivers/soc/samsung/cal-if/exynos9610/cmucal-node.c and
+  cmucal-sfr.c) the inputs of MUX_CLKCMU_SHUB_BUS are
+  MUX_CLKCMU_APM_BUS_USER and MUX_DLL_USER.
+- mout_clk_apm_bus lists "dll_dco" as input 1 and so bypasses the DLL
+  user mux. The vendor tables have MUX_DLL_USER there.
+- "dll_dco", the second input of mout_pll_dll_user, is not registered
+  anywhere and is not one of the clocks the binding takes from the
+  device tree. The vendor kernel models it as a fixed 360 MHz clock
+  (CLK_DLL_DCO); register it the same way.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index 0c2767e..7853e87 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -1461,10 +1461,17 @@ static const unsigned long apm_clk_regs[] __initconst = {
+ 	CLK_CON_GAT_GOUT_APM_XIU_DP_ACLK,
+ };
+ 
++static const struct samsung_fixed_rate_clock apm_fixed_clks[] __initconst = {
++	/* Output of the DLL in the APM block */
++	FRATE(0, "dll_dco", NULL, 0, 360000000),
++};
++
+ PNAME(mout_pll_apm_bus_user_p)		= { "oscclk", "dout_cmu_apm_bus" };
+ PNAME(mout_pll_dll_user_p)		= { "oscclk", "dll_dco" };
+-PNAME(mout_cmu_shub_bus_p)		= { "oscclk", "mout_pll_dll_user" };
+-PNAME(mout_clk_apm_bus_p)		= { "mout_pll_apm_bus_user", "dll_dco" };
++PNAME(mout_cmu_shub_bus_p)		= { "mout_pll_apm_bus_user",
++					    "mout_pll_dll_user" };
++PNAME(mout_clk_apm_bus_p)		= { "mout_pll_apm_bus_user",
++					    "mout_pll_dll_user" };
+ 
+ static const struct samsung_mux_clock apm_mux_clks[] __initconst = {
+ 	MUX(CLK_MOUT_PLL_APM_BUS_USER, "mout_pll_apm_bus_user", mout_pll_apm_bus_user_p,
+@@ -1613,6 +1620,8 @@ static const struct samsung_cmu_info apm_cmu_info __initconst = {
+ 	.nr_div_clks		= ARRAY_SIZE(apm_div_clks),
+ 	.gate_clks		= apm_gate_clks,
+ 	.nr_gate_clks		= ARRAY_SIZE(apm_gate_clks),
++	.fixed_clks		= apm_fixed_clks,
++	.nr_fixed_clks		= ARRAY_SIZE(apm_fixed_clks),
+ 	.clk_regs		= apm_clk_regs,
+ 	.nr_clk_regs		= ARRAY_SIZE(apm_clk_regs),
+ 	.nr_clk_ids		= CLKS_NR_APM,
+-- 
+2.56.0
+

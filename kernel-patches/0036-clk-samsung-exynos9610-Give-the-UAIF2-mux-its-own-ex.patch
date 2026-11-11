@@ -1,0 +1,41 @@
+From acb931b162679a602c95f741a190a7a37116cd9a Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:43:31 +0100
+Subject: [PATCH 36/60] clk: samsung: exynos9610: Give the UAIF2 mux its own
+ external clock
+
+mout_clk_aud_uaif2 uses "ioclk_audiocdclk0", the external bit clock of
+UAIF0, as its second input. In the vendor kernel's clock tables
+(drivers/soc/samsung/cal-if/exynos9610/cmucal-node.c and cmucal-sfr.c)
+MUX_CLK_AUD_UAIF2 takes IOCLK_AUDIOCDCLK2, a separate fixed clock of 10
+MHz. Register it next to the other two and use it.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index ee65e26..b3f04f4 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -340,6 +340,7 @@ static const struct samsung_fixed_rate_clock top_fixed_clks[] __initconst = {
+ 	/* input clock for I2S/PCM */
+ 	FRATE(0, "ioclk_audiocdclk0", NULL, 0, 10000000),
+ 	FRATE(0, "ioclk_audiocdclk1", NULL, 0, 100000000),
++	FRATE(0, "ioclk_audiocdclk2", NULL, 0, 10000000),
+ 	/* for USB audio? */
+ 	FRATE(0, "tick_usb", NULL, 0, 60000000),
+ };
+@@ -2881,7 +2882,7 @@ PNAME(mout_clk_aud_uaif0_p)		= { "dout_clk_aud_uaif0",
+ PNAME(mout_clk_aud_uaif1_p)		= { "dout_clk_aud_uaif1",
+ 					    "ioclk_audiocdclk1" };
+ PNAME(mout_clk_aud_uaif2_p)		= { "dout_clk_aud_uaif2",
+-					    "ioclk_audiocdclk0" };
++					    "ioclk_audiocdclk2" };
+ 
+ static const struct samsung_mux_clock dispaud_mux_clks[] __initconst = {
+ 	MUX(CLK_MOUT_PLL_DISPAUD_AUD_USER, "mout_pll_dispaud_aud_user", mout_pll_dispaud_aud_user_p,
+-- 
+2.56.0
+

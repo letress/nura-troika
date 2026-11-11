@@ -1,0 +1,30 @@
+From b67dc569ca93d04d4de2af244c3674da63f004dd Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:52:56 +0100
+Subject: [PATCH 29/60] dt-bindings: clock: exynos9610: Add
+ CLK_GOUT_CMU_SHUB_BUS
+
+CMU_APM has a gate between the SHUB bus mux and divider
+(CLK_CON_GAT_GATE_CLKCMU_SHUB_BUS) that has no clock ID. Add one at the
+end of the CMU_APM list so the existing IDs keep their values.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ include/dt-bindings/clock/samsung,exynos9610-cmu.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/dt-bindings/clock/samsung,exynos9610-cmu.h b/include/dt-bindings/clock/samsung,exynos9610-cmu.h
+index 1169373..9b39974 100644
+--- a/include/dt-bindings/clock/samsung,exynos9610-cmu.h
++++ b/include/dt-bindings/clock/samsung,exynos9610-cmu.h
+@@ -206,6 +206,7 @@
+ #define CLK_GOUT_APM_SYSREG_PCLK		48
+ #define CLK_GOUT_APM_WDT_PCLK			49
+ #define CLK_GOUT_APM_XIU_DP_ACLK		50
++#define CLK_GOUT_CMU_SHUB_BUS			51
+ 
+ /* CMU_CAM muxes */
+ #define CLK_MOUT_PLL_CAM_BUS_USER			1
+-- 
+2.56.0
+

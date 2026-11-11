@@ -1,0 +1,226 @@
+From f8f06791336fa2a1aa8d2dd46bf5ae1368e1086d Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 14:33:35 +0100
+Subject: [PATCH 49/60] phy: exynos5-usbdrd: Add support for the Exynos9610 USB
+ 2.0 PHY
+
+The Exynos9610 has the same USB 2.0 PHY controller generation as the
+Exynos850 (the vendor kernel calls it version 0x300) with the same
+register layout. Three things differ from what the Exynos850 code does,
+all taken from the vendor kernel (phy-exynos-usbdrd3.c and
+phy-exynos-usb3p1.c in the Motorola Exynos9610 tree):
+
+- The PHY is taken out of isolation by setting bits 0 and 1 of
+  USBDRD_PHY_CONTROL (PMU offset 0x704), and the same register has the
+  enable bit of the TCXO buffer that feeds the PHY its reference clock
+  (bit 16). The vendor kernel does this before it touches any PHY
+  register, so do it at the start of the init as well.
+
+- The PHY reset uses bits 3, 2 and 1 of CLKRST. The Exynos850 code picks
+  the reset bits from the number of USB 3.0 ports the link reports; the
+  Exynos9610 link has a USB 3.0 PHY next to it, so that guess cannot be
+  relied on here.
+
+- The vendor kernel never writes SSPPLLCTL for this PHY, so leave it
+  alone. It also masks the individual Q-channel requests before forcing
+  QACTIVE.
+
+The USB 3.0 PHY is not used: the vendor kernel keeps it isolated on this
+board and overrides the PIPE signals of the link, and so does this.
+
+The transmitter tuning values are the ones the vendor device tree for
+the Motorola One Action (troika) sets; no other Exynos9610 board has
+been looked at.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/phy/samsung/phy-exynos5-usbdrd.c    | 137 ++++++++++++++++++++
+ include/linux/soc/samsung/exynos-regs-pmu.h |   3 +
+ 2 files changed, 140 insertions(+)
+
+diff --git a/drivers/phy/samsung/phy-exynos5-usbdrd.c b/drivers/phy/samsung/phy-exynos5-usbdrd.c
+index 8711a3b..7ed7c32 100644
+--- a/drivers/phy/samsung/phy-exynos5-usbdrd.c
++++ b/drivers/phy/samsung/phy-exynos5-usbdrd.c
+@@ -203,6 +203,10 @@
+ #define LINKCTRL_FORCE_RXELECIDLE		BIT(18)
+ #define LINKCTRL_FORCE_PHYSTATUS		BIT(17)
+ #define LINKCTRL_FORCE_PIPE_EN			BIT(16)
++#define LINKCTRL_DIS_QACT_LINKGATE		BIT(12)
++#define LINKCTRL_DIS_QACT_ID0			BIT(11)
++#define LINKCTRL_DIS_QACT_VBUS_VALID		BIT(10)
++#define LINKCTRL_DIS_QACT_BVALID		BIT(9)
+ #define LINKCTRL_FORCE_QACT			BIT(8)
+ #define LINKCTRL_BUS_FILTER_BYPASS		GENMASK(7, 4)
+ 
+@@ -1689,6 +1693,92 @@ static const struct phy_ops exynos850_usbdrd_phy_ops = {
+ 	.owner		= THIS_MODULE,
+ };
+ 
++static void exynos9610_usbdrd_phy_isol(struct phy_usb_instance *inst,
++				       bool isolate)
++{
++	unsigned int mask = EXYNOS9610_USBDRD_PHY_ENABLE |
++			    EXYNOS9610_USBDRD_TCXO_BUF_ENABLE;
++
++	if (!inst->reg_pmu)
++		return;
++
++	regmap_update_bits(inst->reg_pmu, inst->pmu_offset, mask,
++			   isolate ? 0 : mask);
++}
++
++static void exynos9610_usbdrd_utmi_init(struct exynos5_usbdrd_phy *phy_drd)
++{
++	void __iomem *regs_base = phy_drd->reg_phy;
++	u32 reg;
++
++	/* The PHY and its reference clock have to be on before anything else */
++	exynos9610_usbdrd_phy_isol(&phy_drd->phys[EXYNOS5_DRDPHY_UTMI], false);
++
++	/*
++	 * Mask the individual Q-channel requests of the link, then force
++	 * QACTIVE so that the PHY clock is not gated by the hardware.
++	 */
++	reg = readl(regs_base + EXYNOS850_DRD_LINKCTRL);
++	reg |= LINKCTRL_DIS_QACT_ID0 | LINKCTRL_DIS_QACT_VBUS_VALID |
++	       LINKCTRL_DIS_QACT_BVALID | LINKCTRL_DIS_QACT_LINKGATE;
++	reg &= ~LINKCTRL_FORCE_QACT;
++	fsleep(500);
++	writel(reg, regs_base + EXYNOS850_DRD_LINKCTRL);
++	fsleep(500);
++	reg = readl(regs_base + EXYNOS850_DRD_LINKCTRL);
++	reg |= LINKCTRL_FORCE_QACT;
++	fsleep(500);
++	writel(reg, regs_base + EXYNOS850_DRD_LINKCTRL);
++
++	/* Start PHY Reset (POR=high) */
++	reg = readl(regs_base + EXYNOS850_DRD_CLKRST);
++	reg |= CLKRST_PHY_SW_RST | CLKRST_PHY_RESET_SEL | CLKRST_PORT_RST;
++	writel(reg, regs_base + EXYNOS850_DRD_CLKRST);
++
++	/* Enable UTMI+ */
++	reg = readl(regs_base + EXYNOS850_DRD_UTMI);
++	reg &= ~(UTMI_FORCE_SUSPEND | UTMI_FORCE_SLEEP | UTMI_DP_PULLDOWN |
++		 UTMI_DM_PULLDOWN);
++	writel(reg, regs_base + EXYNOS850_DRD_UTMI);
++
++	/* Set PHY clock and control HS PHY */
++	reg = readl(regs_base + EXYNOS850_DRD_HSP);
++	reg |= HSP_EN_UTMISUSPEND | HSP_COMMONONN;
++	writel(reg, regs_base + EXYNOS850_DRD_HSP);
++	fsleep(100);
++
++	/* Set VBUS Valid and D+ pull-up control by VBUS pad usage */
++	reg = readl(regs_base + EXYNOS850_DRD_LINKCTRL);
++	reg |= FIELD_PREP(LINKCTRL_BUS_FILTER_BYPASS, 0xf);
++	writel(reg, regs_base + EXYNOS850_DRD_LINKCTRL);
++
++	reg = readl(regs_base + EXYNOS850_DRD_UTMI);
++	reg |= UTMI_FORCE_BVALID | UTMI_FORCE_VBUSVALID;
++	writel(reg, regs_base + EXYNOS850_DRD_UTMI);
++
++	reg = readl(regs_base + EXYNOS850_DRD_HSP);
++	reg |= HSP_VBUSVLDEXT | HSP_VBUSVLDEXTSEL;
++	writel(reg, regs_base + EXYNOS850_DRD_HSP);
++
++	exynos5_usbdrd_apply_phy_tunes(phy_drd, PTS_UTMI_POSTINIT);
++
++	/* Power up PHY analog blocks */
++	reg = readl(regs_base + EXYNOS850_DRD_HSP_TEST);
++	reg &= ~HSP_TEST_SIDDQ;
++	writel(reg, regs_base + EXYNOS850_DRD_HSP_TEST);
++
++	/* Finish PHY reset (POR=low) */
++	fsleep(10); /* required before doing POR=low */
++	reg = readl(regs_base + EXYNOS850_DRD_CLKRST);
++	reg |= CLKRST_PHY_RESET_SEL;
++	reg &= ~(CLKRST_PHY_SW_RST | CLKRST_PORT_RST);
++	writel(reg, regs_base + EXYNOS850_DRD_CLKRST);
++	fsleep(75); /* required after POR=low for guaranteed PHY clock */
++
++	/* The USB 3.0 PHY stays isolated, keep the link happy without it */
++	exynos5_usbdrd_usb_v3p1_pipe_override(phy_drd);
++}
++
+ static void exynos5_usbdrd_gs101_pipe3_init(struct exynos5_usbdrd_phy *phy_drd)
+ {
+ 	void __iomem *regs_pma = phy_drd->reg_pma;
+@@ -2079,6 +2169,50 @@ static const struct exynos5_usbdrd_phy_drvdata exynos850_usbdrd_phy = {
+ 	.n_regulators		= ARRAY_SIZE(exynos5_regulator_names),
+ };
+ 
++static const struct exynos5_usbdrd_phy_config phy_cfg_exynos9610[] = {
++	{
++		.id		= EXYNOS5_DRDPHY_UTMI,
++		.phy_isol	= exynos9610_usbdrd_phy_isol,
++		.phy_init	= exynos9610_usbdrd_utmi_init,
++	},
++};
++
++static const struct exynos5_usbdrd_phy_tuning exynos9610_tunes_utmi_postinit[] = {
++	PHY_TUNING_ENTRY_PHY(EXYNOS850_DRD_HSPPARACON,
++			     (HSPPARACON_TXVREF | HSPPARACON_TXRISE |
++			      HSPPARACON_TXRES | HSPPARACON_TXPREEMPPULSE |
++			      HSPPARACON_TXPREEMPAMP | HSPPARACON_TXHSXV |
++			      HSPPARACON_TXFSLS | HSPPARACON_SQRX |
++			      HSPPARACON_OTG | HSPPARACON_COMPDIS),
++			     (FIELD_PREP_CONST(HSPPARACON_TXVREF, 15) |
++			      FIELD_PREP_CONST(HSPPARACON_TXRISE, 3) |
++			      FIELD_PREP_CONST(HSPPARACON_TXRES, 3) |
++			      FIELD_PREP_CONST(HSPPARACON_TXPREEMPAMP, 3) |
++			      FIELD_PREP_CONST(HSPPARACON_TXHSXV, 3) |
++			      FIELD_PREP_CONST(HSPPARACON_TXFSLS, 3) |
++			      FIELD_PREP_CONST(HSPPARACON_SQRX, 7) |
++			      FIELD_PREP_CONST(HSPPARACON_OTG, 2) |
++			      FIELD_PREP_CONST(HSPPARACON_COMPDIS, 7))),
++	PHY_TUNING_ENTRY_LAST
++};
++
++static const struct exynos5_usbdrd_phy_tuning *exynos9610_tunes[PTS_MAX] = {
++	[PTS_UTMI_POSTINIT] = exynos9610_tunes_utmi_postinit,
++};
++
++static const struct exynos5_usbdrd_phy_drvdata exynos9610_usbdrd_phy = {
++	.phy_cfg		= phy_cfg_exynos9610,
++	.phy_tunes		= exynos9610_tunes,
++	.phy_ops		= &exynos850_usbdrd_phy_ops,
++	.pmu_offset_usbdrd0_phy	= EXYNOS5_USBDRD_PHY_CONTROL,
++	.clk_names		= exynos5_clk_names,
++	.n_clks			= ARRAY_SIZE(exynos5_clk_names),
++	.core_clk_names		= exynos5_core_clk_names,
++	.n_core_clks		= ARRAY_SIZE(exynos5_core_clk_names),
++	.regulator_names	= exynos5_regulator_names,
++	.n_regulators		= ARRAY_SIZE(exynos5_regulator_names),
++};
++
+ static const struct exynos5_usbdrd_phy_tuning exynos990_tunes_utmi_postinit[] = {
+ 	PHY_TUNING_ENTRY_PHY(EXYNOS850_DRD_HSPPARACON,
+ 			     (HSPPARACON_TXVREF |
+@@ -2900,6 +3034,9 @@ static const struct of_device_id exynos5_usbdrd_phy_of_match[] = {
+ 	}, {
+ 		.compatible = "samsung,exynos850-usbdrd-phy",
+ 		.data = &exynos850_usbdrd_phy
++	}, {
++		.compatible = "samsung,exynos9610-usbdrd-phy",
++		.data = &exynos9610_usbdrd_phy
+ 	}, {
+ 		.compatible = "samsung,exynos990-usbdrd-phy",
+ 		.data = &exynos990_usbdrd_phy
+diff --git a/include/linux/soc/samsung/exynos-regs-pmu.h b/include/linux/soc/samsung/exynos-regs-pmu.h
+index db8a7ca..9801112 100644
+--- a/include/linux/soc/samsung/exynos-regs-pmu.h
++++ b/include/linux/soc/samsung/exynos-regs-pmu.h
+@@ -57,6 +57,9 @@
+ #define EXYNOS4_MIPI_PHY_RESET_MASK		(3 << 1)
+ /* USB PHY enable bit, valid for Exynos7870 */
+ #define EXYNOS7870_USB2PHY_ENABLE		(1 << 1)
++/* USB PHY enable bits and reference clock buffer, valid for Exynos9610 */
++#define EXYNOS9610_USBDRD_PHY_ENABLE		(3 << 0)
++#define EXYNOS9610_USBDRD_TCXO_BUF_ENABLE	(1 << 16)
+ 
+ #define S5P_INFORM0				0x0800
+ #define S5P_INFORM1				0x0804
+-- 
+2.56.0
+

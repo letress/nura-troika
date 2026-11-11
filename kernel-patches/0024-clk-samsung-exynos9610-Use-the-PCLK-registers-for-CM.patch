@@ -1,0 +1,64 @@
+From eccaa05a9d280dac677bd3bf152221a655665cd2 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:43:28 +0100
+Subject: [PATCH 24/60] clk: samsung: exynos9610: Use the PCLK registers for
+ CMGP USI PCLK gates
+
+The five gout_clk_cmgp_usi_cmgp0x_pclk gates are registered on the
+IPCLK gate registers (0x2078, 0x2080, ...), which already belong to the
+corresponding IPCLK gates. Two clocks then toggle the same bit and the
+real PCLK gates at 0x207c, 0x2084, 0x208c, 0x2094 and 0x209c are never
+touched. The PCLK register definitions are already there, use them.
+
+Offsets checked against the vendor kernel's clock tables
+(drivers/soc/samsung/cal-if/exynos9610/cmucal-node.c and cmucal-sfr.c).
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index 8f45434..c5702d4 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -2050,31 +2050,31 @@ static const struct samsung_gate_clock cmgp_gate_clks[] __initconst = {
+ 	     "mout_clk_cmgp_usi00", CLK_CON_GAT_GOUT_CMGP_USI_CMGP00_IPCLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_CMGP_USI_CMGP00_PCLK, "gout_clk_cmgp_usi_cmgp00_pclk",
+-	     "gout_cmu_cmgp_bus", CLK_CON_GAT_GOUT_CMGP_USI_CMGP00_IPCLK,
++	     "gout_cmu_cmgp_bus", CLK_CON_GAT_GOUT_CMGP_USI_CMGP00_PCLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_CMGP_USI_CMGP01_IPCLK, "gout_clk_cmgp_usi_cmgp01_ipclk",
+ 	     "mout_clk_cmgp_usi01", CLK_CON_GAT_GOUT_CMGP_USI_CMGP01_IPCLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_CMGP_USI_CMGP01_PCLK, "gout_clk_cmgp_usi_cmgp01_pclk",
+-	     "gout_cmu_cmgp_bus", CLK_CON_GAT_GOUT_CMGP_USI_CMGP01_IPCLK,
++	     "gout_cmu_cmgp_bus", CLK_CON_GAT_GOUT_CMGP_USI_CMGP01_PCLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_CMGP_USI_CMGP02_IPCLK, "gout_clk_cmgp_usi_cmgp02_ipclk",
+ 	     "mout_clk_cmgp_usi02", CLK_CON_GAT_GOUT_CMGP_USI_CMGP02_IPCLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_CMGP_USI_CMGP02_PCLK, "gout_clk_cmgp_usi_cmgp02_pclk",
+-	     "gout_cmu_cmgp_bus", CLK_CON_GAT_GOUT_CMGP_USI_CMGP02_IPCLK,
++	     "gout_cmu_cmgp_bus", CLK_CON_GAT_GOUT_CMGP_USI_CMGP02_PCLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_CMGP_USI_CMGP03_IPCLK, "gout_clk_cmgp_usi_cmgp03_ipclk",
+ 	     "mout_clk_cmgp_usi03", CLK_CON_GAT_GOUT_CMGP_USI_CMGP03_IPCLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_CMGP_USI_CMGP03_PCLK, "gout_clk_cmgp_usi_cmgp03_pclk",
+-	     "gout_cmu_cmgp_bus", CLK_CON_GAT_GOUT_CMGP_USI_CMGP03_IPCLK,
++	     "gout_cmu_cmgp_bus", CLK_CON_GAT_GOUT_CMGP_USI_CMGP03_PCLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_CMGP_USI_CMGP04_IPCLK, "gout_clk_cmgp_usi_cmgp04_ipclk",
+ 	     "mout_clk_cmgp_usi04", CLK_CON_GAT_GOUT_CMGP_USI_CMGP04_IPCLK,
+ 	     21, 0, 0),
+ 	GATE(CLK_GOUT_CMGP_USI_CMGP04_PCLK, "gout_clk_cmgp_usi_cmgp04_pclk",
+-	     "gout_cmu_cmgp_bus", CLK_CON_GAT_GOUT_CMGP_USI_CMGP04_IPCLK,
++	     "gout_cmu_cmgp_bus", CLK_CON_GAT_GOUT_CMGP_USI_CMGP04_PCLK,
+ 	     21, 0, 0),
+ };
+ 
+-- 
+2.56.0
+

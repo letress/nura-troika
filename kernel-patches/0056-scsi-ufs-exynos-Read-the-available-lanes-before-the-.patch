@@ -1,0 +1,73 @@
+From e385c8ff29e8c5d82f886391d7c9f2d212d32daa Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 20:04:17 +0100
+Subject: [PATCH 56/60] scsi: ufs: exynos: Read the available lanes before the
+ pre-link hook
+
+The pre_link hooks of several SoCs set per-lane attributes with
+for_each_ufs_rx_lane() and for_each_ufs_tx_lane(). These run over
+avail_ln_rx and avail_ln_tx, which exynos_ufs_phy_init() reads from the
+host, and that is called after the hook. On the first link startup the
+counts are still zero and the loops do nothing.
+
+Read the lane counts before the hook is called.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/ufs/host/ufs-exynos.c | 27 +++++++++++++++++----------
+ 1 file changed, 17 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/ufs/host/ufs-exynos.c b/drivers/ufs/host/ufs-exynos.c
+index b2f65c4..87fbb27 100644
+--- a/drivers/ufs/host/ufs-exynos.c
++++ b/drivers/ufs/host/ufs-exynos.c
+@@ -1024,22 +1024,28 @@ static void exynos_ufs_specify_nexus_t_tm_req(struct ufs_hba *hba,
+ 	}
+ }
+ 
++static void exynos_ufs_get_avail_lanes(struct exynos_ufs *ufs)
++{
++	struct ufs_hba *hba = ufs->hba;
++
++	if (ufs->avail_ln_rx && ufs->avail_ln_tx)
++		return;
++
++	ufshcd_dme_get(hba, UIC_ARG_MIB(PA_AVAILRXDATALANES),
++		&ufs->avail_ln_rx);
++	ufshcd_dme_get(hba, UIC_ARG_MIB(PA_AVAILTXDATALANES),
++		&ufs->avail_ln_tx);
++	WARN(ufs->avail_ln_rx != ufs->avail_ln_tx,
++		"available data lane is not equal(rx:%d, tx:%d)\n",
++		ufs->avail_ln_rx, ufs->avail_ln_tx);
++}
++
+ static int exynos_ufs_phy_init(struct exynos_ufs *ufs)
+ {
+ 	struct ufs_hba *hba = ufs->hba;
+ 	struct phy *generic_phy = ufs->phy;
+ 	int ret = 0;
+ 
+-	if (ufs->avail_ln_rx == 0 || ufs->avail_ln_tx == 0) {
+-		ufshcd_dme_get(hba, UIC_ARG_MIB(PA_AVAILRXDATALANES),
+-			&ufs->avail_ln_rx);
+-		ufshcd_dme_get(hba, UIC_ARG_MIB(PA_AVAILTXDATALANES),
+-			&ufs->avail_ln_tx);
+-		WARN(ufs->avail_ln_rx != ufs->avail_ln_tx,
+-			"available data lane is not equal(rx:%d, tx:%d)\n",
+-			ufs->avail_ln_rx, ufs->avail_ln_tx);
+-	}
+-
+ 	phy_set_bus_width(generic_phy, ufs->avail_ln_rx);
+ 
+ 	if (generic_phy->power_count) {
+@@ -1142,6 +1148,7 @@ static int exynos_ufs_pre_link(struct ufs_hba *hba)
+ 	exynos_ufs_setup_clocks(hba, true, PRE_CHANGE);
+ 
+ 	/* unipro */
++	exynos_ufs_get_avail_lanes(ufs);
+ 	exynos_ufs_config_unipro(ufs);
+ 
+ 	if (ufs->drv_data->pre_link)
+-- 
+2.56.0
+

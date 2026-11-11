@@ -637,3 +637,578 @@ ramdisk, **neplatí**.
 `deviceinfo` v balíčku (`deviceinfo_dtb="exynos/exynos9610-troika"` +
 `deviceinfo_bootimg_dtb_second="true"`) popisuje přesně variantu C, která
 neprojde. Balíček je potřeba přepracovat (návrh v PROGRESS.md).
+
+### 10.7 Co bootloader předává kernelu a jak s tím pracuje uniLoader (2026-11-11)
+
+| Zjištění | Hodnota | Jak ověřeno |
+|---|---|---|
+| Registr x0 při skoku | ukazatel na DTB bootloaderu | test P2: `x0 from bootloader: 0x8a000000`, `magic=d00dfeed` |
+| Adresa DTB bootloaderu | **`0x8a000000`**, velikost `0x350eb` | tamtéž (fotka `device-info/photos/test-P2-uniloader-x0.png`) |
+| Důsledek pro uniLoader | nesmí se relokovat přes `0x8a000000`; výchozí `TEXT_BASE 0x88000000` s ~34 MB obrazem ho přepisoval | test P (initramfs 4K) vs. P2 (`TEXT_BASE 0x94000000`) |
+| Poloha ramdisku | bootloader ji zapisuje do svého DTB (`linux,initrd-start/end`); uniLoader ji přebírá | opakovaný P2: initramfs z boot image se spustil |
+| Příkazová řádka | bootloader ji skládá ve svém DTB; uniLoader ji přebírá bez `console=null`/`console=ram` | opakovaný P2, zvětšená fotka: `/proc/cmdline` obsahuje `fbcon=font:TER16x32 pmos_test=1` z boot image |
+| `console=` v cmdline boot image | **bootloader ho odstraňuje**: z `console=tty0 fbcon=… pmos_test=1` dorazilo jen `fbcon=… pmos_test=1` | tamtéž. Konzole na displeji funguje i bez něj (tty0 je výchozí); `deviceinfo_kernel_cmdline="console=tty0"` je tedy bez účinku |
+| Co bootloader přidává sám | `skip_initramfs root=PARTUUID=…`, `androidboot.*`, argumenty z `chosen/bootargs` původního DTB | tamtéž |
+| Nezarovnané přístupy v uniLoaderu | s vypnutou MMU vedou k resetu; asm `memcpy` se smí volat jen se zarovnanými adresami | první P2 (reset při skládání bootargs), po náhradě bajtovou smyčkou v pořádku |
+
+Kapitola 3.5 (návrh „uniLoader + původní DTB ve second“) je tím potvrzená v praxi,
+včetně toho, že ramdisk i příkazová řádka můžou zůstat v boot image.
+
+---
+
+## 11. Ovladač hodin: kontrola v3 proti tabulkám downstreamu (2026-11-11)
+
+Větev `troika-clk` v `linux/` = `troika-mainline` + 4 patche Chimacovy série v3
+(binding, sysreg binding, pll_1061x, ovladač; 5/5 MAINTAINERS se na 7.3.3
+neaplikuje a není potřeba) + 24 oprav + uzly CMU v dtsi.
+
+### 11.1 Metoda
+
+`tools/check-clk-driver.py` porovná ovladač s tabulkami Samsungu v downstream
+kernelu (`refs/downstream-kernel/drivers/soc/samsung/cal-if/exynos9610/`):
+`cmucal-sfr.c` (registry a bitová pole) a `cmucal-node.c` (strom hodin). Rodiče
+se neporovnávají podle jmen, ale přes registry: uzel ovladače → registr → uzel
+downstreamu → jeho rodič → registr rodiče → uzel ovladače na tom registru.
+Výstup na původní v3: `build/clk-check-v3.txt`, po opravách `build/clk-check-fixed.txt`.
+
+### 11.2 Co sedí
+
+- Všech 684 definic registrů CMU v ovladači má stejný offset jako downstream:
+  254 se shoduje i jménem, 430 má jméno zkrácené (bez `BLK_x_UID_` a `_IPCLKPORT`)
+  a na stejném offsetu je registr se stejnými slovy ve jménu, 2 se liší jen slovem
+  `ALIVE` (RTC v APM).
+- Neověřeno: tři offsety v sysreg (`EXYNOS9610_*DRCG_EN_OFFSET`, `MEMCLK_OFFSET`).
+  V našem DT se nepoužijí, protože chybí `samsung,sysreg`.
+- Typy PLL (1051x pro SHARED0/1 a CPUCL0, 1061x pro MMC a AUD) a jejich registry.
+- ID hodin v hlavičce: bez duplicit, `CLKS_NR_*` odpovídá nejvyššímu ID v každém CMU.
+- Ladicí registry pro automatické hradlování: downstream má `dbg_offset = 0x4000`
+  (`cmucal-sfr.c:1356`) a stav „idle“ jako bity [6:4] = 3 (`cmucal-debug.c:33-52`),
+  stejně jako `samsung_auto_clk_gate_is_en()` v mainline.
+
+### 11.3 Chyby a opravy (každá samostatný commit na `troika-clk`)
+
+Prvních 11 nahlásil sashiko-bot (kap. 2.1); všech 11 jsem proti kódu a downstreamu
+ověřil. Dalších 10 našel až skript.
+
+| # | Chyba | Zdroj opravy | Kdo našel |
+|---|---|---|---|
+| 1 | `mout_cmu_g3d_SWITCH` – překlep, osiřelý strom G3D | jméno u konzumenta | bot #9 |
+| 2 | `core_div_clks` se neregistruje → 41 hradel + GIC mux bez rodiče | `core_cmu_info` | bot #8 |
+| 3 | CMGP USI PCLK hradla na registrech IPCLK | `cmucal-sfr.c` 0x207c… | bot #1 |
+| 4 | CMGP USI hradla mají za rodiče mux místo děliče | `cmucal-node.c` | bot #2 |
+| 5 | totéž pro CMGP I2C IPCLK (5 hradel) | `cmucal-node.c:906` | skript |
+| 6 | `oscclk_rco` vs. registrované `oscclk_rco_cmgp` | `top_fixed_clks` | bot #10 |
+| 7 | CCI OCC hradlo na registru CCI (0x2158 místo 0x215c) | `cmucal-node.c:986` | bot #3 |
+| 8 | GIC mux má rodiče v opačném pořadí | `cmucal-node.c:351` | skript |
+| 9 | chybí hradlo `gout_cmu_shub_bus` (APM 0x2010); nové ID 51 | `cmucal-node.c:817` | bot #5 |
+| 10 | APM: `mout_cmu_shub_bus[0]` a `mout_clk_apm_bus[1]` špatně; `dll_dco` není nikde registrován (downstream: pevných 360 MHz) | `cmucal-node.c:75-82, 427, 1461` | skript |
+| 11 | **chybí dělič `dout_cmu_fsys_ufs_embd` v TOP** (0x1850, 4 bity) → UFS nemá cestu k PLL | `cmucal-node.c:736`, `cmucal-sfr.c:2287` | skript |
+| 12 | `mout_cmu_dispaud_disp[3]`: dvakrát SHARED0_DIV4, má být SHARED1_DIV4 | `cmucal-node.c:117` | skript |
+| 13 | šířky děličů AUD FM (9 → 10) a FM_SPDY (9 → 1) | `cmucal-sfr.c:3518, 3524` | skript |
+| 14 | rodič `gout_dispaud_lhm_axi_p_dispaud_clk` (má být `dout_clk_dispaud_busp`) | `cmucal-node.c:1119` | skript |
+| 15 | UAIF2 mux používá hodiny UAIF0; chybí `ioclk_audiocdclk2` (10 MHz) | `cmucal-node.c:371, 1477` | skript |
+| 16 | rodič `gout_g2d_lhs_acel_d_clk` (má být G2D user mux) | `cmucal-node.c:1186` | skript |
+| 17 | chybí hradla G2D a MSCL (0x204c, 0x2050); nová ID 26, 27 | `cmucal-node.c:1174, 1181` | bot #6 |
+| 18 | šířka děliče PERI I2C (8 → 4) | `cmucal-sfr.c:4793` | skript |
+| 19 | 4 registry hradel chybí v `*_clk_regs` (CAM ×2, FSYS SDCLKIN ×2) | definice v ovladači | bot #7 |
+| 20 | `CLK_DOUT_CMU_MFD_*` → `MFC` | — | bot #11 |
+| 21 | binding: vstupy CMU_CORE se jmenují `gout_cmu_core_*`, ven z TOP jde `dout_cmu_core_*` | pořadí mux → gate → div v TOP | já |
+| 22 | binding: příklad má `reg` 0x8000, ale auto hradlování vyžaduje 0x10000 (`samsung_is_auto_capable()`, `clk.c:246`) | mainline `clk.c` | já |
+
+**Bot #4 není chyba** („`CLK_DOUT_CLK_CPUCL0_CPU` má šířku 0“): registr
+`CLK_CON_DIV_DIV_CLK_CPUCL0_CPU` (0x1810) v downstreamu žádné pole DIVRATIO
+nemá, jen BUSY a ENABLE_AUTOMATIC_CLKGATING (`cmucal-sfr.c:3189-3190`), a uzel je
+`CLK_DIV(…, EMPTY_CAL_ID, …)`. Dělič 1:1 je tedy věrný popis hardwaru. Totéž
+`dout_clk_g3d_busd`.
+
+### 11.4 Co jsem neopravoval
+
+- APM: `oscclk` místo `OSCCLK_RCO_APM` u tří uzlů. Downstream má pro RC oscilátor
+  APM samostatné pevné hodiny (26 MHz, stejná frekvence). Binding pro to nemá vstup.
+- Chybějící volitelná hradla: FSYS RTIC a SSS (4×), PERI CMU PCLK a OSCCLK (2×).
+- `mout_pll_shared0/1/mmc` na `PLL_CON0` bit 4 – downstream je má jako součást PLL,
+  v mainline je to obvyklý zápis. Není to chyba.
+- 5/5 (MAINTAINERS) a připomínky lidí z review (commit message, řazení v bindingu).
+
+### 11.5 Co nevím a co je riziko pro test na telefonu
+
+1. **Registr OPTION.** Při registraci CMU s auto hradlováním mainline zapíše do
+   `CMU_*_CONTROLLER_OPTION` (offset 0x800) bity 24, 28, 29, 30, 31
+   (`clk-exynos-arm64.c:28-35`, definice pro Google gs101). Downstream pro 9610
+   zná jen bity 28 a 29 (`cmucal-sfr.c:5505-5530`). Co na 9609 dělají bity 24, 30
+   a 31, nevím. Chimac to tak má (v2: „Enable auto clock gating“), ale jeho DT
+   a zařízení (gta4xl, Exynos 9611) nejsou naše. Testovací kernel proto vypíše
+   hodnotu před zápisem a po něm.
+2. **Napájecí domény.** CMU_CAM, CMU_G2D a CMU_G3D leží v doménách pd-cam, pd-g2d,
+   pd-g3d (`device-info/live.dts:2972-3033`). Jestli je bootloader nechává zapnuté,
+   nevím; čtení registrů vypnuté domény by kernel shodilo. V dtsi proto tyto tři
+   CMU **nejsou**. Testovací kernel jen přečte stavové registry PMU
+   (`pmucal_local_exynos9610.h`: 0x11860000 + 0x4004/24/44/64/84/a4/e4).
+3. **`clk_ignore_unused`.** Hradla jsou v auto režimu a jejich vypnutí je prázdná
+   operace, ale PLL ne: bez `clk_ignore_unused` by kernel na konci bootu vypnul
+   PLL bez konzumenta (včetně sdílených). Argument dodává bootloader z původního
+   DTB (ověřeno na fotce testu P2) a testovací image ho má ještě jednou.
+4. Sysreg (`samsung,sysreg`) v DT není → ovladač vypíše „Unable to get CMU sysreg“
+   a DRCG nezapíná. Binding v3 tu vlastnost ani nepovoluje.
+5. Ovladač nikde nepoužívá `.clk_name`, takže `clocks`/`clock-names` v DT jsou
+   zatím jen popis; rodiče se hledají podle globálních jmen.
+
+### 11.6 Kontroly (2026-11-11)
+
+- `make dtbs_check` pro `exynos9610-troika.dtb` a `exynos9610-gta4xl.dtb`: bez hlášení.
+- `make dt_binding_check DT_SCHEMA_FILES=samsung,exynos9610-cmu.yaml`: bez hlášení.
+- `make W=1 drivers/clk/samsung/clk-exynos9610.o`: bez varování.
+- `checkpatch --strict` na 24 commitů: jen chybějící `Signed-off-by` (nepřidávám
+  ho za tebe), tvar `Co-Authored-By` a u přejmenování MFD → MFC „binding a ovladač
+  v jednom patchi“ (rozdělení by rozbilo překlad mezi commity).
+- Na hardwaru zatím neověřeno nic.
+
+### 11.7 Test CLK1 na telefonu (2026-11-11): ovladač hodin funguje
+
+`out/troika-test-CLK1.img`, fotka `device-info/photos/test-CLK1-clocks.png`
+(638×850; čteno ze zvětšených výřezů). Číslice 0 a 8 jsou v tomto rozlišení
+podobné, proto je u každé hodnoty uvedeno, čím je čtení podložené.
+
+| Co | Hodnota | Kontrola čtení |
+|---|---|---|
+| počet hodin / sirotků | 566 / 0 | 644 − CAM 31 − G2D 27 − G3D 21 + `oscclk` = 566 |
+| `fout_shared0_pll` | 1 599 000 000 Hz | shoda s tabulkou ovladače |
+| `fout_shared1_pll` | 1 332 500 000 Hz | shoda s tabulkou ovladače |
+| `fout_mmc_pll` | 825 999 877 Hz | = tabulková 799 999 877 + 26 MHz (M o 1 vyšší) |
+| `fout_cpucl0_pll` | 1 053 000 000 Hz | = 26 MHz × 40,5 |
+| `fout_aud_pll` | 1 179 648 040 Hz | obvyklá frekvence audio PLL (1179,648 MHz) |
+| `dout_cmu_fsys_bus`, `dout_cmu_usb_bus` | 266 500 000 Hz | = 1599/6 = 1332,5/5 |
+| `dout_cmu_fsys_ufs_embd`, `gout_fsys_ufs_embd_clk_unipro`, `dout_cmu_peri_uart` | 133 250 000 Hz | = 1599/12 |
+| `dout_cmu_fsys_mmc_card` | 39 975 000 Hz | = 1599/40 |
+| `dout_cmu_usb_usb30drd` | 49 968 750 Hz | = 1599/32 |
+| `dout_cmu_dispaud_disp` | 533 000 000 Hz | = 1599/3 |
+| OPTION všech 9 CMU před zápisem | `0x30000000` | bity 28 a 29 – přesně ty dva, které zná downstream |
+| OPTION po zápisu `0xf1000000` | `0x70000000` | druhá číslice je 0, ne 1 → bit 24 nedrží; první je 7, ne f → bit 31 nedrží |
+| stav domén dispaud, cam, g2d, g3d, isp, mfc, vipx1 | `0x3000f` | spodní čtyři bity f = zapnuto (horní číslice čtené s menší jistotou) |
+
+Závěry:
+
+- **Riziko z 11.5 bod 1 se nepotvrdilo.** Bootloader nechává v OPTION bity 28 a 29.
+  Zápis mainline přidá jen bit 30; bity 24 a 31 na tomto čipu nedrží (čtou se
+  jako 0). Systém běží dál, displej svítí, tlačítka i konzole fungují.
+- **Vzorce PLL a strom hodin sedí s hardwarem**: všechny přečtené frekvence jsou
+  celočíselné podíly PLL a žádné hodiny nejsou bez rodiče.
+- **Oprava 11 z 11.3 (dělič UFS) je vidět v praxi**: `gout_fsys_ufs_embd_clk_unipro`
+  má frekvenci odvozenou od PLL (133,25 MHz). Bez děliče by cesta končila u muxu.
+- **Bootloader nechává zapnuté všech sedm čtených napájecích domén** (11.5 bod 2).
+  CMU_CAM, CMU_G2D a CMU_G3D by tedy šly přidat; zatím nejsou potřeba.
+- `fout_mmc_pll` běží na frekvenci, která v tabulce ovladače není (tabulka má jen
+  800 MHz). Čtení funguje, ale `clk_set_rate()` by na současnou hodnotu neuměl.
+- `clk: Not disabling unused clocks` v logu → `clk_ignore_unused` účinkuje.
+
+---
+
+## 12. USB: průzkum (2026-11-11)
+
+Cíl: USB v režimu zařízení (gadget), aby šla síť přes USB a ladicí shell pmOS
+(telnet), později SSH. Nic z toho zatím není napsané ani sestavené.
+
+### 12.1 Jak to má původní kernel
+
+| Co | Hodnota | Zdroj |
+|---|---|---|
+| Řadič dwc3 | `0x13200000`, velikost 0x10000, přerušení SPI 186 (`0xba`) | `device-info/live.dts:7772-7803` |
+| Režim | `dr_mode = "otg"`, `maximum-speed = "high-speed"`, `snps,dis-u2-freeclk-exists-quirk` | tamtéž |
+| USB 2.0 PHY | `0x131d0000`, velikost 0x200, `phy_version = 0x300`, `ip_type = 2` | `live.dts:7806-7838` |
+| USB 3.0 PHY | `0x131f0000` + `0x131e0000`, `usb3phy-isolation = 1` → nepoužívá se | `live.dts:7840-7872`, log „USB3.0 PHY is isolated“ (`device-info/dmesg.txt:221`) |
+| Zapnutí PHY v PMU | registr `0x11860000 + 0x704`: bity 0 a 1 (maska 0x3) a bit 16 (buffer TCXO, referenční hodiny PHY) | `phy-exynos-usbdrd3.c:412-486`, `phy-exynos-usbdrd.h:22-26`, log `val : 0x3 / mask : 0x3` a `DEVCTRL reg 0x3 → 0x10003` (`dmesg.txt:208-214`) |
+| Referenční hodiny PHY | `oscclk` 26 MHz (`phy_refclk = "oscclk"`, `phy_refsel_clockcore = 1`) | `live.dts:7815-7820` |
+| Regulátory | ovladač PHY žádné napájení neřídí (jen volitelný `vbus` pro režim host); `ldos = <0>` u dwc3 | `phy-exynos-usbdrd3.c`, `live.dts:7797` |
+| Ladění vysílače | `tx_vref` 15, `tx_pre_emp` 3, `tx_res` 3, `tx_rise` 3, `tx_hsxv` 3, `tx_fsls` 3, `rx_sqrx` 7, `compdis` 7, `otg` 2 | `live.dts:9944-10010` |
+| Přepínač D+/D− | MUIC v S2MU106 (I2C) | `live.dts:6168, 9837` |
+
+Pozor: na telefonu běží ovladač `phy-exynos-usbdrd3.c` (`CONFIG_PHY_EXYNOS_USBDRD3`),
+ne `phy-exynos-usbdrd.c` (ten je v defconfigu vypnutý a s naším DT by ani
+neprošel přes chybějící `pmu_offset_dp`). Poznal jsem to podle hlášek v logu.
+
+### 12.2 Co umí mainline 7.3.3
+
+- `drivers/phy/samsung/phy-exynos5-usbdrd.c` podporuje Exynos 850 a 7870, 9610 ne.
+  Registry PHY pro Exynos 850 (`LINKCTRL` 0x04, `LINKPORT` 0x08, `CLKRST` 0x20,
+  `UTMI` 0x50, `HSP` 0x54, `HSPPARACON` 0x58, `HSP_TEST` 0x5c, `SECPMACTL` 0x48)
+  jsou **stejné jako v downstreamu pro 9610** (`phy-exynos-usb3p1-reg.h`) a
+  inicializační sekvence `exynos850_usbdrd_utmi_init()` odpovídá
+  `phy_exynos_usb_v3p1_enable()` + `…_pipe_ovrd()` krok za krokem.
+- `drivers/usb/dwc3/dwc3-exynos.c` má `samsung,exynos850-dwusb3` (hodiny
+  `bus_early`, `ref`).
+- Ovladač hodin v3 má hradla, která tomu odpovídají:
+  `CLK_GOUT_USB_USB30DRD_BUS_CLK_EARLY`, `…_REF_CLK`, `…_ACLK_PHYCTRL_20`.
+- Konfigurace kernelu už má vše potřebné (`USB_DWC3_GADGET`, `USB_DWC3_EXYNOS`,
+  `PHY_EXYNOS5_USBDRD`, `USB_CONFIGFS_NCM/RNDIS/ACM`).
+- Uzel PMU (`syscon`) v našem dtsi není a binding `exynos-pmu.yaml` 9610 nezná.
+
+### 12.3 V čem se 9610 od Exynos 850 liší (co je potřeba dopsat)
+
+1. **Zapnutí PHY v PMU.** Mainline pro 850 nastavuje jen bit 0. Na 9610 jsou to
+   bity 0 a 1 a navíc bit 16 (TCXO). → vlastní funkce izolace.
+2. **Reset PHY.** Pro verzi 0x300 používá downstream bity 3, 2 a 1 v `CLKRST`
+   (`phy_sw_rst_high/low`, větev pro minor 0). Mainline se rozhoduje podle počtu
+   USB3 portů v `LINKPORT`; má-li řadič na 9610 USB3 port (což nevím), zvolil by
+   bity 12 a 13 a PHY by se neresetoval. → vlastní inicializace pro 9610, která
+   dělá přesně to, co downstream.
+3. **`SSPPLLCTL` (0x30).** Mainline tam zapisuje volbu referenční frekvence;
+   downstream pro tento PHY do toho registru nezapisuje vůbec. → vynechat.
+4. **Referenční hodiny.** `gout_usb_usb30drd_ref_clk` má 49 968 750 Hz (naměřeno
+   v testu CLK1), což mainline jako referenci nezná. Downstream bere `oscclk`
+   26 MHz. → v DT dát jako `ref` hodiny `oscclk`.
+5. Hodnoty ladění vysílače z původního DT (tabulka výše) jako `phy_tunes`.
+6. Uzel PMU + doplnění bindingu (`samsung,exynos9610-pmu`, `samsung,exynos7-pmu`, `syscon`).
+7. Uzly `usb@13200000` (`dr_mode = "peripheral"`, `maximum-speed = "high-speed"`)
+   a `phy@131d0000` v dtsi, zapnutí v `exynos9610-troika.dts`.
+
+### 12.4 Co nevím a rizika
+
+- **Zápis do PMU.** Bez zápisu do `0x11860704` (bity 0, 1, 16) PHY nepoběží, pokud
+  je bootloader nenechal nastavené. Je to stejný zápis, jaký dělá původní kernel
+  při každém připojení kabelu. Na PMU jsem slíbil nesahat bez tvého výslovného
+  souhlasu, proto se ptám.
+- **MUIC.** D+/D− vedou přes přepínač v S2MU106, který mainline neovládá. Po
+  `fastboot boot` zůstává přepnutý na USB (fastboot přes něj právě běžel). Co udělá
+  po vytažení a zasunutí kabelu, nevím – při testu kabel nevytahovat.
+- **Počet USB3 portů v `LINKPORT`** a stav registrů PHY po bootloaderu: přečtu
+  ladicím výpisem ve stejném testu (jen čtení), než ovladač cokoli zapíše.
+- Regulátory se nemění. Telefon je jen zařízení, VBUS nikdy sám nenapájí.
+  Nabíjení zůstává tak, jak ho nechal bootloader.
+- Nejhorší očekávaný výsledek: USB se nerozběhne (počítač telefon neuvidí), případně
+  kernel spadne při čtení registrů PHY. Po restartu je vše v původním stavu,
+  fastboot bootloaderu tím ovlivněn není.
+
+### 12.5 Navržený postup
+
+1. Commity na `troika-clk`: binding + uzel PMU, varianta PHY pro 9610, compatible
+   pro dwc3, uzly v dtsi a DTS. Každá hodnota se zdrojem z tabulky 12.1.
+2. Test bez přestavby balíčku (ušetří 1,5 h): boot image složený z místně
+   sestaveného kernelu a initramfs pmOS z testu PM. Initramfs pmOS si USB síť
+   a telnet nastaví sám, jakmile kernel nabídne USB řadič.
+3. Na počítači by se mělo objevit nové síťové rozhraní; `ping 172.16.42.1`
+   a `telnet 172.16.42.1` do ladicího shellu. SSH přijde až s kořenovým systémem.
+
+### 12.6 Implementace (2026-11-11, po souhlasu uživatele se zápisem do PMU 0x11860704)
+
+Sedm commitů na `troika-clk` (nad hodinami):
+
+| Commit | Co dělá |
+|---|---|
+| `dt-bindings: soc: samsung: exynos-pmu: Add Exynos9610` | `samsung,exynos9610-pmu`, `syscon` – stejně jako původní DT (`live.dts:7151`) |
+| `dt-bindings: phy: samsung,usb3-drd-phy: Add Exynos9610` | compatible + hodiny `phy`, `ref` |
+| `dt-bindings: usb: samsung,exynos-dwc3: Add Exynos9610` | compatible + hodiny `bus_early`, `ref` |
+| `phy: exynos5-usbdrd: Add support for the Exynos9610 USB 2.0 PHY` | izolace (bity 0, 1, 16 v PMU 0x704), inicializace podle downstreamu, ladění vysílače z původního DT |
+| `usb: dwc3: exynos: Add support for Exynos9610` | použije data Exynos 850 |
+| `arm64: dts: exynos9610: Add PMU, USB PHY and USB controller` | uzly `system-controller@11860000`, `phy@131d0000`, `usb@13200000` |
+| `arm64: dts: exynos9610-troika: Enable USB in device mode` | `dr_mode = "peripheral"`, `maximum-speed = "high-speed"` |
+
+Záměrné odchylky od downstreamu:
+
+- **PMU uzel nemá fallback `samsung,exynos7-pmu`**, je to čistý `syscon` jako
+  v původním DT. S fallbackem by se navázal ovladač `exynos-pmu`; ten by sice
+  podle kódu žádný další registr nezapisoval (jeho `exynos-clkout` zná jen čipy
+  do Exynos 5433), ale pro USB není potřeba a souhlas mám jen pro 0x704.
+- **Reset linky při zapnutí PHY vynechán.** Downstream ho dělá, v mainline by ale
+  smazal nastavení, které dwc3 zapíše těsně předtím. Stejně to má Exynos 850.
+- **Bity OCD v `LINKPORT` (detekce nadproudu pro režim host) nezapisuju**, telefon
+  je jen zařízení.
+- Typ přerušení dwc3 (`IRQ_TYPE_LEVEL_HIGH`) v původním DT není (má 0); beru
+  zvyklost ostatních Exynosů v mainline.
+
+Kontroly:
+
+- `dtbs_check`: jediné hlášení – `usb@13200000: 'vdd33-supply' is a required property`.
+  Je to očekávané a správné: napájení jde z PMIC, který podle pravidel zatím
+  nepopisujeme. Ovladač si vezme „dummy“ regulátor a ničím nehýbe.
+- `dt_binding_check` tří změněných bindingů: bez hlášení.
+- `W=1` pro `phy-exynos5-usbdrd.o` a `dwc3-exynos.o`: bez varování.
+- `checkpatch --strict`: chybějící `Signed-off-by`, tvar `Co-Authored-By` a
+  „Prefer using the BIT macro“ v `exynos-regs-pmu.h` (držím se zápisu `(1 << n)`,
+  který ten soubor používá všude).
+- Na hardwaru zatím neověřeno.
+
+### 12.7 Test USB1 na telefonu (2026-11-11 14:57): USB funguje
+
+`fastboot boot out/troika-test-USB1.img`. Hodnoty nejsou z fotky, ale přímo z logu
+kernelu staženého přes USB síť (`tools/phone-sh.py`, celý log:
+`device-info/dmesg-mainline-USB1.txt`).
+
+Na počítači:
+
+- `usb 1-2: new high-speed USB device`, `idVendor=18d1, idProduct=d001`,
+  `Product: troika mainline test`, ovladač `cdc_ncm`.
+- Rozhraní dostalo přes DHCP `172.16.42.2/24`; `ping 172.16.42.1`: 3/3, 2,1 ms.
+- Shell přes telnet funguje (`uname`: `7.3.3-troika-g42fcf5dd3c5b`).
+
+Na telefonu: `/sys/class/udc/…/state` = `configured`, `current_speed` = `high-speed`,
+přerušení dwc3 (GIC SPI 186) přibývají.
+
+| Registr | Po bootloaderu | Po inicializaci | Co z toho plyne |
+|---|---|---|---|
+| PMU `0x704` | `0x0` | `0x10003` | bootloader nechává PHY vypnutý → **zápis do PMU byl nutný**; všechny tři bity drží |
+| `LINKCTRL` (0x04) | `0x00053ef0` | `0x00053ff0` | přibyl jen `FORCE_QACT` (bit 8) |
+| `LINKPORT` (0x08) | `0x0001107c` | beze změny | **řadič hlásí 1 port USB3** → kód pro Exynos 850 by zvolil špatné bity resetu; vlastní inicializace byla potřeba (12.3 bod 2) |
+| `CLKRST` (0x20) | `0x00000004` | `0x00000004` | reset proběhl a skončil |
+| `SSPPLLCTL` (0x30) | `0x60108886` | beze změny | nezapisujeme, jak bylo v plánu |
+| 0x48 | `0x0` | `0x0` | bit `PMA_LOW_PWR` se neuložil – registr tu zřejmě není; neškodí |
+| `UTMI` (0x50) | `0x33` | `0x30` | zrušeno vynucené uspání, VBUS/BVALID vynucené |
+| `HSP` (0x54) | `0x10003200` | `0x10003300` | přibyl `COMMONONN` |
+| `HSPPARACON` (0x58) | `0xf36f3737` | `0xf36f3727` | bootloader má stejné ladění jako původní DT až na `otg` (3 → 2 podle DT) |
+| `HSP_TEST` (0x5c) | `0x01040000` | `0x00080000` | `SIDDQ` (bit 24) shozen → analogová část zapnutá |
+
+Hlášky kernelu k USB: jen čtyři „supply … not found, using dummy regulator“
+(`vbus`, `vbus-boost`, `vdd33`, `vdd10`) – očekávané, regulátory nepopisujeme.
+
+Co ověřené není: chování po vytažení a zasunutí kabelu (MUIC), režim host,
+uspání, a jak dlouho spojení vydrží.
+
+## 13. Stav běžícího systému po testu NET1 (2026-11-11)
+
+Zdroj: výpis přes SSH z běžícího telefonu, uložený v
+`device-info/net1-status.txt` (mimo git; obsahuje příkazovou řádku kernelu se
+sériovým číslem). Kernel `7.3.3-troika #4-postmarketOS`, systemd 262.2.
+
+| Co | Zjištění |
+|---|---|
+| Stav systemd | `degraded`, jediná spadlá služba `postmarketos-zram-swap.service` |
+| Příčina | v konfiguraci balíčku je `# CONFIG_ZRAM is not set` (`pmbootstrap kconfig check` to nehlídá) |
+| Start | userspace 11,8 s do `graphical.target`; 3 min 21 s „kernel“ je čekání initramfs na NBD server (195 pokusů) |
+| Paměť | 3677 MB celkem, 3447 MB volných, bez swapu |
+| Síť | `usb0` 172.16.42.1/16 |
+| Bloková zařízení | jen `nbd0` (p1 `/boot` 487 MB, p2 `/` 933 MB); žádné úložiště telefonu, UFS ani SD nejsou popsané |
+| Čas | systém běží s datem sestavení systemd (2026-11-06), RTC není popsané |
+
+Varování kernelu – stejná jako v testu USB1 (`dmesg-mainline-USB1.txt`), nic nového:
+
+- 9× `Unable to get CMU sysreg` – uzly CMU nemají odkaz na sysreg, ovladač
+  proto nezapíná DRCG (viz 11.5 bod 4).
+- 4× `Unexpected variation in SYS_CNTFRQ_EL0` (CPU4–7 mají v registru náhodné
+  hodnoty, boot CPU nulu) – firmware registr nenastavuje; časovač bere
+  frekvenci z DT (`sched_clock: 56 bits at 26MHz`).
+- `supply vbus/vbus-boost/vdd33/vdd10 not found, using dummy regulator` –
+  záměr, regulátory nejsou popsané (pravidlo o napájení).
+- `KASLR disabled due to lack of seed`.
+
+Z initramfs: `Unable to resize root partition` a `resize2fs: Please run
+e2fsck -f first` – zvětšení oddílu na NBD se neprovedlo, systému to nevadí.
+
+Uživatelský prostor: `nm-initrd-generator.sh failed`, `bpf-restrict-fs … Not
+supported`, `pipewire-pulse.socket … refusing`, avahi bez nss-mdns – obecné
+hlášky obrazu, nesouvisí s hardwarem.
+
+Oprava zram: pmaports commit cfcf09c10 (pkgrel 4) zapíná `CONFIG_ZRAM=y`,
+`ZSMALLOC` a backendy podle kategorie `zram` v `kconfigcheck.toml`.
+
+**Ověřeno testem NET2 (2026-11-11, kernel #5):** stav systemd `running`, žádná
+spadlá služba, `/dev/zram0` (zstd, 5,4 GB) je aktivní swap. Start trval 6,8 s
+v kernelu a 8,9 s v uživatelském prostoru. Varování kernelu jsou stejná jako
+výše. Výpis: `device-info/net2-status.txt`.
+
+## 14. Úložiště: průzkum UFS a SD (2026-11-11)
+
+Zatím jen průzkum, nic neimplementováno. Zdroje: původní DT z běžícího telefonu
+(`device-info/live.dts`, dále „DT“ s číslem řádku), downstream kernel
+(`refs/downstream-kernel/drivers/scsi/ufs/`), mainline 7.3.3 (`linux/`).
+
+### 14.1 UFS – hodnoty z původního DT a kernelu
+
+| Co | Hodnota | Zdroj |
+|---|---|---|
+| Řadič | `ufs@13520000`, `compatible = "samsung,exynos-ufs"` | DT:7084 |
+| Registry | HCI `0x13520000`/0x200, VS `0x13521100`/0x200, UniPro `0x13510000`/0x8000, FMP `0x13530000`/0x100 | DT:7089 |
+| PHY (PMA) | `0x13524000`/0x800 | DT:7117–7121 |
+| Přerušení | SPI 157 (0x9d) | DT:7090 |
+| Hodiny | `GATE_UFS_EMBD_QCH_UFS`, `UFS_EMBD` | DT:7093–7094 |
+| Piny | `ufs_rst_n` = gpf0-1, `ufs_refclk_out` = gpf0-0, obojí funkce 3, bez pull (řadič `pinctrl@13490000`) | DT:1485–1500 |
+| Reset zařízení | `ufs-reset-n-gpio` = gpf0-1; ovladač ho ale ovládá registrem `HCI_GPIO_OUT` | DT:7104, `ufs-exynos.c:421–429` |
+| Napájení VCC | pevný regulátor „V_SYS“ spínaný GPIO gpg4-0 (`pinctrl@139b0000`), `regulator-boot-on`, `regulator-always-on` | DT:7101–7103, 7133–7144 |
+| Izolace PHY | PMU offset `0x724`, maska 0x1, hodnota 0x1 (výchozí, uzel `ufs-phy-iso` v DT není) | `ufs-exynos.c:1108–1117` |
+| IO koherence | sysreg FSYS `0x13410000`, offset `0x1010`, maska 0x300, hodnota 0x300 | DT:7124–7129, 7163–7168 |
+| TCXO | `tcxo-ex-ctrl = <0>` → ovladač bit TCXO v PMU neřídí | DT:7098, `ufs-exynos.c:1145` |
+| Režim | 1 linka, HS gear 3, série B | DT:7106–7107, `ufs-exynos.c:1151–1165` |
+| Konfigurace PHY | tabulky `init_cfg`, `post_init_cfg`, `calib_of_hs_rate_a/b`, `lane1_sq_off`, `post_h8_enter`, `pre_h8_exit` | `ufs-cal-9610.c:134–302` |
+| Rozestup linek PMA | `0x140` bajtů | `ufs-cal-9610.c:41` |
+| Čekání na CDR | PMA `0x1fc`, maska 0x40 | `ufs-cal-9610.c:245` |
+
+V `device-info/dmesg.txt` (původní kernel) žádné řádky o UFS nejsou, takže
+skutečně vyjednaný režim linky z telefonu doložený nemám.
+
+### 14.2 UFS – stav v mainline 7.3.3
+
+- `drivers/ufs/host/ufs-exynos.c` zná exynos7, exynosautov9, exynosautov920,
+  fsd a gs101; `drivers/phy/samsung/phy-samsung-ufs.c` totéž. Exynos9610 chybí
+  v obou, i v linux-next (`refs/linux-next`).
+- Rámec se hodí: konfigurace PHY je tabulka zápisů do PMA s volitelným
+  rozestupem linek (`PHY_TRSV_REG_CFG_OFFSET`; gs101 má 0x200, výchozí je 0x30,
+  pro 9610 by to bylo 0x50, tedy 0x140 bajtů); host má háčky `pre_link`, `post_link`, `pre_pwr_change`,
+  `post_pwr_change`, kam patří atributy UniPro/PCS z tabulek CAL.
+- Izolaci PHY dělá ovladač PHY přes `samsung,pmu-syscon` (zápis do PMU);
+  IO koherenci host přes `samsung,sysreg`.
+- Hodiny v našem ovladači existují: `gout_fsys_ufs_embd_aclk`,
+  `gout_fsys_ufs_embd_clk_unipro` (v testu CLK1 133,25 MHz),
+  `gout_fsys_ufs_embd_fmp_clk` (`clk-exynos9610.c:3231–3238`).
+- VCC: jádro UFS regulátor nevyžaduje; bez `vcc-supply` v DT na GPIO gpg4-0
+  nikdo nesáhne a zůstane ve stavu, v jakém ho nechal bootloader (ten z UFS
+  bootuje, takže napájení běží).
+
+Co by port obnášel: nový soubor s tabulkou PHY pro 9610, nová varianta
+v `ufs-exynos.c` (háčky podle `ufs-cal-9610.c`), tři bindingy, uzly v DT.
+
+### 14.3 UFS – rizika a co vyžaduje souhlas
+
+1. **Zápis do PMU `0x11860724`** (bit 0, izolace PHY) – jiný registr než ten,
+   který byl povolen pro USB. Potřebuje nový výslovný souhlas.
+2. **Zápis do sysreg FSYS `0x13411010`** (bity 8, 9) – není to PMU ani
+   regulátor, ale je to systémový registr mimo samotný řadič; uvádím ho kvůli
+   průhlednosti.
+3. **Regulátor se nepopisuje** – spoléhá se na stav po bootloaderu. Pravidlo
+   o regulátorech zůstane dodržené.
+4. **Data na UFS** – je tam Android i bootloader. Ovladač při startu resetuje
+   řadič i zařízení a nastaví linku; do oddílů sám nezapisuje. První test má
+   proto běžet s testovacím initramfs (ne s pmOS), který disk přepne na
+   „jen pro čtení“ a jen vypíše oddíly, nic nepřipojuje.
+5. **Neznámé**: jestli tabulky CAL sednou na háčky mainline na první pokus
+   (pořadí zápisů, čekání na PLL/CDR). Chybná konfigurace = linka nenaběhne;
+   každá oprava znamená nový místní kernel (~20 min) a nový boot.
+
+### 14.4 SD karta
+
+| Co | Hodnota | Zdroj |
+|---|---|---|
+| Řadič | `dwmmc2@13550000`/0x2000, `samsung,exynos-dw-mshc` | DT:8116–8118 |
+| Přerušení | SPI 147 (0x93) | DT:8120 |
+| Hodiny | `ciu` (ID 0x137) | DT:8123–8124 |
+| Detekce karty | gpa0-7, invertovaná | DT:8134–8135, 8161 |
+| Napájení | `vmmc` = LDO35, `vqmmc` = LDO2 v PMIC S2MPU09, bez `boot-on`/`always-on` | DT:4541–4548, 4700–4707 |
+| PMIC | S2MPU09 na sběrnici SPEEDY (`speedy@11a10000`) přes ACPM | DT:4395–4410 |
+
+SD karta bez regulátorů nejde: oba LDO jsou po startu vypnuté (nejsou
+`boot-on`) a mainline nemá ovladač sběrnice SPEEDY pro 9610 ani regulátorů
+S2MPU09. Znamenalo by to napsat ovladač PMIC a zapínat regulátory, což je
+proti pravidlu o napájení. Odloženo, dokud to uživatel výslovně nezmění.
+
+### 14.5 UFS – implementace (větev `troika-clk`, 8 commitů po úklidu)
+
+Souhlas uživatele se zápisem do PMU `0x11860724` bit 0: 2026-11-11.
+
+| Commit | Co dělá |
+|---|---|
+| `dt-bindings: phy: samsung,ufs-phy: Add Exynos9610` | compatible PHY |
+| `dt-bindings: ufs: samsung,exynos-ufs: Add Exynos9610` | compatible hosta |
+| `phy: samsung-ufs: Add support for the Exynos9610 UFS PHY` | `phy-exynos9610-ufs.c`: zápisy do PMA z `ufs-cal-9610.c` (adresy děleno 4), izolace PMU 0x724 bit 0, čekání na CDR |
+| `scsi: ufs: exynos: Read the available lanes before the pre-link hook` | oprava: smyčky přes linky v háčku `pre_link` při prvním startu linky nic nedělaly (počty linek se četly až po háčku) |
+| `scsi: ufs: exynos: Only set PA_TxTrailingClocks when a value is given` | původní kernel ten atribut pro 9610 nezapisuje |
+| `scsi: ufs: exynos: Add support for Exynos9610` | varianta hosta, háčky podle původního kernelu |
+| `arm64: dts: exynos9610: Add FSYS sysreg, UFS PHY and UFS host` | uzly `system-controller@13410000`, `ufs@13520000`, `phy@13524000` |
+| `arm64: dts: exynos9610-troika: Enable UFS` | zapnutí (`lanes-per-direction = <1>` je v dtsi, řadič má jednu linku) |
+
+Mapování na původní kernel:
+
+| Původní kernel | Mainline |
+|---|---|
+| `init_cfg`, část UniPro/PCS (`ufs-cal-9610.c:134–157`) | `exynos9610_ufs_pre_link()` |
+| `init_cfg`, část PMA (`:159–170`) | `exynos9610_pre_init_cfg[]` |
+| `post_init_cfg` (`:173–184`) | `exynos9610_ufs_post_link()` |
+| `calib_of_hs_rate_a/b`, UniPro a časovače (`:214–227`, `:249–262`) | `gs101_ufs_pre_pwr_change()` (stejné hodnoty) + tři časovače v obecném kódu |
+| `calib_of_hs_rate_a/b`, PMA pro gear 3 (`:230–240`, `:265–275`) | `exynos9610_pre_pwr_hs_cfg[]` |
+| `post_calib_of_hs_rate_*` (CDR, `:244–247`, `:279–282`) | `exynos9610_ufs_phy_wait_for_cdr_lock()` |
+| `lane1_sq_off` (`:284–288`) | nepřeneseno – řadič má jen jednu linku (14.6) |
+| `post_h8_enter`, `pre_h8_exit` (`:290–302`) | `exynos9610_post_h8_enter[]`, `exynos9610_pre_h8_exit[]` |
+| `HCI_UFS_ACG_DISABLE`/`HCI_IOP_ACG_DISABLE` (`ufs-exynos.c:306–322`, `:458–462`) | začátek `exynos9610_ufs_pre_link()` |
+| `HCI_1US_TO_CNT_VAL`, `WLU_EN` (`ufs-exynos.c:360–372`, `:450–453`) | `exynos9610_ufs_post_link()` |
+| SMC `FMP_SECURITY` a `SMU` (`drivers/crypto/fmp/fmp.c:571`, `smu.c:17`; DT `fmp-id = 0`, `smu-id = 0`) | `EXYNOS_UFS_OPT_UFSPR_SECURE` → stejná dvě volání v `exynos_ufs_fmp_init()` |
+| 1 linka, gear 3 (DT:7106–7107) | řadič sám hlásí 1 linku; gear 3 volí `exynos_ufs_get_hs_gear()` |
+
+**Perioda hodin – nejméně jistá hodnota.** Původní ovladač bere `mclk_rate`
+z druhých hodin v DT (`ufs-exynos.c:535`, `:817`), tedy z „UFS_EMBD“. Ty jsou
+v původním ovladači hodin definované jako `VCLK(UFS_EMBD, CLKCMU_FSYS_BUS, …)`
+(`drivers/clk/samsung/clk-exynos9610.c:277`), tj. hodiny sběrnice FSYS
+(266,5 MHz, test CLK1), ne skutečné hodiny UniPro (133,25 MHz). Vychází
+perioda 1 000 000 000 / 266 500 000 = 3 (dolů) a tik 1 µs = 266. Mainline
+port to dělá stejně (počítá z `core_clk`). Fyzicky „správná“ hodnota pro
+133,25 MHz by byla 7 nebo 8. Ladicí výpis v testu UFS1 ukáže, co nechal
+v registrech bootloader (`1US`, `dme[9514]`), a podle toho se to případně změní.
+
+Odchylky od původního kernelu (vědomé):
+
+- Obecný kód mainline zapisuje navíc `PA_Granularity`, `PA_TActivate`,
+  `PA_Hibern8Time` (pevné hodnoty pro všechny Exynosy) a masku synchronizace
+  RX; původní `ufs_cal_calib_hibern8_values()` není přenesené.
+- Řízení hodin řadiče (`HCI_MISC`) dělá mainline po svém (jako u gs101): bity
+  povolení ručního zastavení nuluje, původní kernel je nastavuje. Hodiny běží
+  v obou případech.
+- Hradlování hodin a hibern8 s hradlováním nejsou zapnuté
+  (`UFSHCD_CAP_CLK_GATING` chybí) – méně cest, kde se může něco pokazit.
+- Tabulka pro PWM režim (`calib_of_pwm`) není přenesená; mainline PHY
+  kalibruje jen v HS režimu.
+- Hodnoty PMA pro gear 1 a 2 nejsou přenesené (rámec je neumí vybrat podle
+  gearu); host žádá jen gear 3.
+- `ref_clk` PHY = `oscclk` (26 MHz): původní DT pro PHY žádné hodiny nemá,
+  je to odhad bez vlivu na hardware (pevné hodiny).
+
+Co ovladač při startu zapíše do zařízení UFS (stejně jako každý kernel
+s UFS, včetně původního): reset zařízení, příznak `fDeviceInit`, případně
+atribut `bActiveICCLevel` a příznak automatické údržby. Do oddílů nezapisuje.
+
+### 14.6 UFS – výsledky testu UFS1 (2026-11-11, prošel napoprvé)
+
+Zdroj: log kernelu stažený přes USB (`device-info/dmesg-mainline-UFS1.txt`),
+příkazy přes `tools/phone-sh.py`, fotka displeje od uživatele (souhlasí).
+
+| Co | Hodnota |
+|---|---|
+| Zařízení | MICRON MT128GASAO4U21, rev. 0103 |
+| Disky | `sda` 122 032 MiB (42 oddílů), `sdb` a `sdc` po 4 MiB (boot LU); tři well-known LU |
+| Režim linky | `FAST series_B G_3 L_1` – stejný, jaký žádá původní DT |
+| Linky řadiče | `PA_AvailTxDataLanes` = `PA_AvailRxDataLanes` = 1; PMA druhé linky čte samé `ff` → řadič má jednu linku |
+| Čtení | sha256 oddílů `boot_a`, `dtbo_a`, `vbmeta_a`, `logo_a` = soubory v záloze; 512 MiB z `userdata` rychlostí 454 MB/s |
+| Zápis | žádný: všechny tři disky `ro=1`, nic připojeno |
+| Chyby | tři neúspěšné `dme-set` (0x9540, 0x321, 0x9540) z obecné masky synchronizace; jinak nic |
+| Přerušení | GIC SPI 157, 299 přerušení do konce startu |
+| FMP | obě volání SMC uspěla (`sg_entry=128`, `UFSHCD_CAP_CRYPTO` nastaveno) |
+
+Stav po bootloaderu → po našem ovladači:
+
+| Registr / atribut | Po bootloaderu | Po ovladači |
+|---|---|---|
+| PMU `0x724` | `0x1` | `0x1` (zápis nic nezměnil) |
+| sysreg FSYS `0x1010` | `0x311` | `0x311` (bity 8, 9 už byly nastavené) |
+| `HCI_1US_TO_CNT_VAL` | `0xa6` (166) | `0x10a` (266) |
+| `PA_DBG_CLK_PERIOD` (0x9514) | 6 | 3 |
+| `HCI_MISC` | `0xde0` | `0xd00` |
+| `HCI_V2P1_CTRL` | `0x1` | `0x10001` |
+| `HCI_AXIDMA_RWDATA_BURST_LEN` | `0x18000003` | `0x98000003` |
+| `PA_TxTrailingClocks` (0x1564) | `0xa5` | `0xa5` (nezapisujeme) |
+| `PA_TActivate` / `PA_Hibern8Time` | 4 / 3 | 3 / `0x20` (obecný kód mainline) |
+| `PA_SaveConfigTime` | `0xfa` | `0xfa` |
+| PMA linka 0: 0x38, 0x44, 0x4d, 0x59, 0x5e, 0x6c | 38, bb, 03, 50, 80, 14 | 12, b5, 43, 58, c0, 94 (hodnoty z tabulky) |
+
+Závěry:
+
+- **Perioda hodin**: bootloader používá 6 (jako pro 166 MHz), původní kernel 3,
+  skutečné hodiny UniPro jsou 133,25 MHz (7,5 ns). Linka funguje s 6 i se 3,
+  na přesné hodnotě tedy tolik nezáleží. Zůstává 3 podle původního kernelu.
+- **Jedna linka**: úpravy pro méně aktivních linek (obecná změna PHY,
+  `lanes-per-direction` v ovladači, tabulka `lane1_sq_off`) byly zbytečné
+  a jsou z větve odstraněné; `lanes-per-direction = <1>` je teď v dtsi jako
+  popis řadiče.
+- **Maska synchronizace**: obecný kód ji nastavuje přes `PA_DBG_OV_TM`, což
+  tady selhává. Přidána volba `EXYNOS_UFS_OPT_NO_SYNC_PATTERN_MASK`
+  a varianta 9610 ji používá.
+- **`Alternate GPT is invalid, using primary GPT.`** – kernel hlásí, že záložní
+  tabulka oddílů na konci disku není platná. Je to stav úložiště, jak ho
+  zapsal výrobce (my jsme nic nezapisovali); hlavní tabulka je v pořádku.
+  Jestli to hlásí i původní kernel, nevím (v jeho logu řádky o GPT nejsou).
+  Neopravovat.
+- Hodnoty `PA_TActivate`/`PA_Hibern8Time` se od bootloaderu liší; bude to
+  důležité, až se zapne hibern8.
+
+Po testu byla větev uklizena (viz výše) a je připraven image
+`out/troika-test-UFS2.img` se stejným testem na uklizeném kódu. **UFS2 na
+telefonu ještě neběžel.**
+
+**Doplněno: test UFS2 prošel** (log `device-info/dmesg-mainline-UFS2.txt`):
+stejný režim linky, stejné disky a oddíly, hashe čtyř oddílů shodné se
+zálohou, čtení 440 MB/s, všechno `ro=1`. Neúspěšné `dme-set` zmizely a v logu
+není žádná chyba.
+

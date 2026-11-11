@@ -1,0 +1,72 @@
+From 30109d56b22b3e07bfe17e4e6436464da91748ff Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 14:34:57 +0100
+Subject: [PATCH 2/3] DEBUG: phy: exynos5-usbdrd: dump the Exynos9610 PHY
+ registers
+
+Not for upstream and not for the package. Prints USBDRD_PHY_CONTROL
+before and after the PHY is taken out of isolation, and the PHY
+registers before and after the init sequence.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/phy/samsung/phy-exynos5-usbdrd.c | 28 ++++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/drivers/phy/samsung/phy-exynos5-usbdrd.c b/drivers/phy/samsung/phy-exynos5-usbdrd.c
+index 7ed7c32..7a0c243 100644
+--- a/drivers/phy/samsung/phy-exynos5-usbdrd.c
++++ b/drivers/phy/samsung/phy-exynos5-usbdrd.c
+@@ -1706,14 +1706,40 @@ static void exynos9610_usbdrd_phy_isol(struct phy_usb_instance *inst,
+ 			   isolate ? 0 : mask);
+ }
+ 
++/* DEBUG, not for upstream: show the PHY registers on the console */
++static void exynos9610_usbdrd_debug_dump(struct exynos5_usbdrd_phy *phy_drd,
++					 const char *when)
++{
++	static const u8 offs[] = {
++		0x00, 0x04, 0x08, 0x20, 0x30, 0x48, 0x50, 0x54, 0x58, 0x5c,
++	};
++	void __iomem *base = phy_drd->reg_phy;
++	int i;
++
++	for (i = 0; i + 1 < ARRAY_SIZE(offs); i += 2)
++		pr_info("USBDBG %s %02x=%08x %02x=%08x\n", when,
++			offs[i], readl(base + offs[i]),
++			offs[i + 1], readl(base + offs[i + 1]));
++}
++
+ static void exynos9610_usbdrd_utmi_init(struct exynos5_usbdrd_phy *phy_drd)
+ {
++	struct phy_usb_instance *inst = &phy_drd->phys[EXYNOS5_DRDPHY_UTMI];
+ 	void __iomem *regs_base = phy_drd->reg_phy;
++	unsigned int pmu_before = 0, pmu_after = 0;
+ 	u32 reg;
+ 
++	if (inst->reg_pmu)
++		regmap_read(inst->reg_pmu, inst->pmu_offset, &pmu_before);
++
+ 	/* The PHY and its reference clock have to be on before anything else */
+ 	exynos9610_usbdrd_phy_isol(&phy_drd->phys[EXYNOS5_DRDPHY_UTMI], false);
+ 
++	if (inst->reg_pmu)
++		regmap_read(inst->reg_pmu, inst->pmu_offset, &pmu_after);
++	pr_info("USBDBG pmu 704: %#x -> %#x\n", pmu_before, pmu_after);
++	exynos9610_usbdrd_debug_dump(phy_drd, "pre");
++
+ 	/*
+ 	 * Mask the individual Q-channel requests of the link, then force
+ 	 * QACTIVE so that the PHY clock is not gated by the hardware.
+@@ -1777,6 +1803,8 @@ static void exynos9610_usbdrd_utmi_init(struct exynos5_usbdrd_phy *phy_drd)
+ 
+ 	/* The USB 3.0 PHY stays isolated, keep the link happy without it */
+ 	exynos5_usbdrd_usb_v3p1_pipe_override(phy_drd);
++
++	exynos9610_usbdrd_debug_dump(phy_drd, "post");
+ }
+ 
+ static void exynos5_usbdrd_gs101_pipe3_init(struct exynos5_usbdrd_phy *phy_drd)
+-- 
+2.56.0
+

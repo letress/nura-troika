@@ -1,0 +1,38 @@
+From 96afb3688402178da5c815f56d8de01526fda556 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:47:25 +0100
+Subject: [PATCH 43/60] dt-bindings: clock: exynos9610: Name CMU_CORE inputs
+ after the dividers
+
+The three clocks CMU_CORE takes from CMU_TOP are called
+gout_cmu_core_{bus,cci,g3d} in the binding. In CMU_TOP the gate comes
+before the divider (mux -> gate -> divider), and what leaves CMU_TOP is
+the divider output, dout_cmu_core_*. That is also the name the CMU_CORE
+user muxes in the driver use for their second input, and the convention
+for every other CMU in this binding.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../devicetree/bindings/clock/samsung,exynos9610-cmu.yaml   | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/clock/samsung,exynos9610-cmu.yaml b/Documentation/devicetree/bindings/clock/samsung,exynos9610-cmu.yaml
+index 62372a5..06d01b9 100644
+--- a/Documentation/devicetree/bindings/clock/samsung,exynos9610-cmu.yaml
++++ b/Documentation/devicetree/bindings/clock/samsung,exynos9610-cmu.yaml
+@@ -153,9 +153,9 @@ allOf:
+         clock-names:
+           items:
+             - const: oscclk
+-            - const: gout_cmu_core_bus
+-            - const: gout_cmu_core_cci
+-            - const: gout_cmu_core_g3d
++            - const: dout_cmu_core_bus
++            - const: dout_cmu_core_cci
++            - const: dout_cmu_core_g3d
+ 
+   - if:
+       properties:
+-- 
+2.56.0
+

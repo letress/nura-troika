@@ -1,0 +1,38 @@
+From efaf4e8a798c9f4959015372e0ba3101aa06ec19 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:47:26 +0100
+Subject: [PATCH 44/60] dt-bindings: clock: exynos9610: Use a 64 KiB region in
+ the example
+
+The driver sets auto_clock_gate for every CMU. The Samsung clock code
+only honours that when the CMU's register region is 0x10000 long
+(samsung_is_auto_capable()); with the 0x8000 from the example it prints
+"incorrect res size for automatic clocks" and silently falls back to
+manual gating, which is not what the driver asks for.
+
+Automatic mode reads the gate state from the debug registers at offset
+0x4000, the same offset and encoding the vendor kernel uses
+(dbg_offset in cal-if/exynos9610/cmucal-sfr.c). None of the CMUs has a
+neighbour within 64 KiB.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../devicetree/bindings/clock/samsung,exynos9610-cmu.yaml       | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/clock/samsung,exynos9610-cmu.yaml b/Documentation/devicetree/bindings/clock/samsung,exynos9610-cmu.yaml
+index 06d01b9..51d23a9 100644
+--- a/Documentation/devicetree/bindings/clock/samsung,exynos9610-cmu.yaml
++++ b/Documentation/devicetree/bindings/clock/samsung,exynos9610-cmu.yaml
+@@ -318,7 +318,7 @@ examples:
+ 
+     cmu_fsys: clock-controller@13400000 {
+         compatible = "samsung,exynos9610-cmu-fsys";
+-        reg = <0x13400000 0x8000>;
++        reg = <0x13400000 0x10000>;
+         #clock-cells = <1>;
+ 
+         clocks = <&oscclk>,
+-- 
+2.56.0
+

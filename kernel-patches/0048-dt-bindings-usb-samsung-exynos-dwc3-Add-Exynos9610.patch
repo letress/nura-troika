@@ -1,0 +1,50 @@
+From ec7e471f4656253265c1c393a52f80f200a71577 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 14:33:35 +0100
+Subject: [PATCH 48/60] dt-bindings: usb: samsung,exynos-dwc3: Add Exynos9610
+
+Document the DWC3 glue of the Exynos9610. It takes the same two clocks
+as the Exynos850 one.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../bindings/usb/samsung,exynos-dwc3.yaml        | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/usb/samsung,exynos-dwc3.yaml b/Documentation/devicetree/bindings/usb/samsung,exynos-dwc3.yaml
+index 8af0143..4522413 100644
+--- a/Documentation/devicetree/bindings/usb/samsung,exynos-dwc3.yaml
++++ b/Documentation/devicetree/bindings/usb/samsung,exynos-dwc3.yaml
+@@ -20,6 +20,7 @@ properties:
+           - samsung,exynos7-dwusb3
+           - samsung,exynos7870-dwusb3
+           - samsung,exynos850-dwusb3
++          - samsung,exynos9610-dwusb3
+           - samsung,exynosautov920-dwusb3
+       - items:
+           - const: samsung,exynos8890-dwusb3
+@@ -186,6 +187,21 @@ allOf:
+       required:
+         - vdd10-supply
+ 
++  - if:
++      properties:
++        compatible:
++          contains:
++            const: samsung,exynos9610-dwusb3
++    then:
++      properties:
++        clocks:
++          minItems: 2
++          maxItems: 2
++        clock-names:
++          items:
++            - const: bus_early
++            - const: ref
++
+   - if:
+       properties:
+         compatible:
+-- 
+2.56.0
+

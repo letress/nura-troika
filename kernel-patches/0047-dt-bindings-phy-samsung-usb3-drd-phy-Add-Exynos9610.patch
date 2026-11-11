@@ -1,0 +1,36 @@
+From 47e54137a198f507bd7582592e59f01286b30367 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 14:33:35 +0100
+Subject: [PATCH 47/60] dt-bindings: phy: samsung,usb3-drd-phy: Add Exynos9610
+
+Document the USB 2.0 PHY of the Exynos9610. It is the same controller
+generation as the one in the Exynos850 and takes the same two clocks.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ Documentation/devicetree/bindings/phy/samsung,usb3-drd-phy.yaml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/phy/samsung,usb3-drd-phy.yaml b/Documentation/devicetree/bindings/phy/samsung,usb3-drd-phy.yaml
+index a1b3d9e..805d3e0 100644
+--- a/Documentation/devicetree/bindings/phy/samsung,usb3-drd-phy.yaml
++++ b/Documentation/devicetree/bindings/phy/samsung,usb3-drd-phy.yaml
+@@ -33,6 +33,7 @@ properties:
+       - samsung,exynos7-usbdrd-phy
+       - samsung,exynos7870-usbdrd-phy
+       - samsung,exynos850-usbdrd-phy
++      - samsung,exynos9610-usbdrd-phy
+       - samsung,exynos990-usbdrd-phy
+       - samsung,exynosautov920-usb31drd-combo-ssphy
+       - samsung,exynosautov920-usbdrd-combo-hsphy
+@@ -235,6 +236,7 @@ allOf:
+               - samsung,exynos5420-usbdrd-phy
+               - samsung,exynos7870-usbdrd-phy
+               - samsung,exynos850-usbdrd-phy
++              - samsung,exynos9610-usbdrd-phy
+               - samsung,exynos990-usbdrd-phy
+               - samsung,exynosautov920-usb31drd-combo-ssphy
+               - samsung,exynosautov920-usbdrd-combo-hsphy
+-- 
+2.56.0
+

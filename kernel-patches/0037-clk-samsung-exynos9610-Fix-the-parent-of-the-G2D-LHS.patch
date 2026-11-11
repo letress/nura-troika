@@ -1,0 +1,32 @@
+From ed33727dab7f9b54d5313233e90cca54c831cb5c Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 13:43:31 +0100
+Subject: [PATCH 37/60] clk: samsung: exynos9610: Fix the parent of the G2D
+ LHS_ACEL_D gate
+
+gout_g2d_lhs_acel_d_clk is parented to the MSCL user mux. In the vendor
+kernel's clock tables
+(drivers/soc/samsung/cal-if/exynos9610/cmucal-node.c and cmucal-sfr.c)
+the gate sits behind MUX_CLKCMU_G2D_G2D_USER.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index b3f04f4..3ecf3dc 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -3361,7 +3361,7 @@ static const struct samsung_gate_clock g2d_gate_clks[] __initconst = {
+ 	     CLK_CON_GAT_GOUT_G2D_JPEG_FIMP_CLK, 21, 0, 0),
+ 	GATE(CLK_GOUT_G2D_LHM_AXI_P_CLK, "gout_g2d_lhm_axi_p_clk", "dout_clk_g2d_busp",
+ 	     CLK_CON_GAT_GOUT_G2D_LHM_AXI_P_CLK, 21, 0, 0),
+-	GATE(CLK_GOUT_G2D_LHS_ACEL_D_CLK, "gout_g2d_lhs_acel_d_clk", "mout_pll_g2d_mscl_user",
++	GATE(CLK_GOUT_G2D_LHS_ACEL_D_CLK, "gout_g2d_lhs_acel_d_clk", "mout_pll_g2d_g2d_user",
+ 	     CLK_CON_GAT_GOUT_G2D_LHS_ACEL_D_CLK, 21, 0, 0),
+ 	GATE(CLK_GOUT_G2D_MSCL_ACLK, "gout_g2d_mscl_aclk", "mout_pll_g2d_mscl_user",
+ 	     CLK_CON_GAT_GOUT_G2D_MSCL_ACLK, 21, 0, 0),
+-- 
+2.56.0
+

@@ -1,0 +1,28 @@
+From 27227df730e9b26f1c1c2ef20fa2b0cf30cc75df Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 20:01:18 +0100
+Subject: [PATCH 54/60] dt-bindings: ufs: samsung,exynos-ufs: Add Exynos9610
+
+Document the UFS host controller of the Exynos9610. It uses the same
+four register regions and the two clocks of the other variants.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ Documentation/devicetree/bindings/ufs/samsung,exynos-ufs.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/ufs/samsung,exynos-ufs.yaml b/Documentation/devicetree/bindings/ufs/samsung,exynos-ufs.yaml
+index 710ce49..bc600d2 100644
+--- a/Documentation/devicetree/bindings/ufs/samsung,exynos-ufs.yaml
++++ b/Documentation/devicetree/bindings/ufs/samsung,exynos-ufs.yaml
+@@ -17,6 +17,7 @@ properties:
+     enum:
+       - google,gs101-ufs
+       - samsung,exynos7-ufs
++      - samsung,exynos9610-ufs
+       - samsung,exynosautov9-ufs
+       - samsung,exynosautov9-ufs-vh
+       - samsung,exynosautov920-ufs
+-- 
+2.56.0
+
