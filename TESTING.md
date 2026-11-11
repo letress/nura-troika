@@ -791,6 +791,51 @@ fastboot boot ~/nura-troika/out/troika-test-UFS2.img
 
 **Výsledek 2026-11-11: prošel**, přesně podle očekávání.
 
+## 5i. Testy TS1 a TS2: dotyková obrazovka
+
+Cíl: zjistit, jestli se ohlásí dotykový čip Himax HX83112A a jestli chodí
+souřadnice dotyků (FINDINGS.md kap. 15). Bez regulátorů, bez zápisu do PMU.
+Ovladač při startu krátce resetuje dotykovou část čipu displeje, stejně jako
+původní kernel. UFS je v kernelu také, disky se zase hned přepínají na jen
+pro čtení.
+
+**TS1 (2026-11-11): čip odpověděl, ovladač se nenavázal – chyba v mém ladicím
+výpisu.** První čtení 1 ms po resetu vrátilo ID `83112a` (shoduje se s tím, co
+čekám). Můj ladicí kód pak četl registry firmwaru a ID kontroloval ovladač až
+po nich; to už čip vracel samé nuly (firmware se po resetu teprve nahrává
+z flash), takže ovladač skončil s `Unknown product id: 0`. Sběrnice I2C4
+běží (378 kHz), žádná chyba přenosu. Log: `device-info/dmesg-mainline-TS1.txt`.
+
+**TS2:** ladicí čtení je až po kontrole ID a registraci přerušení, s pauzou
+300 ms. Ovladač sám je stejný jako v TS1.
+
+**TS2 (2026-11-11): prošel.** Ovladač se navázal, přerušení chodí jen při
+dotyku, tah z levého horního rohu do pravého dolního dal x 30 → 1016 a
+y 27 → 2513 (FINDINGS.md 15.5). Výpis `DOTYK` na displeji v tomto image
+nefunguje (chyba v testovacím initu, opravená pro další image); souřadnice
+jsem četl přes telnet.
+
+```bash
+adb reboot bootloader
+```
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-TS2.img
+```
+
+Na displeji hledej oddíl `--- DOTYK ---`:
+
+- řádky `TSDBG …` (ID, `int_is_edge`, `rx/tx/maxpt`, `yres/xres`);
+- pak „Sahni na displej“. Přejeď prstem z levého horního rohu do pravého
+  dolního. Měly by naskakovat řádky `DOTYK x=… y=…`; vlevo nahoře malá čísla,
+  vpravo dole kolem `x=1079 y=2519`. Výpis chodí po dávkách s malým zpožděním.
+- `!! Dotykove zarizeni se neobjevilo.` = ovladač se nenavázal; pod tím budou
+  jeho hlášky.
+
+Napiš mi, jestli se čísla objevují a jestli rohy sedí. Kabel nech zapojený,
+log si stáhnu sám. Kdyby po bootu zhasl obraz, napiš to také – log přes USB
+půjde stáhnout i tak.
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

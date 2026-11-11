@@ -1212,3 +1212,114 @@ stejný režim linky, stejné disky a oddíly, hashe čtyř oddílů shodné se
 zálohou, čtení 440 MB/s, všechno `ro=1`. Neúspěšné `dme-set` zmizely a v logu
 není žádná chyba.
 
+## 15. Dotyková obrazovka (2026-11-11)
+
+### 15.1 Co telefon má
+
+| Co | Hodnota | Zdroj |
+|---|---|---|
+| Panel | Himax HX83112A (řádky `hix83112a panel REG 0x0A=0x9d`) | `device-info/dmesg.txt:38` |
+| Dotykový čip | součást téhož čipu (TDDI); ovladač `[HXTP]` | `device-info/dmesg.txt:90` |
+| Sběrnice | `i2c@13870000`, `samsung,s3c2440-i2c`, SPI 251, 400 kHz, piny `i2c4_bus` = gpp1-0, gpp1-1 (funkce 2) | DT:6276–6289, 2017 |
+| Hodiny sběrnice | `GATE_I2C_4_QCH` → v mainline `CLK_GOUT_PERI_I2C_4_PCLK` | DT:6283, `clk-exynos9610.c:1256` |
+| Adresa | 0x48 (`himax,hxcommon`) | DT:6300–6302 |
+| Přerušení | gpa2-4; za běhu `himax_gpio_irq`, vstup | DT:6305, `device-info/gpio.txt:16` |
+| Reset | gpa1-3, aktivní v nule; za běhu `himax-reset`, výstup 1 | DT:6306, `gpio.txt:10`, `himax_platform.c:540–556` |
+| Rozlišení | 1080 × 2520 | DT:6303–6304 |
+| Napájení | žádný regulátor: v DT uzlu Himax není `3v3-gpio` ani pinctrl, varianta s regulátory se nepřekládá (`CONFIG_HMX_DB`) | DT:6300–6308, `himax_platform.c:330`, `:484–560` |
+| Firmware | ve flash čipu; `HX_ZERO_FLASH` i `HX_AUTO_UPDATE_FW` jsou zakomentované | `himax_common.h:65`, `:76` |
+| Druhý zdroj panelu | Novatek `NVT-ts` na 0x62 se stejnými GPIO; tenhle telefon ho nemá | DT:6290–6298 |
+
+Typ přerušení (hrana/úroveň) volí původní ovladač podle registru firmwaru
+`0x10007089` (`himax_ic_incell_core.c:1575–1582`, `himax_platform.c:602–611`);
+z telefonu ho zatím neznám.
+
+### 15.2 Mainline
+
+- `drivers/input/touchscreen/himax_hx83112b.c` umí HX83112B a HX83100A:
+  reset, kontrola ID čipu (`0x900000d0`), čtení 56bajtového hlášení z adresy
+  0x30 – stejně jako původní ovladač, který A i B obsluhuje stejným kódem
+  a liší je jen podle ID (`himax_ic_HX83112.c:204–208`).
+- Řadič I2C `i2c-s3c2410` v konfiguraci je (`CONFIG_I2C_S3C2410=y`); ovladač
+  dotyku je v konfiguraci balíčku jako modul.
+- Chimacův dtsi žádné I2C nemá.
+
+### 15.3 Implementace (větev `troika-clk`, 4 commity, celkem 64 nad v7.3.3)
+
+| Commit | Co dělá |
+|---|---|
+| `dt-bindings: input: touchscreen: trivial-touch: Add Himax HX83112A` | compatible |
+| `Input: himax_hx83112b - add support for HX83112A` | nový čip s ID `0x83112a` |
+| `arm64: dts: exynos9610: Add I2C4` | uzel `i2c@13870000` |
+| `arm64: dts: exynos9610-troika: Add the touchscreen` | `touchscreen@48`, reset gpa1-3, přerušení gpa2-4 (úroveň 0), 1080 × 2520 |
+
+Bez regulátorů a bez zápisu do PMU. Ovladač při startu pulzně resetuje dotykovou
+část čipu (20 ms), totéž dělá původní kernel při běžícím displeji.
+
+Neověřeno před testem TS1: že ID čipu je opravdu `0x83112a`, že úrovňové
+přerušení sedí s nastavením firmwaru, že souřadnice nejsou převrácené, a že
+reset dotyku nezhasne obraz. Ladicí commit vypíše ID a nastavení firmwaru
+(`TSDBG`).
+
+### 15.4 Test TS1 (2026-11-11)
+
+Log: `device-info/dmesg-mainline-TS1.txt`.
+
+| Co | Výsledek |
+|---|---|
+| I2C4 | `s3c-i2c 13870000.i2c`, 378 kHz, žádná chyba přenosu |
+| ID čipu, 1 ms po resetu | `83112a` – shoduje se s hodnotou v ovladači |
+| registry firmwaru `0x10007089`, `0x100070f4/f8/fc`, 2–4 ms po resetu | samé nuly |
+| ID čipu, 5 ms po resetu | `0` |
+
+Ovladač se nenavázal (`Unknown product id: 0`, −22). Příčina je v mém ladicím
+commitu: četl registry firmwaru hned po resetu a kontrola ID v ovladači přišla
+až po nich, kdy už čip vracel nuly. Původní ovladač čeká po resetu 50 ms
+(`himax_mcu_pin_reset`, `himax_ic_incell_core.c:1519`) a ID čte až po vstupu do
+„safe mode“; mainline ovladač čte ID jednou, 1 ms po resetu, a to v TS1 vyšlo.
+Proč čip mezi 1 a 5 ms přestane odpovídat hodnotou, nevím (nahrávání firmwaru
+z flash je domněnka, ne doložený fakt).
+
+TS2: ladicí čtení přesunuto za kontrolu ID a registraci přerušení, s pauzou
+300 ms; navíc vypíše `xy_reverse` z `0x100070fa`. Stále neověřeno: typ
+přerušení, orientace souřadnic, vliv resetu na obraz.
+
+### 15.5 Test TS2 (2026-11-11)
+
+Log: `device-info/dmesg-mainline-TS2.txt`.
+
+| Co | Výsledek |
+|---|---|
+| ID čipu po resetu (kontrola ovladače) | `83112a`, ovladač se navázal |
+| vstupní zařízení | `Himax Touchscreen`, `/dev/input/event0` |
+| přerušení gpa2-4, úroveň 0 | v klidu 0 a linka v 1; při dotyku 1337 přerušení za ~25 s, po puštění se počítadlo zastaví |
+| chyby kontrolního součtu událostí | žádné |
+| ladicí čtení 300 ms po resetu (ID, `0x10007089`, `0x100070f4/f8/fa/fc`) | samé nuly, bez chyby přenosu |
+
+Úrovňové přerušení tedy sedí (žádná bouře přerušení, žádné ztracené dotyky
+v počítadle). Nastavení firmwaru (`int_is_edge`, rozlišení, `xy_reverse`) se
+tímto způsobem přečíst nepodařilo: jakmile firmware běží, čtení přes AHB
+vrací nuly i pro ID. Původní ovladač tyto registry čte jinak (před každým
+čtením zapíná burst režim, ID čte v „safe mode“); pro funkci ovladače to
+potřeba není, dál jsem to nezkoumal.
+
+Výpis souřadnic na displeji v TS1/TS2 nefungoval – chyba v mém testovacím
+initu (`hexdump` přímo nad `/dev/input/event0` dostane `EINVAL`, protože čte
+po kouscích menších než jedna událost). Opraveno (`cat … | hexdump`); v TS2
+jsem stejný výpis spustil za běhu přes telnet.
+
+Souřadnice (uživatel přejel prstem z levého horního rohu do pravého dolního,
+326 hlášení zaznamenaných v běžícím TS2):
+
+| | začátek | konec | rozsah |
+|---|---|---|---|
+| x | 30 | 1016 | 30–1016 |
+| y | 27 | 2513 | 25–2513 |
+
+Obě osy rostou plynule a správným směrem, rozsah odpovídá 1080 × 2520 z DTS.
+Není potřeba žádné převrácení ani prohození os. Po celou dobu žádná chyba
+kontrolního součtu.
+
+**Dotyková obrazovka funguje.** Nezjištěno: nastavení firmwaru (viz výše) a
+jestli obraz při resetu dotyku blikne (uživatel se nevyjádřil; test probíhal
+podle pokynů na displeji). Více prstů najednou nezkoušeno.

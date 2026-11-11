@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: testy UFS1 a UFS2 prošly – kernel vidí vnitřní úložiště (jen pro čtení); UFS zatím není v balíčku pmaports
+## Stav: UFS ověřeno (UFS1, UFS2); dotyková obrazovka ověřena (TS2; FINDINGS.md 15.5). UFS ani dotyk nejsou v balíčku pmaports a dotyk není commitnutý v hlavním repozitáři
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -587,10 +587,10 @@ Známé slabiny návrhu:
 ## Repozitáře na GitHubu (2026-11-11, všechny soukromé)
 
 - `letress/nura-troika` – tento adresář: dokumenty, `tools/`, `test-initramfs/`,
-  `patches-src/`, `kernel-patches/` (export větve `troika-clk`, 60 patchů: DT,
-  hodiny, USB, UFS; po změně kernelu smazat a znovu
+  `patches-src/`, `kernel-patches/` (export větve `troika-clk`, 64 patchů: DT,
+  hodiny, USB, UFS, dotyk; po změně kernelu smazat a znovu
   `git -C linux format-patch -o ../kernel-patches v7.3.3..troika-clk`),
-  `kernel-patches-debug/` (3 ladicí commity větve `troika-clk-test`, jen pro
+  `kernel-patches-debug/` (4 ladicí commity větve `troika-clk-test`, jen pro
   testovací image, ne pro balíček).
   Remote `origin`, větev `main`.
 - `letress/uniLoader-troika` – `uniLoader-src/`, větev `troika`, remote `letress`.
@@ -1047,3 +1047,69 @@ kola změn. Do té doby se testuje místními testovacími image
 (`tools/make-clk-test-bootimg.sh`), které stojí uživatele asi minutu. UFS tedy
 zatím do pmaports nejde; počká na další změny kernelu.
 
+### 2026-11-11 ~21:25–21:45 – dotyková obrazovka: průzkum, implementace, image TS1
+
+Uživatel: „Dotyková obrazovka“. Průzkum a implementace ve FINDINGS.md kap. 15.
+Telefon má Himax HX83112A (TDDI) na I2C4, adresa 0x48, reset gpa1-3,
+přerušení gpa2-4, žádný regulátor (ověřeno v původním DT, ovladači i ve
+výpisu GPIO z běžícího Androidu). Mainline má ovladač pro HX83112B; přidáno
+ID pro A, uzel I2C4 a uzel čipu (4 commity, `troika-clk` = 64 nad v7.3.3).
+
+`troika-clk-test` = +4 DEBUG commity (nově TSDBG). V místní konfiguraci
+`build/linux/.config` je ovladač dotyku `=y` (v balíčku je `=m`; při přenosu
+do pmaports zvážit `=y` nebo přidání modulu do initramfs). Kernel sestaven,
+`dtbs_check` beze změny, binding prochází. Testovací init: nový oddíl
+`--- DOTYK ---` s výpisem souřadnic; hlášky UFS jen v testech UFS.
+
+`out/troika-test-TS1.img` připraven a zkontrolován; **na telefonu nezkoušeno**.
+Tyto změny zatím nejsou commitnuté v hlavním repozitáři ani exportované do
+`kernel-patches/`.
+
+### 2026-11-11 ~22:25–22:40 – test TS1, oprava ladicího výpisu, image TS2
+
+Uživatel spustil TS1. Log stažen (`device-info/dmesg-mainline-TS1.txt`).
+I2C4 běží, čip 1 ms po resetu vrátil ID `83112a` (sedí). Ovladač se ale
+nenavázal: můj ladicí kód četl registry firmwaru před kontrolou ID a čip
+o pár ms později vracel nuly (`Unknown product id: 0`). Chyba je v DEBUG
+commitu, ne ve čtyřech commitech na `troika-clk` (ty se neměnily).
+
+DEBUG commit přepsán (`troika-clk-test` HEAD `055fc49`): čtení až po
+registraci přerušení a po 300 ms. `out/troika-test-TS2.img` připraven a
+zkontrolován; **na telefonu nezkoušeno**. Nevím, jestli při TS1 zůstal obraz
+(uživatel se ještě nevyjádřil). Vše stále necommitnuté v hlavním repozitáři.
+
+### 2026-11-11 ~22:50–23:05 – test TS2
+
+Uživatel spustil TS2 (z TS1 přes Power + Vol−). Log:
+`device-info/dmesg-mainline-TS2.txt`. Ovladač se navázal (ID `83112a`),
+`Himax Touchscreen` = event0. Přerušení gpa2-4 (úroveň 0): v klidu 0, při
+dotyku 1337 za ~25 s, bez chyb kontrolního součtu. Ladicí čtení registrů
+firmwaru vrací nuly i po 300 ms (FINDINGS.md 15.5) – pro funkci není potřeba.
+
+Výpis souřadnic v testovacím initu nefungoval (`hexdump` nad evdev → EINVAL);
+opraveno v `test-initramfs/init` (`cat | hexdump`), do image se dostane až
+při příštím sestavení. V běžícím TS2 jsem výpis spustil přes telnet (na
+displej a do `/touch.txt` v RAM telefonu). **Čeká se na dotyk uživatele:
+ověřit rozsah a orientaci souřadnic.** Otevřená otázka: zůstal při resetu
+dotyku obraz?
+
+### 2026-11-11 ~23:10 – TS2: souřadnice ověřeny
+
+Uživatel přejel prstem z levého horního rohu do pravého dolního; záznam
+z `/touch.txt` v RAM telefonu: 326 hlášení, x 30 → 1016, y 27 → 2513, plynule,
+bez chyb. Orientace i rozsah sedí s DTS (1080 × 2520), žádné převracení.
+**Dotyková obrazovka funguje.**
+
+Zbývá (až uživatel řekne): commit + export `kernel-patches/` (64) a
+`kernel-patches-debug/` (4) + push; na konci kola přenést UFS a dotyk do
+pmaports (pkgrel 5, ovladač dotyku `=y` nebo modul do initramfs) a jedno
+sestavení balíčku. Pozor: plný systém z balíčku uvidí UFS bez ochrany
+„jen pro čtení“.
+
+### 2026-11-11 ~23:20 – commit a push dotykové obrazovky
+
+Uživatel: „Commit a push“. `kernel-patches/` znovu exportováno z `troika-clk`
+(64; prvních 60 se liší jen číslováním `[PATCH n/64]`), `kernel-patches-debug/`
+z `troika-clk..troika-clk-test` (4). Commitnuto spolu s FINDINGS kap. 15,
+TESTING 5i, PROGRESS a opraveným `test-initramfs/init` a pushnuto do
+`origin/main`. pmaports beze změny (UFS a dotyk tam stále nejsou).

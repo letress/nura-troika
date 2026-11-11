@@ -1,0 +1,67 @@
+From 055fc49bebc286f1014645860e244222629d96c6 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 21:02:11 +0100
+Subject: [PATCH 4/4] DEBUG: Input: himax_hx83112b - print the IC ID and
+ firmware settings
+
+Not for upstream.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/input/touchscreen/himax_hx83112b.c | 33 +++++++++++++++++++++-
+ 1 file changed, 32 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/input/touchscreen/himax_hx83112b.c b/drivers/input/touchscreen/himax_hx83112b.c
+index a93ce84..284e4e8 100644
+--- a/drivers/input/touchscreen/himax_hx83112b.c
++++ b/drivers/input/touchscreen/himax_hx83112b.c
+@@ -167,7 +167,7 @@ static int himax_check_product_id(struct himax_ts_data *ts)
+ 	if (error)
+ 		return error;
+ 
+-	dev_dbg(&ts->client->dev, "Product id: %x\n", product_id);
++	dev_info(&ts->client->dev, "TSDBG product id after reset: %x\n", product_id);
+ 
+ 	if (product_id == ts->chip->id)
+ 		return 0;
+@@ -374,6 +374,37 @@ static int himax_probe(struct i2c_client *client)
+ 	if (error)
+ 		return error;
+ 
++	/*
++	 * DEBUG: what the firmware says about itself, once it had time to load
++	 * from the flash (right after the reset these read as zero)
++	 */
++	{
++		u32 v = 0, w = 0;
++		int e;
++
++		msleep(300);
++		e = himax_read_product_id(ts, &v);
++		dev_info(dev, "TSDBG icid=%06x err=%d\n", v, e);
++		v = 0;
++		e = himax_bus_read(ts, 0x10007089, &v, sizeof(v));
++		dev_info(dev, "TSDBG int_is_edge reg=%08x err=%d edge=%u\n", v, e,
++			 (v >> 8) & 1);
++		v = 0;
++		e = himax_bus_read(ts, 0x100070f4, &v, sizeof(v));
++		himax_bus_read(ts, 0x100070f8, &w, sizeof(w));
++		dev_info(dev, "TSDBG rx=%u tx=%u maxpt=%u err=%d (%08x %08x)\n",
++			 (v >> 16) & 0xff, (v >> 24) & 0xff, w & 0xff, e, v, w);
++		v = 0;
++		e = himax_bus_read(ts, 0x100070fa, &v, sizeof(v));
++		dev_info(dev, "TSDBG xy_res_enable reg=%08x err=%d xy_reverse=%u\n",
++			 v, e, (v >> 10) & 1);
++		v = 0;
++		e = himax_bus_read(ts, 0x100070fc, &v, sizeof(v));
++		dev_info(dev, "TSDBG yres=%u xres=%u err=%d (%08x)\n",
++			 ((v & 0xff) << 8) | ((v >> 8) & 0xff),
++			 (((v >> 16) & 0xff) << 8) | ((v >> 24) & 0xff), e, v);
++	}
++
+ 	return 0;
+ }
+ 
+-- 
+2.56.0
+

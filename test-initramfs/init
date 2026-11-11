@@ -79,7 +79,9 @@ if [ -n "$ufs_host" ] || [ "${test_tag#ufs}" != "$test_tag" ]; then
 	if ! ls /sys/block/sd* > /dev/null 2>&1; then
 		echo "!! Zadny disk. Ovladac: ${ufs_host:-nenavazan}"
 	fi
-	dmesg | grep -E "ufshc|ufs-phy|ufshcd|scsi " | grep -v UFSDBG | tail -n 7 | cut -c1-110
+	# Hlasky ovladace jen v testech UFS, jinak zabiraji misto na displeji.
+	[ "${test_tag#ufs}" != "$test_tag" ] &&
+		dmesg | grep -E "ufshc|ufs-phy|ufshcd|scsi " | grep -v UFSDBG | tail -n 7 | cut -c1-110
 	echo
 fi
 
@@ -136,11 +138,44 @@ elif [ "${test_tag#usb}" != "$test_tag" ]; then
 	echo
 fi
 
+# Najde /dev/input/eventN zarizeni, jehoz jmeno obsahuje dany text.
+evdev_of() {
+	awk -v n="$1" '
+		/^N: Name=/ { found = index($0, n) }
+		/^H: Handlers=/ && found {
+			sub(/^H: Handlers=/, "")
+			for (i = 1; i <= NF; i++)
+				if ($i ~ /^event/) { print "/dev/input/" $i; exit }
+		}' /proc/bus/input/devices 2>/dev/null
+}
+
+# Dotykova obrazovka: ladici radky ovladace a prubezny vypis souradnic.
+tev=$(evdev_of Himax)
+if [ -n "$tev" ] || [ "${test_tag#ts}" != "$test_tag" ]; then
+	echo "--- DOTYK ---"
+	dmesg | sed -n 's/^.*TSDBG //p'
+	dmesg | grep -i -E "himax|hx83|s3c-i2c|13870000" | grep -v TSDBG | tail -n 5 | cut -c1-110
+	if [ -n "$tev" ]; then
+		echo "Sahni na displej: vypisuji kazdou desatou polohu (x 0-1079, y 0-2519)."
+		# struct input_event: 16 B cas, u16 typ, u16 kod, s32 hodnota = 12 slov.
+		# Typ 3 = EV_ABS, kod 53/54 = ABS_MT_POSITION_X/Y, typ 0 = konec hlaseni.
+		# Pres cat: hexdump cte po kouscich mensich nez jedna udalost a evdev
+		# takove cteni odmita (EINVAL); v TS1/TS2 proto vypis nefungoval.
+		cat "$tev" | hexdump -v -e '12/2 "%u " "\n"' | awk '
+			$9 == 3 && $10 == 53 { x = $11 }
+			$9 == 3 && $10 == 54 { y = $11 }
+			$9 == 0 && $10 == 0 { if (n++ % 10 == 0) { printf "DOTYK x=%d y=%d\n", x, y; fflush() } }' &
+	else
+		echo "!! Dotykove zarizeni se neobjevilo."
+	fi
+	echo
+fi
+
 echo "Vstupni zarizeni:"
 grep -E '^N: Name|^H: Handlers' /proc/bus/input/devices 2>/dev/null
 echo
 
-ev=$(ls /dev/input/event* 2>/dev/null | head -n 1)
+ev=$(evdev_of gpio-keys)
 if [ -z "$ev" ]; then
 	echo "!! Zadne /dev/input/event* - gpio-keys se nenacetly."
 	echo "dmesg (pinctrl/gpio/keys):"

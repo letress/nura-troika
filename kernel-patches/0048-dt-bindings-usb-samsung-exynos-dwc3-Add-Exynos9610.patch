@@ -1,7 +1,7 @@
 From ec7e471f4656253265c1c393a52f80f200a71577 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 14:33:35 +0100
-Subject: [PATCH 48/60] dt-bindings: usb: samsung,exynos-dwc3: Add Exynos9610
+Subject: [PATCH 48/64] dt-bindings: usb: samsung,exynos-dwc3: Add Exynos9610
 
 Document the DWC3 glue of the Exynos9610. It takes the same two clocks
 as the Exynos850 one.

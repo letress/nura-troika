@@ -1,0 +1,41 @@
+From 2743c443579d55dda201cf96ba9aa0a6c7e56d1b Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 21:01:46 +0100
+Subject: [PATCH 63/64] arm64: dts: exynos9610: Add I2C4
+
+Add the fifth of the seven S3C2440-style I2C controllers in the PERI
+block.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 43dbb50..a309643 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -402,6 +402,20 @@ ufs_phy: phy@13524000 {
+ 			status = "disabled";
+ 		};
+ 
++		i2c_4: i2c@13870000 {
++			compatible = "samsung,s3c2440-i2c";
++			reg = <0x13870000 0x100>;
++			interrupts = <GIC_SPI 251 IRQ_TYPE_LEVEL_HIGH>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			pinctrl-names = "default";
++			pinctrl-0 = <&i2c4_bus>;
++			clocks = <&cmu_peri CLK_GOUT_PERI_I2C_4_PCLK>;
++			clock-names = "i2c";
++
++			status = "disabled";
++		};
++
+ 		pinctrl_top: pinctrl@139b0000 {
+ 			compatible = "samsung,exynos9610-pinctrl";
+ 			reg = <0x139b0000 0x1000>;
+-- 
+2.56.0
+

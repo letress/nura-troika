@@ -1,0 +1,49 @@
+From 0d78a804da3d0be1579afe399b0b42cca87d6af3 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 21:01:55 +0100
+Subject: [PATCH 64/64] arm64: dts: exynos9610-troika: Add the touchscreen
+
+Add the Himax HX83112A touch controller on I2C4. It is part of the
+display driver IC and gets its supply with the panel, which the
+bootloader leaves on, so only the reset line and the interrupt are
+described.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../boot/dts/exynos/exynos9610-troika.dts     | 20 +++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 876f638..9be2bf9 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -144,6 +144,26 @@ key_volup: key-volup-pins {
+ 	};
+ };
+ 
++/*
++ * The touch controller sits in the display driver IC and is supplied with the
++ * panel, which the bootloader leaves on. There is a second source of this
++ * panel with a Novatek controller at 0x62; it is not described.
++ */
++&i2c_4 {
++	samsung,i2c-max-bus-freq = <400000>;
++	status = "okay";
++
++	touchscreen@48 {
++		compatible = "himax,hx83112a";
++		reg = <0x48>;
++		interrupt-parent = <&gpa2>;
++		interrupts = <4 IRQ_TYPE_LEVEL_LOW>;
++		reset-gpios = <&gpa1 3 GPIO_ACTIVE_LOW>;
++		touchscreen-size-x = <1080>;
++		touchscreen-size-y = <2520>;
++	};
++};
++
+ /*
+  * The storage is supplied through a switch on gpg4-0 that the bootloader turns
+  * on and that is left alone here: the PMIC and the regulators are not
+-- 
+2.56.0
+

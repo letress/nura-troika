@@ -1,0 +1,30 @@
+From 82e80cb4e5ad8f7df629af894eb32ddb413eacb2 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 21:01:35 +0100
+Subject: [PATCH 61/64] dt-bindings: input: touchscreen: trivial-touch: Add
+ Himax HX83112A
+
+The HX83112A is a display driver with a touch controller in it, like the
+HX83112B. Its touch part needs the same resources.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../devicetree/bindings/input/touchscreen/trivial-touch.yaml    | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/input/touchscreen/trivial-touch.yaml b/Documentation/devicetree/bindings/input/touchscreen/trivial-touch.yaml
+index 6316a8d..a4b535b 100644
+--- a/Documentation/devicetree/bindings/input/touchscreen/trivial-touch.yaml
++++ b/Documentation/devicetree/bindings/input/touchscreen/trivial-touch.yaml
+@@ -18,6 +18,8 @@ properties:
+       - azoteq,iqs525
+       # Himax hx83100a touchscreen controller
+       - himax,hx83100a
++      # Himax hx83112a touchscreen controller
++      - himax,hx83112a
+       # Himax hx83112b touchscreen controller
+       - himax,hx83112b
+       # Hynitron cstxxx series touchscreen controller
+-- 
+2.56.0
+
