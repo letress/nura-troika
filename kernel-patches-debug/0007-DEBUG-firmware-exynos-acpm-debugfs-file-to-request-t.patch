@@ -1,0 +1,100 @@
+From d148d770ea3fbf53fa417d876248a4ee277faac5 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 20:16:00 +0100
+Subject: [PATCH 7/7] DEBUG: firmware: exynos-acpm: debugfs file to request the
+ two lowest G3D rates
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/firmware/samsung/exynos-acpm.c | 60 +++++++++++++++++++++++++-
+ 1 file changed, 59 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/firmware/samsung/exynos-acpm.c b/drivers/firmware/samsung/exynos-acpm.c
+index 596535b..72d02f5 100644
+--- a/drivers/firmware/samsung/exynos-acpm.c
++++ b/drivers/firmware/samsung/exynos-acpm.c
+@@ -10,6 +10,7 @@
+ #include <linux/bitops.h>
+ #include <linux/cleanup.h>
+ #include <linux/container_of.h>
++#include <linux/debugfs.h>
+ #include <linux/delay.h>
+ #include <linux/device.h>
+ #include <linux/find.h>
+@@ -996,6 +997,61 @@ static void acpmdbg_dump(struct acpm_info *acpm)
+ 	}
+ }
+ 
++/*
++ * DEBUG: debugfs file acpmdbg_g3d_khz asks the firmware for one of the two
++ * lowest G3D rates the way exynos_acpm_set_rate() of the vendor kernel does.
++ * Both rates have the same voltage in the fvmap. Any other value is refused,
++ * and nothing is sent unless somebody writes to the file.
++ */
++#define ACPMDBG_DVFS_CHAN	0	/* acpm-ipc-channel of the vendor clock node */
++#define ACPMDBG_G3D_ID		4	/* g3d_cmu_cal_id 0xb040004 of the vendor mali node */
++#define ACPMDBG_FREQ_REQ	0
++
++static int acpmdbg_g3d_set(void *data, u64 val)
++{
++	struct acpm_info *acpm = data;
++	u32 cmd[4] = { ACPMDBG_G3D_ID, val, ACPMDBG_FREQ_REQ, 0 };
++	struct acpm_xfer xfer = { };
++	int ret;
++
++	if (val != 260000 && val != 338000)
++		return -EINVAL;
++
++	acpm_set_xfer(&xfer, cmd, ARRAY_SIZE(cmd), ACPMDBG_DVFS_CHAN, true);
++	ret = acpm_do_xfer(&acpm->handle, &xfer);
++	dev_info(acpm->dev, "ACPMDBG g3d: request %llu kHz ret %d reply %08x %08x %08x %08x\n",
++		 val, ret, cmd[0], cmd[1], cmd[2], cmd[3]);
++
++	return ret;
++}
++DEFINE_DEBUGFS_ATTRIBUTE(acpmdbg_g3d_fops, NULL, acpmdbg_g3d_set, "%llu\n");
++
++static void acpmdbg_g3d_init(struct acpm_info *acpm)
++{
++	struct acpm_plugin_shmem __iomem *plugin;
++	struct acpm_chan_shmem __iomem *chans;
++
++	/* Only with the FVP plugin attached and owning the DVFS channel. */
++	plugin = acpm_plugin_find(acpm, "exynos9610_acpm_fvp.fw");
++	if (!plugin || !readb(&plugin->is_attached)) {
++		dev_info(acpm->dev, "ACPMDBG g3d: FVP plugin not attached, no debugfs file\n");
++		return;
++	}
++
++	chans = acpm->sram_base + readl(&acpm->shmem->chans);
++	if (acpm->num_chans <= ACPMDBG_DVFS_CHAN ||
++	    readl(&chans[ACPMDBG_DVFS_CHAN].reserved[1]) != BIT(readl(&plugin->id)) ||
++	    !acpm->chans[ACPMDBG_DVFS_CHAN].poll_completion) {
++		dev_info(acpm->dev, "ACPMDBG g3d: channel %d is not the plugin's, no debugfs file\n",
++			 ACPMDBG_DVFS_CHAN);
++		return;
++	}
++
++	debugfs_create_file("acpmdbg_g3d_khz", 0200, NULL, acpm,
++			    &acpmdbg_g3d_fops);
++	dev_info(acpm->dev, "ACPMDBG g3d: debugfs file ready, nothing sent\n");
++}
++
+ static int acpm_probe(struct platform_device *pdev)
+ {
+ 	const struct acpm_match_data *match_data;
+@@ -1040,8 +1096,10 @@ static int acpm_probe(struct platform_device *pdev)
+ 	acpm->handle.ops = &exynos_acpm_driver_ops;
+ 
+ 	acpm_plugins_attach(acpm, match_data);
+-	if (match_data->plugins)
++	if (match_data->plugins) {
+ 		acpmdbg_dump(acpm);
++		acpmdbg_g3d_init(acpm);
++	}
+ 
+ 	platform_set_drvdata(pdev, acpm);
+ 
+-- 
+2.56.0
+

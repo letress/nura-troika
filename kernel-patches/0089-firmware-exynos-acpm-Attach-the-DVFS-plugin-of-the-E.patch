@@ -1,0 +1,334 @@
+From 954ed3207817aca328d3edee49f491abe7177a6f Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 19:47:58 +0100
+Subject: [PATCH 89/89] firmware: exynos-acpm: Attach the DVFS plugin of the
+ Exynos9610
+
+The ACPM firmware of the Exynos9610 is a framework with plugins. The
+bootloader attaches only some of them. The others are marked in the
+plugin table of the firmware as expected to be attached and have their
+memory in SRAM set aside, but the image has to be copied there and the
+framework asked to attach it. The vendor kernel does that for every
+such plugin in plugins_init() of drivers/soc/samsung/acpm/acpm.c.
+
+One of them is the plugin that sets the frequencies and voltages
+(exynos9610_acpm_fvp.fw): without it the firmware does not serve the
+DVFS channel. Load its image with request_firmware(), check that it
+fits the memory that the firmware sets aside, copy it, verify the copy
+and send the attach request on the channel of the framework.
+
+A plugin that cannot be attached is not fatal, the other protocols do
+not need it. The thermal plugin is left alone: the temperature can be
+read from the TMU itself.
+
+The driver is built in on these SoCs, so the image has to be in the
+initramfs or built into the kernel.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/firmware/samsung/exynos-acpm.c | 202 ++++++++++++++++++++++++-
+ 1 file changed, 198 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/firmware/samsung/exynos-acpm.c b/drivers/firmware/samsung/exynos-acpm.c
+index 77d81ba..bb0ce55 100644
+--- a/drivers/firmware/samsung/exynos-acpm.c
++++ b/drivers/firmware/samsung/exynos-acpm.c
+@@ -13,6 +13,7 @@
+ #include <linux/delay.h>
+ #include <linux/device.h>
+ #include <linux/find.h>
++#include <linux/firmware.h>
+ #include <linux/firmware/samsung/exynos-acpm-protocol.h>
+ #include <linux/io.h>
+ #include <linux/iopoll.h>
+@@ -35,27 +36,62 @@
+ #include "exynos-acpm-tmu.h"
+ 
+ #define ACPM_PROTOCOL_SEQNUM		GENMASK(21, 16)
++#define ACPM_PROTOCOL_PLUGIN_ATTACH	BIT(25)
++#define ACPM_PROTOCOL_PLUGIN_ID		GENMASK(28, 26)
+ 
+ #define ACPM_POLL_TIMEOUT_US		(100 * USEC_PER_MSEC)
+ #define ACPM_TX_TIMEOUT_US		500000
+ 
+ #define ACPM_EXYNOS9610_INITDATA_BASE	0x6f00
++#define ACPM_EXYNOS9610_PLUGIN_CHAN_ID	4
+ #define ACPM_GS101_INITDATA_BASE	0xa000
+ 
++#define ACPM_PLUGIN_BASE_ADDR_THUMB	BIT(0)
++#define ACPM_PLUGIN_NAME_LEN		32
++
+ /**
+  * struct acpm_shmem - shared memory configuration information.
+- * @reserved:	unused fields.
++ * @plugins:	offset to array of struct acpm_plugin_shmem.
++ * @num_plugins: number of firmware plugins.
+  * @chans:	offset to array of struct acpm_chan_shmem.
+- * @reserved1:	unused fields.
++ * @reserved:	unused fields.
+  * @num_chans:	number of channels.
+  */
+ struct acpm_shmem {
+-	u32 reserved[2];
++	u32 plugins;
++	u32 num_plugins;
+ 	u32 chans;
+-	u32 reserved1[3];
++	u32 reserved[3];
+ 	u32 num_chans;
+ };
+ 
++/**
++ * struct acpm_plugin_shmem - descriptor of a firmware plugin.
++ *
++ * @id:			plugin ID.
++ * @base_addr:		entry point of the plugin as an offset in SRAM, with
++ *			the Thumb bit set.
++ * @reserved:		unused fields.
++ * @is_attached:	true when the firmware runs the plugin.
++ * @reserved1:		unused fields.
++ * @size:		size of the memory set aside for the plugin.
++ * @stay_attached:	true when the firmware expects the plugin to be
++ *			attached.
++ * @reserved2:		unused fields.
++ * @fw_name:		offset to the name of the image of the plugin.
++ */
++struct acpm_plugin_shmem {
++	u32 id;
++	u32 base_addr;
++	u32 reserved[6];
++	u8 is_attached;
++	u8 reserved1[3];
++	u32 size;
++	u8 stay_attached;
++	u8 reserved2[3];
++	u32 fw_name;
++};
++
+ /**
+  * struct acpm_chan_shmem - descriptor of a shared memory channel.
+  *
+@@ -166,6 +202,7 @@ struct acpm_chan {
+  * struct acpm_info - driver's private data.
+  * @shmem:	pointer to the SRAM configuration data.
+  * @sram_base:	base address of SRAM.
++ * @sram_size:	size of SRAM.
+  * @chans:	pointer to the ACPM channel parameters retrieved from SRAM.
+  * @dev:	pointer to the exynos-acpm device.
+  * @handle:	instance of acpm_handle to send to clients.
+@@ -174,6 +211,7 @@ struct acpm_chan {
+ struct acpm_info {
+ 	struct acpm_shmem __iomem *shmem;
+ 	void __iomem *sram_base;
++	resource_size_t sram_size;
+ 	struct acpm_chan *chans;
+ 	struct device *dev;
+ 	struct acpm_handle handle;
+@@ -185,10 +223,16 @@ struct acpm_info {
+  * @initdata_base:	offset in SRAM where the channels configuration resides.
+  * @acpm_clk_dev_name:	base name for the ACPM clocks device that we're registering,
+  *			NULL if there is none.
++ * @plugin_chan_id:	ID of the channel that takes the requests to attach
++ *			firmware plugins.
++ * @plugins:		NULL-terminated names of the images of the firmware
++ *			plugins to load and attach, NULL if there are none.
+  */
+ struct acpm_match_data {
+ 	loff_t initdata_base;
+ 	const char *acpm_clk_dev_name;
++	unsigned int plugin_chan_id;
++	const char * const *plugins;
+ };
+ 
+ #define client_to_acpm_chan(c) container_of(c, struct acpm_chan, cl)
+@@ -700,6 +744,140 @@ static const struct acpm_ops exynos_acpm_driver_ops = {
+ 	},
+ };
+ 
++/**
++ * acpm_plugin_find() - find a firmware plugin by the name of its image.
++ * @acpm:	pointer to driver private data.
++ * @name:	name of the image of the plugin.
++ *
++ * Return: pointer to the descriptor of the plugin, NULL if the firmware has
++ * no such plugin.
++ */
++static struct acpm_plugin_shmem __iomem *
++acpm_plugin_find(struct acpm_info *acpm, const char *name)
++{
++	struct acpm_plugin_shmem __iomem *plugins;
++	u32 offset = readl(&acpm->shmem->plugins);
++	u32 num = readl(&acpm->shmem->num_plugins);
++	char fw_name[ACPM_PLUGIN_NAME_LEN];
++	size_t len = strlen(name) + 1;
++	u32 i;
++
++	if (len > sizeof(fw_name) || offset > acpm->sram_size ||
++	    num > (acpm->sram_size - offset) / sizeof(*plugins))
++		return NULL;
++
++	plugins = acpm->sram_base + offset;
++
++	for (i = 0; i < num; i++) {
++		u32 fw_name_offset = readl(&plugins[i].fw_name);
++
++		if (!fw_name_offset || fw_name_offset > acpm->sram_size - len)
++			continue;
++
++		memcpy_fromio(fw_name, acpm->sram_base + fw_name_offset, len);
++		if (!memcmp(fw_name, name, len))
++			return &plugins[i];
++	}
++
++	return NULL;
++}
++
++/**
++ * acpm_plugin_attach() - load the image of a firmware plugin and attach it.
++ * @acpm:		pointer to driver private data.
++ * @acpm_chan_id:	ID of the channel that takes the request to attach.
++ * @name:		name of the image of the plugin.
++ *
++ * Return: 0 on success, -errno otherwise.
++ */
++static int acpm_plugin_attach(struct acpm_info *acpm, unsigned int acpm_chan_id,
++			      const char *name)
++{
++	struct acpm_plugin_shmem __iomem *plugin;
++	const struct firmware *fw;
++	struct acpm_xfer xfer;
++	u32 cmd[4] = {0};
++	u32 id, base, size;
++	u8 attached;
++	size_t i;
++	int ret;
++
++	plugin = acpm_plugin_find(acpm, name);
++	if (!plugin)
++		return -ENOENT;
++
++	/* Attached by the bootloader, or not meant to be attached. */
++	if (readb(&plugin->is_attached) || !readb(&plugin->stay_attached))
++		return 0;
++
++	id = readl(&plugin->id);
++	base = readl(&plugin->base_addr) & ~ACPM_PLUGIN_BASE_ADDR_THUMB;
++	size = readl(&plugin->size);
++	if (id > FIELD_MAX(ACPM_PROTOCOL_PLUGIN_ID) || !base || !size ||
++	    base > acpm->sram_size || size > acpm->sram_size - base)
++		return -EINVAL;
++
++	ret = request_firmware(&fw, name, acpm->dev);
++	if (ret)
++		return ret;
++
++	/* The images are padded to the size that the firmware sets aside. */
++	if (fw->size != size) {
++		ret = -EINVAL;
++		goto release;
++	}
++
++	memcpy_toio(acpm->sram_base + base, fw->data, fw->size);
++
++	/* The firmware is about to run this, make sure that it arrived. */
++	for (i = 0; i < fw->size; i++) {
++		if (readb(acpm->sram_base + base + i) != fw->data[i]) {
++			ret = -EIO;
++			goto release;
++		}
++	}
++
++	cmd[0] = ACPM_PROTOCOL_PLUGIN_ATTACH |
++		 FIELD_PREP(ACPM_PROTOCOL_PLUGIN_ID, id);
++	acpm_set_xfer(&xfer, cmd, ARRAY_SIZE(cmd), acpm_chan_id, true);
++
++	ret = acpm_do_xfer(&acpm->handle, &xfer);
++	if (ret)
++		goto release;
++
++	ret = readb_poll_timeout(&plugin->is_attached, attached, attached,
++				 USEC_PER_MSEC, ACPM_POLL_TIMEOUT_US);
++
++release:
++	release_firmware(fw);
++
++	return ret;
++}
++
++/**
++ * acpm_plugins_attach() - attach the firmware plugins that the bootloader
++ * leaves to the kernel.
++ * @acpm:	pointer to driver private data.
++ * @match_data:	pointer to the of_device_id data.
++ *
++ * The protocols that do not depend on a plugin work without it, so a plugin
++ * that fails to attach is not fatal.
++ */
++static void acpm_plugins_attach(struct acpm_info *acpm,
++				const struct acpm_match_data *match_data)
++{
++	const char * const *name;
++	int ret;
++
++	for (name = match_data->plugins; name && *name; name++) {
++		ret = acpm_plugin_attach(acpm, match_data->plugin_chan_id,
++					 *name);
++		if (ret)
++			dev_warn(acpm->dev, "Failed to attach plugin %s: %d\n",
++				 *name, ret);
++	}
++}
++
+ static int acpm_probe(struct platform_device *pdev)
+ {
+ 	const struct acpm_match_data *match_data;
+@@ -734,6 +912,7 @@ static int acpm_probe(struct platform_device *pdev)
+ 				     "Failed to get match data.\n");
+ 
+ 	acpm->shmem = acpm->sram_base + match_data->initdata_base;
++	acpm->sram_size = size;
+ 	acpm->dev = dev;
+ 
+ 	ret = acpm_channels_init(acpm);
+@@ -742,6 +921,8 @@ static int acpm_probe(struct platform_device *pdev)
+ 
+ 	acpm->handle.ops = &exynos_acpm_driver_ops;
+ 
++	acpm_plugins_attach(acpm, match_data);
++
+ 	platform_set_drvdata(pdev, acpm);
+ 
+ 	if (!match_data->acpm_clk_dev_name)
+@@ -886,9 +1067,21 @@ static const struct acpm_match_data acpm_gs101 = {
+ 	.acpm_clk_dev_name = "gs101-acpm-clk",
+ };
+ 
++/*
++ * The bootloader leaves the plugin that sets the frequencies and voltages to
++ * the kernel. It leaves the thermal plugin as well, but the temperature can
++ * be read from the TMU without it.
++ */
++static const char * const acpm_exynos9610_plugins[] = {
++	"exynos9610_acpm_fvp.fw",
++	NULL
++};
++
+ /* No clocks of the Exynos9610 are handed out through ACPM yet. */
+ static const struct acpm_match_data acpm_exynos9610 = {
+ 	.initdata_base = ACPM_EXYNOS9610_INITDATA_BASE,
++	.plugin_chan_id = ACPM_EXYNOS9610_PLUGIN_CHAN_ID,
++	.plugins = acpm_exynos9610_plugins,
+ };
+ 
+ static const struct of_device_id acpm_match[] = {
+@@ -913,6 +1106,7 @@ static struct platform_driver acpm_driver = {
+ };
+ module_platform_driver(acpm_driver);
+ 
++MODULE_FIRMWARE("exynos9610_acpm_fvp.fw");
+ MODULE_AUTHOR("Tudor Ambarus <tudor.ambarus@linaro.org>");
+ MODULE_DESCRIPTION("Samsung Exynos ACPM mailbox protocol driver");
+ MODULE_LICENSE("GPL");
+-- 
+2.56.0
+

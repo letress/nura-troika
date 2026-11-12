@@ -1,7 +1,7 @@
 From 27227df730e9b26f1c1c2ef20fa2b0cf30cc75df Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 20:01:18 +0100
-Subject: [PATCH 54/88] dt-bindings: ufs: samsung,exynos-ufs: Add Exynos9610
+Subject: [PATCH 54/89] dt-bindings: ufs: samsung,exynos-ufs: Add Exynos9610
 
 Document the UFS host controller of the Exynos9610. It uses the same
 four register regions and the two clocks of the other variants.

@@ -245,6 +245,8 @@ if [ "${test_tag#acpm}" != "$test_tag" ]; then
 	dmesg | grep -i -E "acpm|mbox|mailbox" | grep -v -i -E "ACPMDBG|command line" | tail -n 4 | cut -c1-110
 	dmesg | sed -n 's/^.*ACPMDBG \(framework.*\)$/\1/p; s/^.*ACPMDBG \(plugin .*\)$/\1/p' | cut -c1-110
 	dmesg | sed -n 's/^.*ACPMDBG \(fvp: .*\)$/\1/p; s/^.*ACPMDBG \(get rate.*\)$/\1/p' | cut -c1-110
+	# Od ACPM4 modul FVP nahrava cisty ovladac; pri neuspechu to ohlasi.
+	dmesg | grep -i "Failed to attach plugin" | cut -c1-110
 	echo "radku ACPMDBG: $(dmesg | grep -c ACPMDBG)"
 	echo
 fi

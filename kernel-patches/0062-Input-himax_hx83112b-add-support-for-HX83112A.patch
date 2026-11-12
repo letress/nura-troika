@@ -1,7 +1,7 @@
 From e28fa27616ab8ded55bb92bf090f157446deed06 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 21:01:36 +0100
-Subject: [PATCH 62/88] Input: himax_hx83112b - add support for HX83112A
+Subject: [PATCH 62/89] Input: himax_hx83112b - add support for HX83112A
 
 The HX83112A reports its touches the way the HX83112B does: the vendor
 driver handles both with the same code and only tells them apart by the

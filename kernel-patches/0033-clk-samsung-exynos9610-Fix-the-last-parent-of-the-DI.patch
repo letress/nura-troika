@@ -1,7 +1,7 @@
 From 53a6412086cc712d53c85fafe1247a21e4802bba Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:30 +0100
-Subject: [PATCH 33/88] clk: samsung: exynos9610: Fix the last parent of the
+Subject: [PATCH 33/89] clk: samsung: exynos9610: Fix the last parent of the
  DISPAUD display mux
 
 mout_cmu_dispaud_disp lists "dout_cmu_shared0_div4" twice. In the vendor

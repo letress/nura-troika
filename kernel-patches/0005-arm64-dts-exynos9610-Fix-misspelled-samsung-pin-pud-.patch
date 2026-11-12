@@ -1,7 +1,7 @@
 From af5378f2097dfe4c761f3005e515fee9c132f5b3 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:36:25 +0100
-Subject: [PATCH 05/88] arm64: dts: exynos9610: Fix misspelled
+Subject: [PATCH 05/89] arm64: dts: exynos9610: Fix misspelled
  samsung,pin-pud/pin-drv properties
 
 53 pin configuration properties in the FSYS and TOP pin controllers are

@@ -1,7 +1,7 @@
 From efaf4e8a798c9f4959015372e0ba3101aa06ec19 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:47:26 +0100
-Subject: [PATCH 44/88] dt-bindings: clock: exynos9610: Use a 64 KiB region in
+Subject: [PATCH 44/89] dt-bindings: clock: exynos9610: Use a 64 KiB region in
  the example
 
 The driver sets auto_clock_gate for every CMU. The Samsung clock code

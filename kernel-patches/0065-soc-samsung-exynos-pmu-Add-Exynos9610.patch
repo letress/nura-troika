@@ -1,7 +1,7 @@
 From 1e51e491221e02089d0312d2ad5f512f1f894ddc Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 22:51:41 +0100
-Subject: [PATCH 65/88] soc: samsung: exynos-pmu: Add Exynos9610
+Subject: [PATCH 65/89] soc: samsung: exynos-pmu: Add Exynos9610
 
 Match the Exynos9610 PMU so that its child nodes (reboot, poweroff and
 reboot mode) get populated. Like Exynos850 it needs no PMU data.

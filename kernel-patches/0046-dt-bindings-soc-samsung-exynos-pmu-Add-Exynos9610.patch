@@ -1,7 +1,7 @@
 From 62cc3902bb013bdedbb467f060cf54f9dae581bb Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 14:33:34 +0100
-Subject: [PATCH 46/88] dt-bindings: soc: samsung: exynos-pmu: Add Exynos9610
+Subject: [PATCH 46/89] dt-bindings: soc: samsung: exynos-pmu: Add Exynos9610
 
 Add a compatible for the PMU of the Exynos9610. For now it is only used
 as a syscon by the USB PHY, so it is listed with the plain syscon

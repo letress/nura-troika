@@ -1338,6 +1338,63 @@ fastboot boot ~/nura-troika/out/troika-test-TMU1.img
 přepočet registrů (v klidu 44 až 45 °C, při zátěži velká jádra 66 °C za
 12 s), ovladač do čidla nezapsal nic (FINDINGS.md 22.5).
 
+## 5x. Test ACPM4: modul FVP nahrává čistý ovladač
+
+Cíl: ovladač `exynos-acpm` sám při startu nahraje a připojí modul FVP
+(FINDINGS.md 23), stejně jako to v ACPM3 dělal ladicí kód. Je to tentýž
+odsouhlasený krok, jen v čistém kódu. Frekvence ani napětí se nemění
+a firmwaru se kromě žádosti o připojení nic neposílá. Teploty běží jako
+v TMU1.
+
+1. Telefon do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ACPM4.img
+```
+
+2. Napiš mi, že běží. Přes telnet zkontroluju, že je modul 2 v tabulce
+   firmwaru veden jako připojený, že v logu není varování
+   `Failed to attach plugin` a že teploty a hodiny jsou v pořádku.
+
+Kdyby telefon po startu zamrzl nebo se sám restartoval: podrž Power + Vol−
+a napiš mi to. Po restartu je firmware v původním stavu.
+
+**Výsledek ACPM4 (2026-11-12): prošlo** – modul FVP připojil čistý ovladač,
+bez varování; teploty, hodiny a UFS v pořádku (FINDINGS.md 23.3).
+
+## 5y. Test ACPM5: první změna frekvence GPU přes firmware
+
+Cíl: firmware na žádost přepne GPU z 260 na 338 MHz a zpět (FINDINGS.md 24).
+Oba stupně mají v tabulce firmwaru stejné napětí. **Zprávy se posílají jen
+po výslovném souhlasu uživatele**; samotné spuštění image je stejné jako
+ACPM4 a firmwaru nic navíc neposílá.
+
+1. Telefon do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ACPM5.img
+```
+
+2. Napiš mi, že běží. Zkontroluju výchozí stav (PLL GPU, teploty, připojený
+   modul) a zeptám se na souhlas.
+3. Po souhlasu přes telnet tři kroky, po každém čtení PLL
+   (`/bin/mem-rd 11430120`), teplot a logu:
+
+```
+echo 260000 > /sys/kernel/debug/acpmdbg_g3d_khz
+echo 338000 > /sys/kernel/debug/acpmdbg_g3d_khz
+echo 260000 > /sys/kernel/debug/acpmdbg_g3d_khz
+```
+
+   Soubor jiné hodnoty odmítne. Když některý krok dopadne jinak, než čekám,
+   další neposílám.
+
+Kdyby telefon zamrzl nebo se sám restartoval: podrž Power + Vol− a napiš mi
+to. Po restartu je firmware i frekvence v původním stavu.
+
+**Výsledek ACPM5 (2026-11-12): prošlo** – se souhlasem uživatele odešly tři
+žádosti, firmware přepnul PLL GPU z 260 na 338 MHz a zpět (FINDINGS.md 24.4).
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

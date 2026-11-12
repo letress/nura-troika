@@ -2540,3 +2540,168 @@ telnet (`device-info/tmu-TMU1.txt`).
 
 Závěr: čtení teploty funguje. **Neověřeno:** vypnutí při 105 °C (té teploty
 telefon nedosáhl a schválně ji vyvolávat nebudu) a chování po uspání.
+
+## 23. ACPM: nahrávání modulu FVP v čistém ovladači (2026-11-12)
+
+### 23.1 Co se změnilo (větev `troika-clk`, +1, celkem 89 nad v7.3.3)
+
+`firmware: exynos-acpm: Attach the DVFS plugin of the Exynos9610` – to, co
+v testu ACPM3 dělal ladicí kód, dělá teď ovladač `exynos-acpm` sám při startu:
+
+- Popis sdílené paměti dostal jména: první dvě slova hlavičky jsou odkaz na
+  tabulku modulů a jejich počet (`struct acpm_framework` původního kernelu),
+  nová `struct acpm_plugin_shmem` odpovídá `struct plugin`
+  (`fw_header/common.h`).
+- Data pro Exynos9610 říkají, který modul nahrát (`exynos9610_acpm_fvp.fw`)
+  a kterým kanálem jde žádost o připojení (4, `acpm-ipc-channel` uzlu `acpm`
+  v původním DT).
+- Postup: najít modul v tabulce firmwaru podle jména souboru; nic nedělat,
+  když je už připojený nebo ho firmware připojený nechce; ověřit, že se
+  vejde do SRAM a že soubor má přesně velikost vyhrazeného místa; zkopírovat;
+  přečíst zpět a porovnat; poslat žádost (`BIT(25) | id << 26`) a počkat, až
+  ho firmware v tabulce označí jako připojený.
+- Neúspěch není fatální (jen varování v logu): ostatní služby firmwaru modul
+  nepotřebují.
+- Modul TMU ovladač **nenahrává** – není k tomu souhlas a teplotu čteme
+  přímo z čidla.
+
+Původní kernel nahrává všechny moduly, které firmware chce mít připojené
+(`plugins_init`), tedy FVP i TMU. **Otevřená otázka:** jestli modul FVP při
+změně frekvence počítá s připojeným modulem TMU (např. kvůli přirážce napětí
+za chladu). Zdroják modulů nemám; před první změnou frekvence to uvedu jako
+riziko.
+
+Ladicí commit na `troika-clk-test` je menší: jen vypisuje rozložení
+firmwaru a stav modulů, firmwaru nic neposílá (dotaz `FREQ_GET`, který
+vracel nulu, je pryč).
+
+### 23.2 Důsledek pro balíček
+
+Ovladač je zabudovaný v kernelu a modul si žádá při startu, tedy dřív, než
+je připojený kořenový systém. Soubor `exynos9610_acpm_fvp.fw` proto musí být
+**v initramfs** (v testovacím image je). Pro balíček to znamená dvě věci,
+které zatím nejsou udělané a o kterých rozhodne uživatel: odkud soubor brát
+(je ve zdrojích původního kernelu od Motoroly; v mé kopii u něj žádná
+licence uvedena není a soubor `firmware/WHENCE` tam chybí) a jeho přidání do initramfs přes mkinitfs. Bez souboru ovladač jen
+vypíše varování a frekvence zůstanou pevné jako dnes.
+
+### 23.3 Test ACPM4: modul připojil čistý ovladač (2026-11-12 20:12)
+
+Image `out/troika-test-ACPM4.img` (sha256 začíná `b4372c00`), výpis přes
+telnet (`device-info/acpm-ACPM4.txt`).
+
+```
+plugin 1: id 1 base 0xc401 size 0x8c00 attached 1 stay 1 fw 'plugin_DVFS_0_0_0.fw'
+plugin 2: id 2 base 0x9001 size 0x1400 attached 1 stay 1 fw 'exynos9610_acpm_fvp.fw'
+plugin 4: id 4 base 0xa401 size 0x1400 attached 0 stay 1 fw 'exynos9610_acpm_tmu.fw'
+```
+
+- Modul FVP (2) je po startu připojený, bez ladicího kódu; varování
+  `Failed to attach plugin` v logu není. Modul TMU (4) zůstal nepřipojený.
+- Teploty 44,7 / 43,7 / 45,0 °C, `fout_cpucl0_pll` 1053 MHz, `fout_g3d_pll`
+  260 MHz, UFS jen pro čtení, v logu jen dvě známé hlášky.
+
+Závěr: přesun do čistého ovladače funguje. **Neověřeno:** chování bez
+souboru modulu v initramfs (má jen vypsat varování) a změna frekvence.
+
+
+## 24. Návrh první změny frekvence přes firmware (2026-11-12, čeká na souhlas)
+
+### 24.1 Jak to dělá původní systém
+
+- Frekvenci GPU nastavuje `gpu_set_dvfs_using_calapi()` (mali
+  `platform/exynos/gpu_control.c`) voláním `cal_dfs_set_rate(g3d_cmu_cal_id,
+  kHz)`. `g3d_cmu_cal_id` je v DT telefonu `0xb040004`, tedy doména
+  spravovaná firmwarem číslo 4 (`IS_ACPM_VCLK`, `GET_IDX` v `cmucal.h`).
+- `cal_dfs_set_rate()` pro takovou doménu pošle firmwaru zprávu
+  `exynos_acpm_set_rate()`: slova `{číslo domény, kHz, FREQ_REQ = 0, 0}`,
+  s odpovědí, kanálem uzlu hodin (`acpm-ipc-channel = <0>` v
+  `clock-controller@0x12100000`). Napětí původní kernel sám nenastavuje –
+  PLL i napětí větve přepíná firmware podle své tabulky.
+- Aktuální frekvenci původní kernel čte z registrů (`vclk_recalc_rate`),
+  ne z firmwaru. Odpovídá to zjištění z ACPM3, že `FREQ_GET` vrací nulu.
+- Chování za chladu: při `CONFIG_EXYNOS_ACPM_THERMAL=y` kernel firmwaru
+  zprávy o chladu neposílá (`COLDTEMP_REQ` je v `acpm_dvfs.c` vypnuté
+  podmíněným překladem) – nejspíš si to firmware řeší sám přes modul TMU. Ten
+  u nás připojený není. Práh „cold“ původního systému je 20 °C (`big-cold`,
+  `gpu-cold` v DT); čip má teď 43 až 45 °C.
+- Firmware může kanálem 5 kernel žádat o zvýšení frekvence paměťové sběrnice
+  (`acpm_noti_mif_callback`). Náš kernel na to neodpovídá. Pro navržený krok
+  to nevadí: původní tabulka GPU chce pro 338 MHz sběrnici aspoň na 419 MHz
+  a ta běží na 1794 MHz.
+
+### 24.2 Navržený krok: GPU 260 → 338 → 260 MHz
+
+| Co | Hodnota | Zdroj |
+|---|---|---|
+| Doména | 4 (G3D) | `g3d_cmu_cal_id = <0xb040004>` v `live.dts` |
+| Kanál | 0 | `acpm-ipc-channel` uzlu hodin v `live.dts`; vlastní ho modul FVP (21.6) |
+| Zpráva | `{4, kHz, 0, 0}` s odpovědí | `exynos_acpm_set_rate()` v `cal-if/acpm_dvfs.c` |
+| Výchozí stav | 260 MHz, 581,25 mV | PLL `0x11430120` = `0xa0a00412` (26 × 160 / 16), tabulka firmwaru stupeň 10 |
+| Cíl | 338 MHz, 581,25 mV | tabulka firmwaru stupeň 9; `gpu_dvfs_table` v `live.dts` tuto frekvenci obsahuje |
+| Mez čipu | 260 až 1053 MHz | `gpu_min_clock`, `gpu_max_clock` v `live.dts` |
+
+Proč právě tohle: oba stupně mají v tabulce firmwaru **stejné napětí**, takže
+jde o změnu frekvence bez změny napětí. GPU v testovacím image nic nekreslí,
+takže případná chyba nezasáhne běžící systém tak jako u procesoru. Obě
+frekvence jsou nejnižší dva stupně původního systému.
+
+Tři zprávy v tomto pořadí, po každé čtení registru PLL (`mem-rd 11430120`),
+teplot a logu:
+
+1. `260000` – žádost o frekvenci, na které GPU už je. Čekám odpověď bez
+   chyby a nezměněný registr.
+2. `338000` – čekám PLL přepnutý na 338 MHz.
+3. `260000` – návrat do výchozího stavu.
+
+Když kterýkoli krok dopadne jinak, než čekám, další neposílám.
+
+Jak: ladicí commit na `troika-clk-test` přidává soubor
+`/sys/kernel/debug/acpmdbg_g3d_khz`. Přijme jen hodnoty 260000 a 338000,
+cokoli jiného odmítne; vznikne jen tehdy, když je modul FVP připojený
+a kanál 0 mu patří. Dokud do něj nikdo nezapíše, firmwaru se nic neposílá –
+samotné spuštění image ACPM5 je stejné jako ACPM4.
+
+### 24.3 Rizika a co nevím
+
+- **Napětí nezměřím.** Podle tabulky se měnit nemá; firmware si ale regulátor
+  řídí sám a co přesně udělá, nevidím (čtení regulátoru přes firmware zatím
+  nemáme). Nejvyšší napětí v tabulce GPU je 950 mV a původní systém ho běžně
+  používá; navržené hodnoty jsou na opačném konci.
+- **Firmware může zprávu odmítnout, neodpovědět nebo se zaseknout.** V tom
+  případě může telefon zamrznout nebo se restartovat. Firmware se při každém
+  startu nahrává znovu, nic trvalého se nemění; pomůže Power + Vol−.
+- **Modul TMU není připojený.** Původní systém ho připojený má a firmware
+  přes něj nejspíš hlídá chlad. Jestli na něm modul FVP závisí i jinak, nevím.
+- **Kernel o změně neví.** Hodiny v mainline si pamatují 260 MHz; po kroku 3
+  to zase platí. Panfrost v testovacím image nic nekreslí.
+- Změna nepřežije restart.
+
+### 24.4 Test ACPM5: firmware frekvenci GPU změnil a vrátil (2026-11-12 20:30)
+
+Souhlas uživatele: odpověď „Ano, všechny tři kroky“ na otázku, zda poslat
+firmwaru tři žádosti o frekvenci GPU 260, 338 a zpět 260 MHz (telefon běžel
+v ACPM5, výchozí stav zkontrolován). Výpis: `device-info/acpm-ACPM5.txt`.
+
+| Krok | Žádost | Odpověď firmwaru | PLL `0x11430120` | Frekvence |
+|---|---|---|---|---|
+| výchozí stav | – | – | `0xa0a00412` | 26 × 160 / (4 × 4) = 260 MHz |
+| 1 | 260000 | `00010000 0003f7a0`, návrat 0 | `0xa0a00412` | 260 MHz (beze změny) |
+| 2 | 338000 | `00020000 00052850`, návrat 0 | `0xa0680411` | 26 × 104 / (4 × 2) = 338 MHz |
+| 3 | 260000 | `00030000 0003f7a0`, návrat 0 | `0xa0a00412` | 260 MHz |
+
+- Firmware na každou žádost odpověděl bez chyby; ve druhém slově odpovědi
+  vrací požadovanou frekvenci, v prvním pořadové číslo.
+- PLL je po každém kroku zapnutý a zavěšený (bity 31 a 29), výběr hodin
+  `0x11431004` zůstal na PLL.
+- Teploty se nehnuly (43 až 45 °C), UFS jen pro čtení, v logu nic nového.
+- Ladicí soubor jinou hodnotu odmítá: zápis 500000 skončil chybou
+  `Invalid argument` a firmwaru neodešel (v logu jsou jen tři žádosti).
+  Tenhle pokus nebyl součástí odsouhlasených kroků; spoléhal na kontrolu
+  v ladicím kódu, která hodnotu zahodí dřív, než se cokoli pošle.
+
+Závěr: **změna frekvence přes firmware funguje** – zpráva `{4, kHz, 0, 0}`
+kanálem 0 přepne PLL GPU a zase ho vrátí. **Neověřeno:** co firmware při tom
+udělal s napětím (podle tabulky nic), stupně s jiným napětím, GPU pod
+zátěží, ostatní domény (procesor, paměť).
+

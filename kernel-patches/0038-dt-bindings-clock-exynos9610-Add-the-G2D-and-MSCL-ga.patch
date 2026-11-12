@@ -1,7 +1,7 @@
 From 703fe5f072bb72735b1cbb12c7f5f0cef8ca3cce Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:52:59 +0100
-Subject: [PATCH 38/88] dt-bindings: clock: exynos9610: Add the G2D and MSCL
+Subject: [PATCH 38/89] dt-bindings: clock: exynos9610: Add the G2D and MSCL
  gate IDs
 
 The G2D and MSCL clock gates of CMU_G2D (CLK_CON_GAT_GOUT_G2D_G2D_CLK

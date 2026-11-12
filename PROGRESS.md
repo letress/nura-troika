@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: Teplota čipu – přímé čtení registrů čidla TMU funguje (ověřeno na běžícím telefonu, FINDINGS.md 22.3) a ovladač `exynos9610-tmu`, který jen čte, prošel testem TMU1 (FINDINGS.md 22.5). ACPM: modul FVP jde nahrát a připojit (21.8), změna frekvence se nezkoušela a vyžaduje samostatný souhlas. `troika-clk` 88 commitů nad v7.3.3; hlavní repozitář commitnut a pushnut 2026-11-12 včetně teploty (commit „Teplota čipu: čtení čidla TMU…“); pmaports beze změny (`6a3faa4df`)
+## Stav: Změna frekvence přes firmware funguje – test ACPM5: GPU 260 → 338 → 260 MHz, se souhlasem uživatele (FINDINGS.md 24.4). Souhlas platil jen pro tyto tři žádosti; další frekvence, stupně s jiným napětím a jiné domény vyžadují nový souhlas. Hotovo a ověřeno také: modul FVP nahrává čistý ovladač (23.3), teplota (22.5). `troika-clk` 89 commitů nad v7.3.3, `troika-clk-test` +7; hlavní repozitář commitnut a pushnut 2026-11-12 včetně testu ACPM5 (commit „ACPM: modul FVP v čistém ovladači, první změna frekvence GPU…“); pmaports beze změny (`6a3faa4df`)
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1676,3 +1676,68 @@ Na pokyn uživatele: `kernel-patches/` znovu vyexportováno (88),
 beze změny: balíček kernelu pkgrel 6 je stále nesestavený a chybí mu commity
 ACPM a TMU a volby `EXYNOS_MBOX=y`, `EXYNOS_ACPM_PROTOCOL=y`,
 `EXYNOS9610_THERMAL=y`. Telefon běží v TMU1.
+
+### 2026-11-12 19:25–19:52 – nahrávání modulu FVP v čistém ovladači
+
+- `troika-clk` +1: `firmware: exynos-acpm: Attach the DVFS plugin of the
+  Exynos9610` (hledání modulu v tabulce firmwaru, kontroly, kopie, zpětné
+  čtení, žádost o připojení kanálem 4). Modul TMU se nenahrává.
+- `troika-clk-test`: starý ladicí commit ACPM zahozen a nahrazen menším,
+  který jen vypisuje rozložení firmwaru a stav modulů (nic neposílá).
+- Sestaveno bez varování, `out/troika-test-ACPM4.img` (sha256 začíná
+  `b4372c00`), postup TESTING.md 5x.
+- Zjištění: původní kernel nahrává FVP i TMU; jestli FVP potřebuje TMU,
+  nevím (FINDINGS.md 23.1, otevřená otázka před změnou frekvence).
+- Pro balíček: soubor `exynos9610_acpm_fvp.fw` musí být v initramfs; odkud
+  ho brát, rozhodne uživatel (FINDINGS.md 23.2).
+- Necommitnuto: FINDINGS kap. 23, TESTING 5x, PROGRESS,
+  `test-initramfs/init`; `kernel-patches/` čeká na export (89, ladicí 6).
+
+Další kroky: (1) test ACPM4; (2) souhlas uživatele se změnou frekvence
+s konkrétními hodnotami a první `FREQ_REQ`.
+
+### 2026-11-12 20:12 – test ACPM4 prošel
+
+Telefon restartován přes telnet do fastbootu (na pokyn uživatele), uživatel
+spustil ACPM4. Modul FVP je připojený čistým ovladačem, bez varování; modul
+TMU nepřipojený; teploty, hodiny a UFS beze změny. Telefon běží v ACPM4.
+Necommitnuto (viz předchozí záznam).
+
+Další krok: připravit pro uživatele návrh první změny frekvence (která
+doména, jaké hodnoty, meze Exynosu 9609 z původního DT, rizika) a požádat
+o výslovný souhlas. Bez něj žádnou zprávu `FREQ_REQ` neposílat.
+
+### 2026-11-12 20:13–20:19 – návrh první změny frekvence, image ACPM5
+
+- Průzkum (jen čtení): původní kernel mění frekvenci GPU zprávou
+  `{4, kHz, 0, 0}` kanálem 0, napětí řídí firmware; meze GPU v DT telefonu
+  260 až 1053 MHz; stupně 260 a 338 MHz mají v tabulce firmwaru stejné
+  napětí 581,25 mV. PLL GPU `0x11430120` = `0xa0a00412` (260 MHz).
+- `troika-clk-test` +1 (celkem 7 ladicích): soubor debugfs
+  `acpmdbg_g3d_khz`, přijme jen 260000 a 338000, sám nic neposílá.
+- Sestaven `out/troika-test-ACPM5.img` (sha256 začíná `5c25f0d9`), postup TESTING.md 5y.
+- Návrh a rizika: FINDINGS.md 24. Souhlas zatím není.
+- Necommitnuto: FINDINGS kap. 23 a 24, TESTING 5x a 5y, PROGRESS,
+  `test-initramfs/init`; `kernel-patches/` čeká na export (89, ladicí 7).
+
+### 2026-11-12 20:30 – test ACPM5 prošel: první změna frekvence
+
+Telefon restartován do fastbootu (na pokyn uživatele), uživatel spustil
+ACPM5. Výchozí stav zkontrolován, souhlas získán přes AskUserQuestion
+(„Ano, všechny tři kroky“). Odeslány tři žádosti: 260000, 338000, 260000;
+PLL GPU `0xa0a00412` → `0xa0680411` → `0xa0a00412`. Telefon v pořádku, běží
+dál v ACPM5 na 260 MHz. Necommitnuto (FINDINGS 23 a 24, TESTING 5x a 5y,
+PROGRESS, init; export patchů 89 + 7).
+
+Další možné kroky (každý se souhlasem): stupeň GPU s jiným napětím,
+frekvence procesoru; pak čistý ovladač hodin přes ACPM a škálování GPU
+v panfrostu. Před balíčkem vyřešit soubor modulu v initramfs (23.2).
+
+### 2026-11-12 20:31 – commit a push (ACPM4, ACPM5)
+
+Na pokyn uživatele: `kernel-patches/` znovu vyexportováno (89),
+`kernel-patches-debug/` (7), hlavní repozitář commitnut a pushnut. pmaports
+beze změny: balíček kernelu pkgrel 6 je stále nesestavený a chybí mu commity
+ACPM a TMU, volby `EXYNOS_MBOX=y`, `EXYNOS_ACPM_PROTOCOL=y`,
+`EXYNOS9610_THERMAL=y` a soubor modulu FVP v initramfs (FINDINGS.md 23.2).
+Telefon běží v ACPM5, GPU na 260 MHz.

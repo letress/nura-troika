@@ -1,7 +1,7 @@
 From 9a6566852f9b3a9f6de858e881c6c1204b41a200 Mon Sep 17 00:00:00 2001
 From: Alexandru Chimac <alex@chimac.ro>
 Date: Sun, 14 Sep 2025 20:44:09 +0000
-Subject: [PATCH 02/88] arm64: dts: exynos: Add initial support for the
+Subject: [PATCH 02/89] arm64: dts: exynos: Add initial support for the
  Exynos9610 SoC
 
 The Exynos9610 SoC is found in 2020-2021 Samsung Galaxy A/M-series devices.
