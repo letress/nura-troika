@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: GPU je hotové po funkční stránce v testovacích image: automatické škálování 260 až 764 MHz přes firmware (27) a teplotní brzdění od 88 °C (28.1, mechanismus ověřen ručně, skutečné zahřátí ne). Zbývá zařazení do balíčku: 94 commitů, volby `EXYNOS_MBOX=y`, `EXYNOS_ACPM_PROTOCOL=y`, `EXYNOS_ACPM_CLK=y`, `EXYNOS9610_THERMAL=y` a soubor modulu FVP v initramfs (o zdroji rozhodne uživatel). `troika-clk` 94 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-12 včetně testu ACPM8 (commit „GPU: teplotní brzdění od 88 °C…“); pmaports beze změny (`6a3faa4df`)
+## Stav: WiFi – rádio startuje: test WLAN1, ovladač SCSC 11.19 s firmwarem 6906, `wlan0` jde zapnout (FINDINGS.md 30.8). Další krok: hledání sítí a připojení (rádio začne vysílat – nový souhlas), nejspíš v plném systému; doplnit adresu MAC a databázi zemí. Souběžně: dávka balíčků s GPU (TESTING.md 5ae) čeká na sestavení uživatelem. `troika-clk` 94 commitů nad v7.3.3, `troika-clk-test` +9; hlavní repozitář commitnut a pushnut 2026-11-12 včetně testu WLAN1 (commit „WiFi: rádio startuje…“); pmaports pushnut do `b651290cc` (balíčky nesestavené)
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1863,3 +1863,73 @@ TESTING 5ad, PROGRESS; export patchů 94 + 8.
 Na pokyn uživatele: patche znovu vyexportovány (94 čistých, 8 ladicích),
 hlavní repozitář commitnut a pushnut. pmaports beze změny. Telefon běží
 v ACPM8.
+
+### 2026-11-12 22:10 – balíčky: firmware, kernel pkgrel 7, zařízení pkgrel 7
+
+Ověřen původ a licence souboru modulu FVP (repozitář Motoroly, shodný
+součet, žádná licence → `proprietary`). pmaports: tři místní commity
+(`e70a787a6`, `18f3e8f2c`, `b651290cc`), `kconfig check` prošel. Postup
+sestavení TESTING.md 5ae. Telefon běží v ACPM8. Necommitnuto v hlavním
+repozitáři: FINDINGS kap. 29, TESTING 5ae, PROGRESS.
+
+### 2026-11-12 22:12 – WiFi: zahájení, plán
+
+Uživatel chce pokračovat WiFi. Sepsán výchozí stav a plán (FINDINGS.md 30).
+Další krok: inventura jen pro čtení (krok 1). Souhlas se zápisy pro rádio
+zatím není. Dávka balíčků (5ae) čeká na sestavení uživatelem; v hlavním
+repozitáři necommitnuto od `51e0e72` (FINDINGS 29 a 30, TESTING 5ae,
+PROGRESS), pmaports tři místní commity nepushnuté.
+
+### 2026-11-12 22:19 – WiFi krok 1: inventura hotová
+
+FINDINGS.md 30.3: uzly a adresy z původního DT, seznam zápisů při startu
+rádia (PMU, SMC, BAAW, boot_cfg – k souhlasu později), firmware
+`mx140.bin` (sestavení 6906, řada `leman_s620 S620_E9610_R3-1`, stejná jako
+u gta4xl). Dvě cesty pro krok 2: A náš ovladač 10.17 ručně, B jejich 11.19
+s hotovým patchem (potřeba sehnat odpovídající zdrojáky). Kopie firmwaru
+pro rozbor jen ve scratchpadu, záloha nedotčena. Necommitnuto od `51e0e72`.
+
+### 2026-11-12 22:30 – WiFi: zkratka B schůdná
+
+Zdrojáky ovladače 11.19 staženy (`refs/gta4xl-kernel`, commit `8d1f7a68b0d0`),
+272/272 součtů sedí, patche portu gta4xl aplikovány (`build/scsc`), překlad
+proti našemu kernelu bez chyb (4 moduly). Hlavní číslo verze rozhraní
+firmwaru se shoduje (14), vedlejší ne (14.5 vs 14.9). FINDINGS.md 30.4.
+Další kroky: hlavička pro troiku, uzly DT + paměť, firmware do systému,
+pak souhlas a první start rádia. Necommitnuto od `51e0e72`.
+
+### 2026-11-12 22:42 – WiFi: příprava pro troiku, image WLAN1
+
+`troika-clk-test` +1 (WIP uzly rádia v DT), `wifi/troika.h` + `wifi/Makefile`,
+`tools/prepare-wifi.sh`, `tools/extract-wifi-fw.sh`, úprava
+`tools/make-clk-test-bootimg.sh` (moduly a firmware do initramfs).
+`build/linux/.config`: `CFG80211=y`, `RFKILL=y` (kvůli tomu už místní kernel
+nesedí s moduly balíčku pro bezdrát; pro GPU zkoušky v Phoshi to nevadí).
+Sestaven `out/troika-test-WLAN1.img`. Souhlas se startem rádia zatím není.
+Necommitnuto: FINDINGS kap. 29 a 30, TESTING 5ae a 5af, PROGRESS, `wifi/`,
+tři skripty; export ladicích patchů (9).
+
+### 2026-11-12 22:59 – WLAN1 poprvé: chyba v DT (alignment), opraveno
+
+Paměť rádia se nepřidělila kvůli špatnému počtu buněk `alignment`
+(FINDINGS.md 30.7). Moduly nenačteny, souhlas nežádán. DT opraven, WLAN1
+sestaven znovu (`f1c2e530`). Telefon běží ve starém WLAN1, čeká na nové
+spuštění.
+
+### 2026-11-12 23:23 – test WLAN1: rádio nastartovalo
+
+Souhlasy přes AskUserQuestion („Ano, celý start“, „Ano, zapni wlan0“).
+Moduly načteny, po dvou opravách cest (firmware tabletu natvrdo, konfigurace
+naplocho) firmware rádia naběhl a služba WLAN se spustila; `wlan0` zapnuto
+a zase vypnuto, bez hledání sítí. Zdrojové opravy v `tools/prepare-wifi.sh`
+a `tools/extract-wifi-fw.sh`; image WLAN1 je potřeba pro další test sestavit
+znovu (na telefonu jsou jen dočasné odkazy). Telefon běží ve WLAN1.
+Necommitnuto: FINDINGS kap. 29 a 30, TESTING 5ae a 5af, PROGRESS, `wifi/`,
+skripty; export ladicích patchů (9).
+
+### 2026-11-12 23:25 – commit a push (balíčky, WiFi)
+
+Na pokyn uživatele: patche znovu vyexportovány (94 čistých, 9 ladicích
+včetně pracovního commitu WiFi), hlavní repozitář commitnut a pushnut;
+pmaports pushnut (`e70a787a6`, `18f3e8f2c`, `b651290cc`), balíčky stále
+nesestavené. Telefon běží ve WLAN1.

@@ -50,6 +50,16 @@ if [ -f "$fvp" ]; then
 	mkdir -p "$tmp/lib/firmware"
 	install -m 644 "$fvp" "$tmp/lib/firmware/"
 fi
+# WiFi (test WLAN): moduly ovladače SCSC z build/scsc (tools/prepare-wifi.sh
+# build) a firmware rádia ze zálohy (tools/extract-wifi-fw.sh). Init je sám
+# nenahrává; rádio se spouští až ručním insmod po souhlasu uživatele.
+if ls "$root"/build/scsc/*.ko > /dev/null 2>&1 && [ -d "$root/dl/wifi-fw/motorola" ]; then
+	mkdir -p "$tmp/lib/wifi" "$tmp/lib/firmware"
+	for m in "$root"/build/scsc/*.ko; do
+		aarch64-linux-strip --strip-debug -o "$tmp/lib/wifi/$(basename "$m")" "$m"
+	done
+	cp -r "$root/dl/wifi-fw/motorola" "$tmp/lib/firmware/"
+fi
 # DHCP server a telnetd z initramfs pmOS (dynamicky linkované proti musl).
 # Bez nich test poběží taky, jen bez DHCP a telnetu.
 bits="$root/dl/pmos-bits"

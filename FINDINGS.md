@@ -3024,3 +3024,271 @@ ověřenými stupni, čtení napětí; jen pro ACPM8). Výpis:
 **Neověřeno:** že regulátor při skutečném dosažení 88 °C stav chlazení sám
 zvedne – té teploty test nedosáhl a schválně ji vyvolávat nebudu.
 
+## 29. Balíčky: modul FVP, kernel pkgrel 7, zařízení pkgrel 7 (2026-11-12 22:10)
+
+### 29.1 Původ a licence souboru modulu
+
+- Místní kopie `refs/downstream-kernel` je z LineageOS
+  (`android_kernel_motorola_exynos9610`), ne přímo od Motoroly – v dřívějších
+  zprávách jsem to psal nepřesně.
+- Motorola soubor zveřejňuje sama: `MotorolaMobilityLLC/kernel-slsi`, značka
+  `android-11-release-rsbs31.q1-48-36-26` = commit `d2ce55392f9f`, cesta
+  `firmware/exynos9610_acpm_fvp.fw`. Stažený soubor má stejný součet jako
+  místní kopie (sha256 začíná `8f71dccb`).
+- Adresář `firmware/` tam obsahuje jen `.gitignore`, `Makefile`, dva soubory
+  `exynos9610_acpm_*.fw` a `exynos9810_acpm_tmu.fw.ihex` (úplný výpis přes
+  API GitHubu). Žádné `WHENCE` ani licenční text; `Makefile` má hlavičku
+  GPL-2.0, ta se ale týká jen jeho. Zdrojový kód modulu zveřejněn není.
+- Závěr: licence souboru není uvedena. V balíčku je proto `license=
+  "proprietary"` (zvyklost pmaports pro binární soubory výrobce) s komentářem
+  o původu. Jestli tu značku Motorola vydala právě pro troiku, jsem
+  neověřoval; rozhoduje shoda souboru.
+
+### 29.2 Změny v pmaports (místní commity, nepushnuto)
+
+- `firmware-motorola-troika` (nový, `e70a787a6`): stáhne soubor z repozitáře
+  Motoroly na pevném commitu, nainstaluje do `/usr/lib/firmware` a seznamem
+  `30-firmware-motorola-troika.files` ho přidá do initramfs.
+- `linux-motorola-troika-mainline` pkgrel 7 (`18f3e8f2c`): 94 patchů;
+  `EXYNOS_MBOX=y`, `EXYNOS_ACPM_PROTOCOL=y`, `EXYNOS_ACPM_CLK=y`,
+  `EXYNOS9610_THERMAL=y`. Zbytek konfigurace se od té místně zkoušené liší
+  jen volbami kompilátoru a místními úpravami (`LOCALVERSION_AUTO`,
+  `MODULE_ALLOW_BTF_MISMATCH`). `kconfig check` prošel.
+- `device-motorola-troika` pkgrel 7 (`b651290cc`): závislost na
+  `firmware-motorola-troika`.
+
+**Nesestaveno a nezkoušeno.** Neověřeno hlavně: že mkinitfs soubor do
+initramfs opravdu zařadí a že balíček firmwaru jde sestavit (stahuje
+z GitHubu).
+
+## 30. WiFi (WLAN): výchozí stav a plán (2026-11-12 22:12)
+
+### 30.1 Co vím
+
+- Rádio je Samsung SCSC „Maxwell“ uvnitř čipu; mainline pro něj ovladač
+  nemá (20.4).
+- Náš původní kernel (`refs/downstream-kernel`) má ovladač Samsungu ve verzi
+  **10.17** (`include/scsc/scsc_release.h`): jádro `drivers/misc/samsung/scsc`
+  (139 souborů, asi 38 tisíc řádků), WLAN `drivers/net/wireless/scsc`
+  (86 souborů, asi 78 tisíc řádků), Bluetooth `scsc_bt`.
+- Port gta4xl (`refs/gta4xl-linux/docs/WIFI.md`) přenesl na Linux 7.3 verzi
+  **11.19** jako moduly mimo strom: změny mají asi 106 KB ve 54 souborech,
+  zdrojáky samotné v repozitáři nejsou (jen jejich kontrolní součty).
+  Uvádí funkční stanici WPA3 na 2,4 i 5 GHz; AP, P2P a uspání neověřené.
+  Jejich patch na naši verzi přímo použít nejde, poslouží jako návod.
+- Uzly v původním DT telefonu: `scsc_wifibt@119c0000`, `baaw_p_wlbt`
+  (`syscon@12050000`), `wlbt_remap` (`syscon@14C50000`),
+  `pmu_wlbt_stat_offset = <0x58>`, piny `WB2AP_FEMCTRL_WLBT_0x`.
+- V záloze telefonu (`~/troika-backup`, jen čtení) jsou obrazy `vendor_a/b`
+  (firmware rádia) a `efs`, `persist` (adresa MAC – nikam ji nevypisovat).
+
+### 30.2 Plán po krocích
+
+1. **Inventura, jen čtení:** uzly a paměť z původního DT, registry PMU
+   a další zápisy, které ovladač při zapnutí rádia dělá (seznam k souhlasu),
+   volání zabezpečeného monitoru, soubory firmwaru v obrazu `vendor` a jejich
+   verze, kde ovladač bere adresu MAC.
+2. **Přenos ovladače 10.17 na 7.3.3 jako modulů mimo strom**, podle změn
+   portu gta4xl. Nejdřív jen aby se přeložil; na telefon nic.
+3. **Uzly DT a vyhrazená paměť** v našem kernelu.
+4. **První start rádia** (se souhlasem se zápisy z kroku 1): nahrát firmware
+   a přečíst jeho verzi. Bez vysílání.
+5. **Rozhraní `wlan0`, vyhledání sítí, připojení.**
+6. **Balíček.** Firmware rádia je další binární soubor výrobce.
+
+Největší rizika: verze firmwaru a ovladače musí k sobě sedět (proto naše
+10.17, ne jejich 11.19); rozsah práce (dny); zápisy do PMU a zabezpečený
+monitor vyžadují souhlas; Bluetooth zatím mimo rozsah.
+
+### 30.3 Inventura (jen čtení, 22:19)
+
+**Popis v původním DT telefonu** (`device-info/live.dts`):
+
+| Co | Hodnota |
+|---|---|
+| uzel rádia | `scsc_wifibt@119c0000`, velikost `0x180`, přerušení SPI 42 `MBOX`, 28 `ALIVE`, 72 `WDOG`, 73 `CFG_REQ` |
+| okna a nastavení | `baaw_p_wlbt` `0x12050000`, `dbus_baaw` `0x14c20000`, `pbus_baaw` `0x14c30000`, `wlbt_remap` `0x14c50000`, `boot_cfg` `0x14c60000`, SMAPPER `0x14c40000` |
+| PMU | odkaz na `0x11860000`, stav rádia na `0x58` |
+| sdílená paměť | `wifibt_if`, 16 MiB, **bez pevné adresy** (původní kernel ji přiděluje při startu) |
+| piny | `WB2AP_FEMCTRL_WLBT_00/01` v `pinctrl@11C20000` |
+
+Shoduje se s popisem portu gta4xl (stejné adresy a přerušení); ten má
+sdílenou paměť na pevné adrese `0xfc000000`, což je jeho volba pro tablet.
+Kam ji původní systém dává na troice, z uloženého logu nevím.
+
+**Co původní ovladač při startu rádia zapisuje** (`platform_mif_9610.c`,
+`mif_reg_S5E9610.h`) – seznam pro pozdější souhlas, zatím nic z toho:
+
+- PMU `0x11860000`: `WLBT_CTRL_NS` `0x50`, `WLBT_CTRL_S` `0x54` (start
+  rádia), `CENTRAL_SEQ_WLBT_CONFIGURATION` `0x180`, šest registrů
+  `…_WLBT_SYS_PWR_REG` `0x1360` až `0x1374`; čte `WLBT_STAT` `0x58`,
+  `WLBT_DEBUG` `0x5c`, `CENTRAL_SEQ_WLBT_STATUS` `0x184`.
+- Volání zabezpečeného firmwaru `SMC_CMD_CONN_IF` (povolení přístupu rádia).
+- `wlbt_remap`, `dbus_baaw` (okno `0x80000000` rádia na sdílenou paměť),
+  `pbus_baaw` (šest oken na schránky a periferie v CMGP/SHUB), `boot_cfg`.
+- Schránka `0x119c0000` a SMAPPER.
+
+**Firmware rádia** (`~/troika-backup/vendor_a.img`, čteno přes `debugfs`
+bez připojení a bez zápisu):
+
+- `/etc/wifi/mx140.bin`, 1 835 952 bajtů, označení
+  `O|6906|2021-04-19|leman_s620|S620_E9610_R3-1_Y21W16A`.
+- Konfigurace `/etc/wifi/mx140/conf/leman_s620_troika_dualfem/{wlan,bluetooth}`
+  (vedle varianty `robusta2`).
+- Ovladač hledá soubory v `/vendor/etc/wifi` a adresu MAC v `wlan/mac.txt`
+  (obsah jsem nečetl).
+
+**Důležité zjištění:** firmware troiky je ze stejné řady jako firmware
+tabletu z portu gta4xl (`leman_s620`, `S620_E9610_R3-1`; tablet má novější
+sestavení 9548 z roku 2023). To otevírá zkratku pro krok 2:
+
+- **A – přenést náš ovladač 10.17** podle jejich změn ručně (jistá shoda
+  s firmwarem, hodně práce).
+- **B – sehnat zdrojáky ovladače 11.19**, na které jejich patch sedí
+  (kontrolní součty mají zapsané), použít jejich hotový přenos a ověřit,
+  jestli si rozumí s naším starším firmwarem. Mnohem méně práce, ale
+  nejistá shoda verzí rozhraní; ověří se až při prvním startu rádia.
+
+### 30.4 Zkratka B prověřena: hotový přenos 11.19 jde přeložit pro náš kernel (22:30)
+
+- Port gta4xl uvádí přesný zdroj: `LineageOS/android_kernel_samsung_gta4xl`,
+  commit `8d1f7a68b0d0` (README). Stáhl jsem z něj jen čtyři adresáře
+  ovladače (`refs/gta4xl-kernel`, 275 souborů, řídké stažení).
+- Všech **272 souborů ze seznamu portu má shodný kontrolní součet** se
+  staženými. Oba patche portu (`0001` WLAN a jádro, `0002` Bluetooth) na ně
+  sedly bez jediného odmítnutého úseku. Výsledek: `build/scsc`.
+- **Překlad proti našemu kernelu** (větev `troika-clk-test`, GCC z
+  `tools/env.sh`, konfigurace balíčku): 0 chyb, 26 s, čtyři moduly
+  `scsc_platform_mif.ko`, `scsc_mx.ko`, `scsc_wlan.ko`, `scsc_bt.ko`.
+  178 varování (nepoužité proměnné, formáty výpisů). Bez `Module.symvers`
+  plného kernelu, takže vazby na symboly kernelu jsou ověřené jen překladem,
+  ne sestavením s moduly cfg80211.
+- **Shoda s firmwarem:** ovladač při startu porovnává jen hlavní číslo verze
+  rozhraní (`sap_mlme_version_supported`). Náš ovladač 10.17 má řídicí
+  rozhraní 14.5, jejich 11.19 má 14.9 – hlavní číslo 14 je stejné, kontrolou
+  by to prošlo. Vedlejší číslo se liší, takže některé zprávy mohou mít
+  u staršího firmwaru jiný tvar; **to ukáže až provoz** (hledání sítí,
+  připojení).
+
+Co je v portu nastavené pro tablet a musí se změnit pro troiku (hlavička
+`gta4xl.h`): umístění firmwaru (`samsung/gta4xl`), název konfigurace rádia
+(`leman_s620_univ`; troika má v obrazu `leman_s620_troika_dualfem`), soubor
+s adresou MAC, Bluetooth. Dál chybí: uzly DT a vyhrazená paměť (jejich patch
+`0100`), firmware a konfigurace z obrazu `vendor` do systému, souhlas se
+zápisy při startu rádia (30.3).
+
+Závěr: cesta B je schůdná a ušetří většinu práce. Hlavní nejistota je
+chování novějšího ovladače se starším firmwarem.
+
+### 30.5 Příprava pro troiku a image WLAN1 (22:42)
+
+- **Device tree** (`troika-clk-test`, pracovní commit `WIP: … WLBT radio`,
+  není v čisté větvi – uzly nemají binding): rádio `wifi@119c0000` se čtyřmi
+  přerušeními, pět pomocných oblastí (`0x12050000`, `0x14c20000`,
+  `0x14c30000`, `0x14c50000`, `0x14c60000`), odkaz na PMU, piny
+  `gpm16-0`/`gpm17-0` s funkcí 6, stažením dolů a sílou 3 (hodnoty skupin
+  `WB2AP_FEMCTRL_WLBT_0x` z `live.dts`; port tabletu je nemá), 16 MiB
+  sdílené paměti bez pevné adresy, přidělované v prvním bloku RAM
+  (ovladač chce adresu pod 4 GiB).
+- **Nastavení ovladače** `wifi/troika.h`: firmware v
+  `/lib/firmware/motorola/troika`, konfigurace rádia
+  `leman_s620_troika_dualfem`, bez Bluetooth a bez `common.hcf` (náš firmware
+  ji nemá). `tools/prepare-wifi.sh [build]` celý strom `build/scsc`
+  reprodukuje.
+- **Firmware:** `tools/extract-wifi-fw.sh` vytáhne `mx140.bin` a čtyři
+  soubory `.hcf` z obrazu `vendor_a` do `dl/wifi-fw` (necommituje se).
+  Součet obrazu zálohy před a po je stejný.
+- **Adresa MAC:** bez souboru `mac.txt` si ovladač vylosuje náhodnou. Pro
+  první testy to stačí; skutečnou adresu ze zálohy doplním později a nikam
+  ji nevypíšu.
+- **Kernel:** místní konfigurace má nově `CFG80211=y` a `RFKILL=y`, aby šly
+  moduly načíst v testovacím initramfs. Všechny symboly kernelu, které tři
+  moduly potřebují, náš kernel vyváží (zbylé nedefinované jsou vazby mezi
+  moduly navzájem).
+- **Image `out/troika-test-WLAN1.img`:** moduly v `/lib/wifi`, firmware
+  v `/lib/firmware/motorola/troika`. **Nic se nenahrává samo** – po startu
+  image je rádio netknuté.
+
+### 30.6 Co udělá první start rádia (k souhlasu)
+
+Postup po krocích přes telnet, po každém kontrola logu:
+
+1. Bez zásahu: zkontrolovat přidělenou paměť a stav rádia v PMU (čtení
+   `0x11860058`).
+2. `insmod scsc_platform_mif.ko` – naváže se na uzel rádia, namapuje paměť
+   a přerušení.
+3. `insmod scsc_mx.ko`, `insmod scsc_wlan.ko` – při startu služby ovladač
+   provede zápisy z 30.3: PMU `0x50`, `0x54`, `0x180`, `0x1360` až `0x1374`,
+   volání `SMC_CMD_CONN_IF`, okna `wlbt_remap`/`dbus_baaw`/`pbus_baaw`,
+   `boot_cfg`, nahraje firmware do sdílené paměti a uvolní reset rádia.
+4. Čekám hlášení verze firmwaru a rozhraní `wlan0`. **Bez vysílání** –
+   rozhraní nezapínám, sítě nehledám.
+
+Rizika: zápisy do PMU mimo dosud povolené registry; zabezpečené volání;
+firmware rádia se nemusí s ovladačem 11.19 domluvit (pak chyba nebo
+restart rádia, v horším případě zamrznutí – Power + Vol−). Nic z toho není
+trvalé, po restartu je vše v původním stavu.
+
+### 30.7 WLAN1 poprvé: paměť rádia se nepřidělila, moje chyba v DT (22:59)
+
+Image naběhl, moduly a firmware v něm jsou, uzel `wifi@119c0000` existuje.
+Kernel ale ohlásil `OF: reserved mem: invalid alignment property in 'wifi'
+node` a 16 MiB sdílené paměti nepřidělil. Vlastnost `alignment` má mít tolik
+buněk, kolik má adresa v kořeni stromu (dvě), ne kolik má velikost; původně
+jsem ji měl správně a „opravil“ ji špatně. Žádný modul jsem nenačítal, na
+rádio se nesahalo.
+
+Stav rádia před jakýmkoli zásahem (čtení): `WLBT_CTRL_NS` `0x11860050` =
+`0x003804a0`, `WLBT_CTRL_S` `0x54` = 0, `WLBT_STAT` `0x58` = 0, `WLBT_DEBUG`
+`0x5c` = 0, `CENTRAL_SEQ_WLBT_STATUS` `0x184` = 0.
+
+Opraveno v pracovním commitu, image sestaven znovu (sha256 začíná
+`f1c2e530`).
+
+### 30.8 WLAN1 podruhé: rádio nastartovalo, firmware a ovladač si rozumí (23:23)
+
+Souhlasy uživatele: „Ano, celý start“ (načtení modulů, zápisy do PMU
+`0x50`, `0x54`, `0x180`, `0x1360` až `0x1374`, zabezpečené volání, okna,
+nahrání a start firmwaru, bez vysílání) a potom „Ano, zapni wlan0“ – ukázalo
+se, že ovladač firmware nenahrává při načtení modulů, ale až při zapnutí
+rozhraní, což jsem předtím sliboval nedělat. Výpis:
+`device-info/wlan-WLAN1.txt` (řádky s adresami jsem nevypisoval).
+
+- Paměť rádia přidělena: `0xbb000000`, 16 MiB.
+- `scsc_platform_mif.ko`: navázal se na `119c0000.wifi`. `scsc_mx.ko`:
+  jádro 11.19.0.46.0. `scsc_wlan.ko`: vzniklo `wlan0`. Do té chvíle beze
+  změny v registrech PMU.
+- První zapnutí `wlan0` selhalo dřív, než se na rádio sáhlo: port má cestu
+  k firmwaru tabletu (`samsung/gta4xl`) natvrdo na dvou místech mimo
+  nastavení. Druhé selhalo na jménu konfigurace: port ji hledá „naplocho“
+  (`mx140_wlan.hcf`). Obojí jsem na běžícím telefonu obešel odkazy
+  v souborovém systému v RAM a opravil ve zdrojích (`tools/prepare-wifi.sh`,
+  `tools/extract-wifi-fw.sh`). Při obou selháních ovladač vypsal varování
+  se zásobníkem (`WARNING: wlan/mgt.c:798`), jádro běželo dál.
+- **Třetí zapnutí prošlo:**
+
+```
+Firmware BUILD_ID: O|6906|2021-04-19 20:39:35 UTC|leman_s620|S620_E9610_R3-1_Y21W16A
+SMC_CMD_CONN_IF run successfully : 0
+Received MM_START_IND message from the firmware
+MIB platform: {"platform_version":"LEMAN_S620_TROIKA_DUALFEM"}
+Received SM_MSG_START_CFM message … from the firmware
+sap_mlme_version_supported: Reported version: 14.7
+sap_ma_version_supported: Reported version: 14.1
+BANDS SUPPORTED -> 2.4:'Y' 5:'Y'    HT:'Y' VHT:'Y'
+```
+
+  Firmware hlásí řídicí rozhraní 14.7 (ovladač 14.9, náš původní 10.17 měl
+  14.5) – rozdíl je menší, než jsem čekal. `wlan0` bylo zapnuté
+  (`NO-CARRIER,UP`), sítě jsem nehledal, pak jsem ho zase vypnul; vypnutí
+  proběhlo čistě.
+- Chybí a nevadí pro start: `log-strings.bin` (ladicí texty firmwaru),
+  `localmib.hcf`, `slsi_reg_database.bin` (databáze zemí; v obrazu `vendor`
+  v `/etc/wifi` není – dohledat), `regulatory.db` kernelu.
+- Teploty 44 až 46 °C. V logu celkem tři varování ovladače se zásobníkem;
+  dvě patří k neúspěšným pokusům, třetí jsem nedohledal.
+
+Závěr: **rádio startuje a novější ovladač se starším firmwarem komunikuje.**
+**Neověřeno:** hledání sítí, připojení, přenos dat, skutečná adresa MAC,
+databáze zemí (bez ní můžou být omezené kanály), chování v plném systému.
+

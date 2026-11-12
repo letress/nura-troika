@@ -1,0 +1,100 @@
+From bcf63f449c5b9272aa5c91ed880e176ff831f011 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 22:33:00 +0100
+Subject: [PATCH 9/9] WIP: arm64: dts: exynos9610-troika: WLBT radio for the
+ out-of-tree SCSC driver
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../boot/dts/exynos/exynos9610-troika.dts     | 78 +++++++++++++++++++
+ 1 file changed, 78 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 08c185f..375f755 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -243,3 +243,81 @@ &usbdrd_phy {
+ &usi_cmgp0_i2c {
+ 	status = "okay";
+ };
++
++/*
++ * WIP: the WLBT radio for the out-of-tree Samsung SCSC driver. The nodes
++ * follow the vendor device tree; there are no bindings for them.
++ */
++/ {
++	reserved-memory {
++		/* The vendor kernel has no fixed address for it either. */
++		wlbt_reserved: wifi {
++			size = <0x1000000>;
++			alignment = <0x0 0x1000000>;
++			alloc-ranges = <0x0 0x80000000 0x3c800000>;
++			no-map;
++		};
++	};
++};
++
++&pinctrl_cmgp {
++	wb2ap_femctrl_wlbt_00: wb2ap-femctrl-wlbt-00-pins {
++		samsung,pins = "gpm16-0";
++		samsung,pin-function = <6>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_DOWN>;
++		samsung,pin-drv = <3>;
++	};
++
++	wb2ap_femctrl_wlbt_01: wb2ap-femctrl-wlbt-01-pins {
++		samsung,pins = "gpm17-0";
++		samsung,pin-function = <6>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_DOWN>;
++		samsung,pin-drv = <3>;
++	};
++};
++
++&soc {
++	wlbt_baaw: syscon@12050000 {
++		compatible = "samsung,exynos9610-wlbt-baaw", "syscon";
++		reg = <0x12050000 0x100>;
++	};
++
++	wlbt_dbus: syscon@14c20000 {
++		compatible = "samsung,exynos9610-wlbt-dbus", "syscon";
++		reg = <0x14c20000 0x300>;
++	};
++
++	wlbt_pbus: syscon@14c30000 {
++		compatible = "samsung,exynos9610-wlbt-pbus", "syscon";
++		reg = <0x14c30000 0x300>;
++	};
++
++	wlbt_remap: syscon@14c50000 {
++		compatible = "samsung,exynos9610-wlbt-remap", "syscon";
++		reg = <0x14c50000 0x300>;
++	};
++
++	wlbt_boot: syscon@14c60000 {
++		compatible = "samsung,exynos9610-wlbt-boot", "syscon";
++		reg = <0x14c60000 0x1200>;
++	};
++
++	wifi: wifi@119c0000 {
++		compatible = "samsung,scsc_wifibt";
++		reg = <0x119c0000 0x180>;
++		interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>,
++			     <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>,
++			     <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>,
++			     <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
++		interrupt-names = "MBOX", "ALIVE", "WDOG", "CFG_REQ";
++		pinctrl-names = "default";
++		pinctrl-0 = <&wb2ap_femctrl_wlbt_00 &wb2ap_femctrl_wlbt_01>;
++		memory-region = <&wlbt_reserved>;
++		samsung,syscon-phandle = <&pmu_system_controller>;
++		samsung,baaw_p_wlbt-syscon-phandle = <&wlbt_baaw>;
++		samsung,dbus_baaw-syscon-phandle = <&wlbt_dbus>;
++		samsung,pbus_baaw-syscon-phandle = <&wlbt_pbus>;
++		samsung,wlbt_remap-syscon-phandle = <&wlbt_remap>;
++		samsung,boot_cfg-syscon-phandle = <&wlbt_boot>;
++	};
++};
+-- 
+2.56.0
+

@@ -1555,6 +1555,70 @@ fastboot boot ~/nura-troika/out/troika-test-ACPM8.img
 GPU a ruční stav chlazení snižuje frekvenci i napětí; skutečné zahřátí
 neověřeno (FINDINGS.md 28.1).
 
+## 5ae. Test PKG7: vše z balíčků (kernel pkgrel 7, zařízení pkgrel 7, firmware)
+
+Cíl: totéž, co prošlo s místními image (teploty, modul FVP, automatické
+škálování GPU, brzdění), ale z balíčků (FINDINGS.md 29). Ladicí soubory
+`acpmdbg_*` v balíčku nejsou.
+
+Před sestavením: telefon vypnutý (`sudo poweroff` nebo Power + Vol−),
+netboot server ukončený (Ctrl+C).
+
+1. Sestavení kernelu (asi 1,5 h), firmwaru a zařízení, potom systém a export:
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64 linux-motorola-troika-mainline
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64 firmware-motorola-troika
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64 device-motorola-troika
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports install
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports export
+```
+
+2. Napiš mi; zkontroluju image (soubor modulu v initramfs, pravidlo pro UFS)
+   a uložím ho jako `out/troika-test-PKG7.img`.
+
+3. `netboot serve --replace`, `fastboot boot`, a po přihlášení přes SSH:
+
+```bash
+sudo sh -c 'dmesg | grep -c "Failed to attach plugin"; cat /sys/class/devfreq/11500000.gpu/cur_freq /sys/class/thermal/thermal_zone*/temp; lsblk -o NAME,RO | head -5'
+```
+
+   Čekám 0, frekvenci GPU, tři teploty a RO = 1.
+
+## 5af. Test WLAN1: první start rádia WiFi
+
+Cíl: ovladač SCSC se načte, nahraje firmware rádia a ohlásí jeho verzi
+(FINDINGS.md 30.5, 30.6). Bez vysílání. Samotné spuštění image na rádio
+nesahá; moduly načítám ručně až po souhlasu.
+
+1. Telefon do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-WLAN1.img
+```
+
+2. Napiš mi, že běží. Zkontroluju výchozí stav a zeptám se na souhlas se
+   zápisy při startu rádia.
+
+Kdyby telefon zamrzl nebo se sám restartoval: podrž Power + Vol− a napiš mi
+to.
+
+**Výsledek WLAN1 (2026-11-12): prošlo** – se souhlasem uživatele rádio
+nastartovalo, firmware 6906 komunikuje s ovladačem 11.19, `wlan0` jde
+zapnout; hledání sítí nezkoušeno (FINDINGS.md 30.8).
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):
