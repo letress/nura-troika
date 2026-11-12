@@ -1509,9 +1509,25 @@ Oprava (pmaports commit `f5083510b`, balíček zařízení pkgrel 4, místní):
 Háček vyzkoušen nasucho busyboxem na napodobeném `/sys/block` (disk už jen pro
 čtení; disk, který pravidlo minulo; `blockdev` selže → zastavení; disk mimo
 UFS se přeskočí). Na telefonu **neověřeno**. Příznak jen pro čtení je v jádře
-u blokového zařízení, takže přežije přechod z initramfs do systému; s diskem
-jen pro čtení otevře `losetup` smyčku také jen pro čtení a `parted` zapsat
-nemůže.
+u blokového zařízení, takže přežije přechod z initramfs do systému.
+
+Co příznak v kernelu 7.3.3 skutečně brání (ověřeno ve zdrojích 2026-11-12;
+moje původní tvrzení, že `losetup` otevře smyčku jen pro čtení, bylo špatně):
+
+| Cesta | Chování | Zdroj |
+|---|---|---|
+| `write(2)` na `/dev/sdX` (i přes smyčku, ta volá `write_iter`) | `-EPERM` | `block/fops.c`, `blkdev_write_iter` |
+| `mmap` se zápisem | mapování jen pro čtení | `block/fops.c`, `blkdev_mmap_prepare` |
+| připojení souborového systému pro zápis | `-EACCES` | `fs/super.c`, `setup_bdev_super` |
+| otevření uzlu `O_RDWR` z userspace | **projde** (záměrně, komentář v `fs/super.c`) | – |
+| zápisové bio na vrstvě bloků | **jen varování**, neselže | `block/blk-core.c`, `bio_check_ro` |
+| příkazy SCSI napřímo (`SG_IO`, `/dev/bsg/*`) | **příznak se neuplatní** | `BLK_DEV_BSG=y`, `SCSI_UFS_BSG=y` v konfiguraci |
+
+`parted`, `fdisk`, `resize2fs`, `fsck` i `mount` tedy zapsat nemohou. Nástroj
+spuštěný jako root, který posílá příkazy SCSI napřímo (sg3_utils, ufs-utils,
+aktualizace firmwaru), by příznak obešel; nic takového se samo nespouští.
+Možné zpřísnění při příštím sestavení kernelu: vypnout `SCSI_UFS_BSG` a
+`BLK_DEV_BSG` (zatím neprovedeno).
 
 Kernel se znovu sestavovat nemusí; stačí `install` a `export`.
 
@@ -1572,4 +1588,110 @@ tedy dřív).
 
 Neověřeno: `sudo poweroff` z plného systému, restart do bootloaderu a do
 recovery z plného systému.
+
+## 18. GUI: Phosh přes netboot (2026-11-12)
+
+### 18.1 Příprava image GUI1
+
+`pmbootstrap config ui phosh`, `install --zap` (02:28, bez chyby) a `export`
+(02:31). Kernel r5 ani balíček zařízení r4 se nezměnily.
+
+`out/troika-test-GUI1.img` (47 896 576 B, sha256 začíná `e9242d22`):
+
+- uniLoader = balíček r5, „second“ = původní DTB;
+- initramfs má stejný obsah jako u NET3 (stejné skripty, háček
+  `00-ufs-readonly.sh`, pravidlo udev, `blockdev`, `nbd.ko`);
+- obraz systému 3,2 GB: `pmOS_boot` 487 M (ext2), `pmOS_root` 2,5 G (ext4),
+  UUID souhlasí s boot image;
+- v systému 1186 balíčků, mj. phosh 0.58, phoc 0.58, greetd-phrog 0.53,
+  mesa 26.2.6 (softwarové vykreslování), stevia (klávesnice), udisks2 +
+  udiskie, **fwupd** a gnome-software.
+
+K úložišti telefonu: `udiskie` připojuje vyměnitelné disky; `fwupd` zařízení
+jen vyjmenovává a firmware zapisuje až na výslovný pokyn s konkrétním
+souborem (navíc telefon nemá přístup na internet). Obojí je mimo dosah
+příznaku jen pro čtení jen v případě příkazů SCSI napřímo (17.2). První
+kontrola po startu je proto zase `lsblk`.
+
+### 18.2 Test GUI1: Phosh běží (2026-11-12 02:34–02:45)
+
+`netboot serve --replace` (obraz zkopírován 02:34), `fastboot boot
+out/troika-test-GUI1.img`, server našel telefon 02:34:53, SSH odpovídalo
+02:35:16 (asi 23 s po nalezení).
+
+Podle uživatele: na displeji načítací kolečko, potom klávesnice pro zadání
+hesla (přihlašovací obrazovka phrog) – **miniaturní, uprostřed displeje** –
+a po přihlášení Phosh nastartoval, ale vše bylo malé; uživatel si v nastavení
+zvolil zvětšení 200 %. Dotyk tedy funguje i v grafickém rozhraní (heslo
+zadané na displeji, ovládání nastavení).
+
+Příčina malého zobrazení: `simple-framebuffer` nenese fyzický rozměr panelu,
+phoc proto použije měřítko 1. Možnosti nápravy:
+
+1. `/etc/phosh/phoc.ini` v balíčku zařízení s pevným měřítkem pro výstup
+   (použije ho i přihlašovací obrazovka: `phrog-greetd-session` sahá po
+   `/etc/phosh/phoc.ini`, když nemá vlastní). Stačí balíček zařízení, kernel
+   se nesestavuje. Potřebuje jméno výstupu (zjistit z `/sys/class/drm`).
+2. Fyzický rozměr do DT: simpledrm čte `width-mm`/`height-mm` z uzlu, na který
+   ukazuje `panel` ve framebufferu (`drivers/gpu/drm/sysfb/simpledrm.c`).
+   Zdroj rozměru: původní kernel, `exynos9610-display-lcd.dtsi`, uzel
+   `hix83112a`: `size = <64 148>` (stejně i druhý panel `nov36672a`);
+   `dsim_drv.c` to čte jako šířku a výšku LCD. Tedy 64 × 148 mm. Vyžaduje
+   sestavení kernelu, proto až s dalším kolem balíčku.
+
+Neověřeno: výstup `lsblk` v tomto běhu (uživatel se přihlásil, příkaz zatím
+nespustil), rychlost vykreslování, co všechno v Phoshi funguje.
+
+### 18.3 Test GUI1: úložiště, výstup, dojem (2026-11-12 ~02:50)
+
+- `lsblk` v běžícím Phoshi: `sda` + 42 oddílů, `sdb`, `sdc` mají RO = 1 a
+  žádný přípojný bod (udiskie nic z telefonu nepřipojil); systém na `nbd0p2`
+  (2,5 G), swap na zram.
+- `ls /sys/class/drm/`: `card0`, `card0-Unknown-1` → výstup se jmenuje
+  `Unknown-1`.
+- Uživatel: funguje to dobře, grafické prostředí je trhané (softwarové
+  vykreslování), ale dá se v něm pohybovat.
+
+Oprava měřítka: pmaports commit „device-motorola-troika: set the display scale
+for Phosh“ (pkgrel 5, místní) – podbalíček `device-motorola-troika-phosh`
+(`install_if` s `postmarketos-ui-phosh`) instaluje `/etc/phosh/phoc.ini`:
+
+```
+[output:Unknown-1]
+scale = 3
+```
+
+Měřítko 3 si určil uživatel („ideální je pro mě 300 %“; plocha 360 × 840
+bodů). **Nesestaveno, neověřeno.**
+
+### 18.4 Vypnutí z plného systému (2026-11-12 ~03:00)
+
+`sudo poweroff` z běžícího Phoshe (image GUI1) přes SSH: telefon se podle
+uživatele opravdu vypnul. Tím je ověřené i vypnutí z plného systému se
+systemd (dosud jen z testovacího initramfs, kap. 16.5).
+
+Poznámka k postupu: dokud běží `pmbootstrap netboot serve`, nejde sestavovat
+ani instalovat (`umount …/chroot_native/mnt/pmbootstrap/netboot` selže,
+kód 32). Nejdřív vypnout telefon, pak server ukončit Ctrl+C.
+
+### 18.5 Image GUI2 (2026-11-12 03:12)
+
+Balíček zařízení r5 sestaven zvlášť (03:04), `install` (03:08) a `export`
+(03:10) bez chyby. `out/troika-test-GUI2.img` (sha256 začíná `184d4456`):
+uniLoader = r5, „second“ = původní DTB, initramfs stejný jako u NET3 a GUI1
+(ochrana UFS), UUID oddílů souhlasí. V systému `device-motorola-troika` 1-r5,
+`device-motorola-troika-phosh` 1-r5 (nainstaloval se sám přes `install_if`)
+a `/etc/phosh/phoc.ini` s `scale = 3` pro `Unknown-1`.
+
+### 18.6 Test GUI2: měřítko 3 (2026-11-12 03:15–03:20)
+
+`fastboot boot out/troika-test-GUI2.img`, SSH odpovídalo 03:15:59. Uživatel:
+„velikost je nyní už skvělá“. `lsblk`: `sda` + 42 oddílů, `sdb`, `sdc`
+RO = 1, nic připojeného. `/etc/phosh/phoc.ini` z podbalíčku
+`device-motorola-troika-phosh` tedy funguje.
+
+Pro příště (nezkoumáno do hloubky): původní DT má podsvícení jako zařízení
+I2C na adrese 0x36 (`exynos9610-display-lcd.dtsi`, uzel `backlight_i2c@36`,
+compatible `backlight_i2c`). Který je to čip a na které sběrnici, je potřeba
+teprve dohledat.
 

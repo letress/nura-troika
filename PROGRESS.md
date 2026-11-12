@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: test NET3 prošel (2026-11-12): balíček kernelu r5 a zařízení r4 dávají plný systém s UFS jen pro čtení, dotykem a restartem. Vše commitnuto a pushnuto (hlavní repozitář i pmaports do `f5083510b`). Další krok určí uživatel
+## Stav: Phosh běží přes netboot s měřítkem 3 (test GUI2 prošel 2026-11-12), `sudo poweroff` z plného systému funguje. Vše commitnuto a pushnuto (pmaports do `f1514a044`, zařízení r5). Další krok určí uživatel; navrženo podsvícení displeje
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1279,4 +1279,84 @@ Na pokyn uživatele: hlavní repozitář (FINDINGS kap. 17, TESTING 5k, PROGRESS
 commitnut a pushnut do `origin/main`; pmaports větev
 `motorola-troika-mainline` pushnuta do `letress/pmaports-troika` (commity
 `2b727fc1f`, `03767089d`, `f5083510b`).
+
+### 2026-11-12 ~02:07–02:15 – příprava testu GUI1 (Phosh přes netboot)
+
+Uživatel: „a kdy budeme nasazovat gui?“ → kernel má `DRM_SIMPLEDRM=y`
+a dotyk funguje, takže Phosh se softwarovým vykreslováním jde zkusit hned,
+jen přes netboot. Uživatel: „ano, chci“.
+
+- `pmbootstrap config ui phosh` (spustil jsem sám, bez sudo); `extra_packages`
+  zůstává háček netboot.
+- Před tím jsem ve zdrojích kernelu ověřil, co příznak jen pro čtení u disků
+  UFS skutečně brání (FINDINGS.md 17.2, tabulka): `write(2)`, `mmap` se
+  zápisem a připojení pro zápis selžou; příkazy SCSI napřímo (`SG_IO`, bsg)
+  by ho obešly. Opraveno moje dřívější nepřesné tvrzení o `losetup`.
+- Phosh závisí na `udiskie` (automatické připojování); kontrola `lsblk`
+  po startu zůstává prvním krokem.
+- Postup: TESTING.md 5l. FINDINGS/TESTING/PROGRESS necommitnuto.
+
+### 2026-11-12 02:15–02:35 – image GUI1 připraven
+
+Uživatel spustil `install --zap` (DONE 02:28, obraz 3037 M) a `export`
+(02:31). Kontrola (FINDINGS.md 18.1): boot image odpovídá balíčkům, initramfs
+je stejný jako u NET3 včetně ochrany UFS, UUID sedí, v systému je Phosh 0.58.
+Uloženo jako `out/troika-test-GUI1.img`. Další krok je na uživateli:
+TESTING.md 5l kroky 3–5. FINDINGS/TESTING/PROGRESS necommitnuto.
+
+### 2026-11-12 02:32–02:46 – test GUI1: Phosh běží
+
+Uživatel spustil server a `fastboot boot out/troika-test-GUI1.img`. Phosh
+nastartoval: načítací kolečko, přihlašovací klávesnice (miniaturní), po
+přihlášení plocha; vše malé, uživatel si nastavil zvětšení 200 %
+(FINDINGS.md 18.2). Příčina: framebuffer nenese fyzický rozměr panelu.
+Zdroj rozměru nalezen v původním kernelu: 64 × 148 mm.
+
+Zbývá: `lsblk` v tomto běhu, jméno výstupu (`ls /sys/class/drm/`), pak
+`phoc.ini` s měřítkem do balíčku zařízení (pkgrel 5, bez sestavení kernelu).
+FINDINGS/TESTING/PROGRESS necommitnuto.
+
+### 2026-11-12 ~02:46–02:55 – GUI1 prošel, měřítko do balíčku zařízení
+
+`lsblk` v běžícím Phoshi: UFS všude RO = 1, nic připojeného; výstup se jmenuje
+`Unknown-1`. Uživatel: „funguje to dobře, ale grafické prostředí je trhané,
+dá se v něm pohybovat“ (FINDINGS.md 18.3).
+
+pmaports: balíček zařízení pkgrel 5, podbalíček `device-motorola-troika-phosh`
+s `/etc/phosh/phoc.ini` (měřítko 3 pro `Unknown-1`, na přání uživatele:
+„ideální je pro mě 300 %“); místní commit,
+nesestaveno. Postup testu: TESTING.md 5m. Hlavní repozitář necommitnut
+(FINDINGS kap. 17.2 oprava + 18, TESTING 5l + 5m, PROGRESS).
+
+### 2026-11-12 ~02:58–03:10 – měřítko 3, vypnutí z plného systému
+
+Uživatel chce měřítko 300 % → `phoc.ini` změněn na `scale = 3`, commit
+v pmaports přepsán (`f1514a044`, místní). První `build` selhal, protože ještě
+běžel netboot server (umount chrootu, kód 32). Uživatel telefon vypnul
+`sudo poweroff` z plného systému – **vypnul se** (FINDINGS.md 18.4) – ukončil
+server, `build` balíčku zařízení r5 prošel (03:04) a běží `install`.
+
+### 2026-11-12 03:10–03:13 – image GUI2 připraven
+
+`install` (03:08) a `export` (03:10) doběhly. Kontrola (FINDINGS.md 18.5):
+vše odpovídá balíčkům, v systému je `/etc/phosh/phoc.ini` s měřítkem 3.
+Uloženo jako `out/troika-test-GUI2.img`. Další krok je na uživateli:
+`netboot serve --replace`, `fastboot boot`, podívat se na velikost
+přihlašovací obrazovky, přes SSH `lsblk`.
+
+### 2026-11-12 03:13–03:22 – test GUI2 prošel
+
+Uživatel: „velikost je nyní už skvělá“; `lsblk` v pořádku (FINDINGS.md 18.6).
+Na otázku „na co se vrhnout teď“ navrženo: nejdřív commit a push, potom
+průzkum podsvícení (I2C 0x36 v původním DT), případně rozměr panelu do DT
+s příštím sestavením kernelu. GPU, displej (DECON), WiFi, zvuk a SD karta
+jsou velké práce a většinou narážejí na pravidlo o regulátorech.
+
+### 2026-11-12 ~03:25 – commit a push GUI
+
+Na pokyn uživatele („Jen commit a push“): hlavní repozitář (FINDINGS 17.2
+oprava + kap. 18, TESTING 5l a 5m, PROGRESS) commitnut a pushnut do
+`origin/main`; pmaports větev `motorola-troika-mainline` pushnuta do
+`letress/pmaports-troika` (nově `f1514a044`, balíček zařízení r5 s měřítkem
+pro Phosh). Podsvícení se zatím nezačalo.
 

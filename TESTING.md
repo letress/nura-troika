@@ -946,6 +946,115 @@ sudo dmesg | grep -c "was not read-only"
 oddíly UFS RO = 1 a nepřipojené, systém `running`, dotyk dává přerušení,
 `sudo reboot` restartuje. `sudo poweroff` z plného systému se nezkoušel.
 
+## 5l. Test GUI1: Phosh přes netboot (softwarové vykreslování)
+
+Cíl: zkusit grafické rozhraní na tom, co už funguje – obrazovka od bootloaderu
+(`simple-framebuffer`, v kernelu `DRM_SIMPLEDRM=y`) a dotyk. Kernel ani
+balíček zařízení se nemění; mění se jen volba rozhraní v pmbootstrapu
+(`ui = phosh`, nastaveno 2026-11-12). Systém dál běží z PC přes netboot,
+do telefonu se nic nezapisuje.
+
+Co čekat: vykreslování počítá procesor (bez GPU), bude to líné. Displej nejde
+zhasnout ani měnit jas. Nefunguje zvuk, WiFi, modem ani stav baterie.
+**Nevyzkoušeno** – je možné, že se rozhraní napoprvé nespustí a bude potřeba
+ladit (SSH přes kabel má fungovat i tak).
+
+Phosh přináší `udiskie` (automatické připojování vyměnitelných disků). Disky
+UFS zůstávají jen pro čtení (pravidlo udev + háček v initramfs, FINDINGS.md
+17.2), takže zápis nehrozí; kontrola `lsblk` v kroku 5 ukáže, jestli se
+některý oddíl telefonu nepřipojil aspoň pro čtení.
+
+1. Vytvoř systém znovu (stáhne se hodně balíčků; obraz bude mít několik GB):
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports install --zap
+```
+
+   Heslo uživatele `user` zvol **jen z číslic** – zamykací obrazovka Phoshe má
+   číselnou klávesnici.
+
+   Kdyby instalace spadla na `losetup --json --list` (vada pmbootstrapu z
+   FINDINGS.md 17.3): `pmbootstrap -p ~/nura-troika/pmaports shutdown` a
+   `install` znovu, bez `--zap`.
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports export
+```
+
+2. Hotovo 2026-11-12 02:33: zkontrolováno a uloženo jako
+   `out/troika-test-GUI1.img` (sha256 začíná `e9242d22`; FINDINGS.md 18.1).
+
+3. Server s novým obrazem:
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports netboot serve --replace
+```
+
+4. Do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-GUI1.img
+```
+
+5. Sleduj obrazovku (má se objevit přihlašovací obrazovka Phoshe) a zároveň
+   se přihlas přes SSH a jako první zkontroluj úložiště:
+
+```bash
+ssh-keygen -R 172.16.42.1
+```
+
+```bash
+ssh user@172.16.42.1
+```
+
+```bash
+lsblk -o NAME,SIZE,RO,MOUNTPOINTS
+```
+
+   U `sda`, `sdb`, `sdc` a všech oddílů má být `RO` = 1. Další kroky dopíšu
+   podle toho, co bude na obrazovce.
+
+**Výsledek GUI1 (2026-11-12): prošlo** – Phosh nastartoval, dotyk funguje,
+úložiště telefonu jen pro čtení a nepřipojené; vykreslování je trhané, ale
+použitelné. Bez nastavení měřítka je vše malé (FINDINGS.md 18.2–18.3).
+
+## 5m. Test GUI2: měřítko displeje z balíčku zařízení (pkgrel 5)
+
+Cíl: přihlašovací obrazovka i plocha mají rozumnou velikost hned po startu,
+bez ručního nastavení. Kernel se nesestavuje.
+
+1. Sestav balíček zařízení zvlášť (aby se `install` vyhnul vadě s
+   `losetup --json`), pak systém a export:
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64 device-motorola-troika
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports install
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports export
+```
+
+   Kdyby `install` přesto spadl na `losetup --json --list`:
+   `pmbootstrap -p ~/nura-troika/pmaports shutdown` a `install` znovu.
+
+   Před sestavením musí být telefon vypnutý a netboot server ukončený
+   (Ctrl+C), jinak `build` i `install` spadnou na `umount …/netboot`.
+
+2. Hotovo 2026-11-12 03:12: zkontrolováno a uloženo jako
+   `out/troika-test-GUI2.img` (sha256 začíná `184d4456`; FINDINGS.md 18.5).
+   Měřítko je 3 (přání uživatele).
+
+3. `netboot serve --replace`, `fastboot boot ~/nura-troika/out/troika-test-GUI2.img`,
+   a podívej se, jestli je přihlašovací klávesnice přes celý displej.
+   Přes SSH znovu `lsblk -o NAME,SIZE,RO,MOUNTPOINTS`.
+
+**Výsledek GUI2 (2026-11-12): prošlo** – velikost vyhovuje („skvělá“), UFS
+jen pro čtení a nepřipojené (FINDINGS.md 18.6).
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):
