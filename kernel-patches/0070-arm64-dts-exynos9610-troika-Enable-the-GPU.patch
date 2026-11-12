@@ -1,0 +1,39 @@
+From a540e3d2b225dc48dbf11ed197ef558e710d8990 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 03:29:30 +0100
+Subject: [PATCH 70/70] arm64: dts: exynos9610-troika: Enable the GPU
+
+The vendor kernel scales the GPU through the ACPM firmware, which sets
+the clock and the voltage of the supply together (ACPM_DVFS_G3D in the
+mali node). Without that the GPU stays at the operating point the
+bootloader leaves behind, so no supply and no operating points are
+described.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 67b2316..28592c4 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -117,6 +117,15 @@ chub@fd000000 {
+ 	};
+ };
+ 
++/*
++ * The vendor kernel changes the clock and the supply voltage of the GPU
++ * together through the ACPM firmware. Neither is touched here: the GPU runs
++ * with what the bootloader has set up, and no supply is described.
++ */
++&gpu {
++	status = "okay";
++};
++
+ &oscclk {
+ 	clock-frequency = <26000000>;
+ };
+-- 
+2.56.0
+

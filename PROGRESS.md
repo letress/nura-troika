@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: Phosh běží přes netboot s měřítkem 3 (test GUI2 prošel 2026-11-12), `sudo poweroff` z plného systému funguje. Vše commitnuto a pushnuto (pmaports do `f1514a044`, zařízení r5). Další krok určí uživatel; navrženo podsvícení displeje
+## Stav: GPU funguje – Phosh z netbootu vykresluje přes panfrost na Mali-G72, 260 MHz (test GPU2, místní kernel). `kernel-patches/` má 70 patchů, vše commitnuto a pushnuto; balíček kernelu je stále r5 bez GPU (sestaví se jednou, až bude hotové i podsvícení a případně frekvence GPU)
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1359,4 +1359,86 @@ oprava + kap. 18, TESTING 5l a 5m, PROGRESS) commitnut a pushnut do
 `origin/main`; pmaports větev `motorola-troika-mainline` pushnuta do
 `letress/pmaports-troika` (nově `f1514a044`, balíček zařízení r5 s měřítkem
 pro Phosh). Podsvícení se zatím nezačalo.
+
+### 2026-11-12 ~03:30–04:00 – GPU: průzkum a image GPU1
+
+Uživatel: „vytvoř ovladač GPU, ať vím, jestli má projekt smysl“, s využitím
+práce ostatních.
+
+- Ovladač existuje (panfrost + Mesa), chybí popis v DT. Hodnoty z původního
+  DT a cmucal (FINDINGS.md 19.2).
+- Nalezen `github.com/arhammahajan/gta4xl-linux`: mainline 7.3 na Exynosu 9611
+  s funkčním panfrostem, vlastním ovladačem displeje, WiFi/BT, SD, DVFS,
+  baterií (FINDINGS.md 19.3). Staženo do `refs/gta4xl-linux` (gitignore).
+- Kernel: 3 commity na `troika-clk` (binding, `cmu_g3d` + `gpu` v dtsi,
+  zapnutí na troice); bez regulátoru, bez OPP, bez napájecí domény.
+  `troika-clk-test` přeskládán (5 DEBUG nad tím). dtbs_check čistý až na
+  známé varování USB.
+- `test-initramfs/init`: oddíl `--- GPU ---` pro značku `gpu*`.
+- `out/troika-test-GPU1.img` (sha256 začíná `87de57c9`).
+
+Další krok: uživatel spustí GPU1; já přečtu stav přes telnet. Když se panfrost
+naváže, druhý krok je plný systém (Phosh z netbootu) s místním kernelem –
+bez sestavování balíčku – a zjistit, jestli phoc vykresluje na GPU.
+Necommitnuto: FINDINGS kap. 19, TESTING 5n, PROGRESS, `test-initramfs/init`;
+`kernel-patches/` ještě není přeexportováno (67 → 70).
+
+### 2026-11-12 03:42–04:10 – test GPU1 prošel, příprava GPU2
+
+GPU1: panfrost se navázal (Mali-G72 r0p1, 3 jádra, 260 MHz, `renderD128`,
+bez chyb; FINDINGS.md 19.6). Log uložen do `device-info/dmesg-mainline-GPU1.txt`.
+
+Pro druhý krok: `build/linux` přestavěn z čisté větve `troika-clk`
+s konfigurací balíčku (původní místní konfigurace je v
+`build/linux/.config.local-test`), `LOCALVERSION_AUTO` vypnuto, sestavení
+s `LOCALVERSION=`, aby se kernel jmenoval `7.3.3-troika` jako v balíčku.
+Nový skript `tools/make-local-pmos-bootimg.sh`.
+
+### 2026-11-12 04:04–04:10 – image GPU2 připraven
+
+Telefon poslán přes telnet do fastbootu (`reboot-arg bootloader`, na pokyn
+uživatele). Kernel s konfigurací balíčku sestaven (18 min, plné sestavení),
+jmenuje se `7.3.3-troika`, vermagic shodný s moduly v systému, bez ladicích
+výpisů. `tools/make-local-pmos-bootimg.sh GPU2 out/troika-test-GUI2.img` →
+`out/troika-test-GPU2.img` (sha256 začíná `d09db2d9`): ramdisk, „second“
+a cmdline shodné s GUI2, liší se jen kernel (obsahuje uzel GPU).
+Další krok je na uživateli: TESTING.md 5o.
+
+### 2026-11-12 04:07–04:15 – GPU2 první pokus: ladicí shell initramfs
+
+`fastboot boot out/troika-test-GPU2.img` skončil v ladicím shellu initramfs:
+`nbd.ko` z balíčku se do místního kernelu nenačetl kvůli neshodě BTF
+(FINDINGS.md 19.8). UFS zůstalo jen pro čtení (pravidlo zabírá už
+v initramfs). Místní kernel se přestavuje s `MODULE_ALLOW_BTF_MISMATCH=y`;
+pak nový image GPU2.
+
+### 2026-11-12 04:12 – opravený image GPU2
+
+Kernel přestavěn s `MODULE_ALLOW_BTF_MISMATCH=y` (2 min), image GPU2 přepsán
+(sha256 začíná `8a4d0449`); ramdisk a „second“ shodné s GUI2. Uživatel mezitím
+dvakrát spustil starý image (ladicí shell, žádná škoda).
+
+### 2026-11-12 13:32–13:40 – test GPU2 prošel: Phosh vykresluje na GPU
+
+Uživatel spustil server a opravený image GPU2. Systém nastartoval,
+`panfrost-job` má 15 638 přerušení → phoc vykresluje přes panfrost bez
+nastavování (FINDINGS.md 19.9). UFS RO = 1.
+
+Zbývá: dojem uživatele z plynulosti; přenést 3 commity do `kernel-patches/`
+a do balíčku (kernel pkgrel 6, sestavení 1,5 h – jedno kolo, případně
+i s rozměrem panelu); commit a push. Další možné kroky: řízení frekvence GPU
+přes ACPM (podklad: gta4xl `0170-exynos9611-gpu-dvfs.patch`), ovladač
+displeje (gta4xl `0130`, jiný panel).
+
+### 2026-11-12 ~13:45 – commit a push GPU
+
+Uživatel: Phosh je „mnohem více plynulejší“. Na jeho pokyn commit a push
+hlavního repozitáře: FINDINGS kap. 19, TESTING 5n a 5o, PROGRESS,
+`test-initramfs/init` (oddíl GPU), `tools/make-local-pmos-bootimg.sh`,
+`kernel-patches/` (70) a `kernel-patches-debug/` (5). pmaports beze změny
+(`f1514a044` je pushnutý).
+
+Další přání uživatele: podsvícení displeje a změna frekvence GPU přes
+firmware, s co nejméně sestaveními kernelu → zkoušet místními image,
+balíček sestavit jednou na konci.
 

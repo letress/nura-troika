@@ -1,7 +1,7 @@
 From ed33727dab7f9b54d5313233e90cca54c831cb5c Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:31 +0100
-Subject: [PATCH 37/67] clk: samsung: exynos9610: Fix the parent of the G2D
+Subject: [PATCH 37/70] clk: samsung: exynos9610: Fix the parent of the G2D
  LHS_ACEL_D gate
 
 gout_g2d_lhs_acel_d_clk is parented to the MSCL user mux. In the vendor

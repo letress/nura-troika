@@ -1,0 +1,27 @@
+From d2da719bb4ee25e1cab26f8f3b8fe2d39922ea24 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 03:28:31 +0100
+Subject: [PATCH 68/70] dt-bindings: gpu: mali-bifrost: Add Samsung Exynos9610
+
+The Exynos9610 and its variants have a Mali-G72 MP3.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ Documentation/devicetree/bindings/gpu/arm,mali-bifrost.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/gpu/arm,mali-bifrost.yaml b/Documentation/devicetree/bindings/gpu/arm,mali-bifrost.yaml
+index 9db9f84..a072626 100644
+--- a/Documentation/devicetree/bindings/gpu/arm,mali-bifrost.yaml
++++ b/Documentation/devicetree/bindings/gpu/arm,mali-bifrost.yaml
+@@ -34,6 +34,7 @@ properties:
+               - rockchip,rk3562-mali
+               - rockchip,rk3568-mali
+               - rockchip,rk3576-mali
++              - samsung,exynos9610-mali
+           - const: arm,mali-bifrost # Mali Bifrost GPU model/revision is fully discoverable
+       - items:
+           - enum:
+-- 
+2.56.0
+

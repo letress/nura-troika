@@ -197,6 +197,24 @@ if [ -n "$rb_test" ]; then
 	echo
 fi
 
+# GPU: hodiny CMU_G3D, jak je nechal bootloader, hlaseni ovladace panfrost
+# a jestli vznikl uzel pro vykreslovani (renderD*). Nic se nenastavuje.
+if [ "${test_tag#gpu}" != "$test_tag" ]; then
+	echo "--- GPU ---"
+	for c in fout_g3d_pll dout_cmu_g3d_switch mout_clk_g3d_busd \
+		gout_clk_g3d_g3d_clk gout_g3d_busp_clk; do
+		awk -v c="$c" '$1 == c { printf " %-24s %s Hz\n", $1, $5 }' $s
+	done
+	dmesg | sed -n 's/^.*CLKDBG \(clock-controller@11430000.*\)$/\1/p'
+	dmesg | grep -i -E "panfrost|mali|11500000|Internal error|SError" | tail -n 12 | cut -c1-110
+	if ls /dev/dri/renderD* > /dev/null 2>&1; then
+		echo "uzly DRM: $(ls /dev/dri | tr '\n' ' ')"
+	else
+		echo "!! /dev/dri/renderD* neni - panfrost se nenavazal."
+	fi
+	echo
+fi
+
 echo "Vstupni zarizeni:"
 grep -E '^N: Name|^H: Handlers' /proc/bus/input/devices 2>/dev/null
 echo

@@ -1,7 +1,7 @@
 From bce52d36e2d0e4bbca726d296d7037ed459c6326 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:31 +0100
-Subject: [PATCH 39/67] clk: samsung: exynos9610: Add the G2D and MSCL clock
+Subject: [PATCH 39/70] clk: samsung: exynos9610: Add the G2D and MSCL clock
  gates
 
 CLK_CON_GAT_GOUT_G2D_G2D_CLK (0x204c) and CLK_CON_GAT_GOUT_G2D_MSCL_CLK

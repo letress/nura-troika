@@ -1055,6 +1055,76 @@ pmbootstrap -p ~/nura-troika/pmaports export
 **Výsledek GUI2 (2026-11-12): prošlo** – velikost vyhovuje („skvělá“), UFS
 jen pro čtení a nepřipojené (FINDINGS.md 18.6).
 
+## 5n. Test GPU1: ovladač panfrost se naváže na Mali-G72
+
+Cíl: zjistit, jestli se GPU s popisem v DT (FINDINGS.md kap. 19) ohlásí
+ovladači panfrost a na jaké frekvenci po bootloaderu běží. Místní testovací
+image (kernel z větve `troika-clk-test`, testovací initramfs), žádný balíček.
+Kernel při tom nemění napětí ani frekvenci a kvůli GPU nezapisuje do PMU.
+
+Před testem: telefon vypnutý nebo ve fastbootu, netboot server ukončený.
+
+1. Do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-GPU1.img
+```
+
+2. Na displeji bude textový výpis s oddílem `--- GPU ---`. Nic dalšího dělat
+   nemusíš; napiš mi, že běží. Stav si přečtu sám přes telnet
+   (`tools/phone-sh.py`) a pak telefon na tvůj pokyn pošlu zpět do fastbootu.
+
+Kdyby displej zůstal černý nebo zamrzl, je to nejspíš pád kernelu při sahání
+na GPU: podrž Power + Vol− asi 10 s a napiš mi to.
+
+**Výsledek GPU1 (2026-11-12): prošlo** – panfrost se navázal na Mali-G72
+r0p1 se třemi jádry, hodiny 260 MHz, vznikl `renderD128`, žádná chyba
+(FINDINGS.md 19.6).
+
+## 5o. Test GPU2: Phosh z netbootu s místním kernelem (s GPU)
+
+Cíl: zjistit, jestli Phosh vykresluje na GPU, když displej dál obsluhuje
+simpledrm. Systém na PC je stejný jako u GUI2; mění se jen kernel v boot
+image (místní sestavení z větve `troika-clk`, FINDINGS.md 19.7).
+
+1. Server (obraz z GUI2 už v něm je, není potřeba `--replace`):
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports netboot serve
+```
+
+2. Do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-GPU2.img
+```
+
+3. Přihlas se přes SSH a zkontroluj úložiště a GPU:
+
+```bash
+ssh user@172.16.42.1
+```
+
+```bash
+lsblk -o NAME,SIZE,RO,MOUNTPOINTS | head -4
+```
+
+```bash
+ls /dev/dri/; grep panf /proc/interrupts
+```
+
+   Chvíli se pohybuj v rozhraní a druhý příkaz zopakuj: když čísla
+   u přerušení přibývají, Phosh vykresluje na GPU.
+
+4. Napiš mi, jestli se Phosh chová jinak (plynuleji) než u GUI2. Další
+   příkazy doplním podle toho, co uvidím.
+
+**Výsledek GPU2 (2026-11-12): prošlo** – Phosh vykresluje na GPU sám od sebe
+(`panfrost-job` 15 638 přerušení), UFS jen pro čtení (FINDINGS.md 19.9).
+První pokus selhal na neshodě BTF modulů z balíčku s místním kernelem
+(FINDINGS.md 19.8); místní kernel proto potřebuje
+`CONFIG_MODULE_ALLOW_BTF_MISMATCH=y`.
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

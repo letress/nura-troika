@@ -1695,3 +1695,176 @@ I2C na adrese 0x36 (`exynos9610-display-lcd.dtsi`, uzel `backlight_i2c@36`,
 compatible `backlight_i2c`). Který je to čip a na které sběrnici, je potřeba
 teprve dohledat.
 
+## 19. GPU: Mali-G72 přes Panfrost (2026-11-12)
+
+### 19.1 Co je potřeba a co už existuje
+
+Nový ovladač GPU se nepíše. Mali-G72 (Bifrost) umí mainline ovladač
+**Panfrost** (`drivers/gpu/drm/panfrost`, model `g72` = ID 0x6001 v
+`panfrost_gpu.c`) a v Mese ovladač `panfrost` (v našem systému
+`/usr/lib/dri/panfrost_dri.so`, mesa 26.2.6). Chybí jen popis hardwaru v DT
+a hodiny. Konfigurace kernelu má `DRM_PANFROST=y` už od začátku.
+
+### 19.2 Hodnoty a jejich zdroje
+
+| Co | Hodnota | Zdroj |
+|---|---|---|
+| registry GPU | 0x11500000, délka 0x5000 | původní `exynos9610.dtsi`, uzel `mali@11500000`; `device-info/live.dts:7962` |
+| přerušení | JOB = SPI 66, MMU = SPI 67, GPU = SPI 65 | tamtéž (`interrupts = <0 66 0>, <0 67 0>, <0 65 0>`, jména JOB, MMU, GPU) |
+| CMU_G3D | 0x11430000 | `cmucal-sfr.c:18` (`SFR_BLOCK(G3D, 0x11430000, 0x8000)`) |
+| vstupy CMU_G3D | `oscclk`, `dout_cmu_g3d_switch`, `dout_cmu_hpm` | binding Chimacovy série v3; ovladač zkontrolován proti cmucal (kap. 11) |
+| hodiny GPU | `CLK_GOUT_CLK_G3D_G3D_CLK` (0x2004), `CLK_GOUT_G3D_BUSP_CLK` (0x203c), `CLK_GOUT_G3D_BUSD_CLK` (0x2038) | `cmucal-sfr.c:862-873`; stejná trojice jako v portu gta4xl (19.3) |
+| napájecí doména | G3D_CONFIGURATION 0x4060, G3D_STATUS 0x4064, čtyři bity | `pmucal_local_exynos9610.h:247-248`; po bootloaderu zapnutá (test CLK1, 11.7) |
+| řízení frekvence a napětí | přes firmware ACPM (`g3d_cmu_cal_id = <ACPM_DVFS_G3D>`), tabulka 260–1053 MHz | původní uzel `mali` |
+
+Velikost oblasti CMU_G3D je v DT 0x10000 jako u ostatních devíti CMU
+(automatické hradlování, ověřené testem CLK1: mainline změní proti stavu po
+bootloaderu jen bit 30 registru OPTION). S 0x8000 by mainline přepnul všechna
+hradla do ručního režimu (`exynos_arm64_init_clocks`: nastaví bit 20, smaže
+bit 28) – to na troice ověřené není.
+
+### 19.3 Práce ostatních: port gta4xl (Exynos 9611)
+
+`github.com/arhammahajan/gta4xl-linux` (staženo do `refs/gta4xl-linux`,
+commit `4d4f1fd` z 2026-10-23; v repozitáři není licence): mainline 7.3 na
+Galaxy Tab S6 Lite s Exynosem 9611, stejná rodina čipů. Podle jeho
+dokumentace tam funguje:
+
+- Panfrost na Mali-G72 MP3 (`docs/GPU.md`): nejdřív s pevnými hodinami 260 MHz,
+  jak je nechal bootloader, později se změnou frekvence přes ACPM (260–683 MHz);
+  napětí řídí firmware, kernel regulátor neprogramuje;
+- vlastní ovladač displeje (DECON0 + DSIM0 + panel, `0130-exynos9610-display-dpu.patch`,
+  2012 řádků) a na něm GNOME na Waylandu s akcelerací;
+- WiFi a Bluetooth (přenesený ovladač Samsung SCSC), SD karta, změna
+  frekvence CPU, baterie a nabíjení, uspání, senzory, kamera. Zvuk ne.
+
+Jeho uzel GPU (`0120-gta4xl-panfrost-gpu.patch`) má stejnou adresu, přerušení
+a hodiny jako náš. Liší se tím, že popisuje napájecí doménu (ovladač
+`exynos-pm-domains` s novým `samsung,exynos9610-pd`, drženou stále zapnutou)
+a pevný „regulátor“ 800 mV jen pro uspokojení ovladače; ten později sám
+odstranil jako nesprávný.
+
+Všechno z toho repozitáře beru jako podklad k ověření, ne jako ověřený fakt
+pro troiku: je to jiné zařízení, jiný bootloader a jiný displej (AMOLED vs.
+náš LCD s HX83112A).
+
+### 19.4 Naše změny (větev `troika-clk`, 3 commity, celkem 70 nad v7.3.3)
+
+1. `dt-bindings: gpu: mali-bifrost: Add Samsung Exynos9610` – compatible
+   `samsung,exynos9610-mali`.
+2. `arm64: dts: exynos9610: Add CMU_G3D and the GPU` – uzly `cmu_g3d`
+   a `gpu@11500000` (vypnutý).
+3. `arm64: dts: exynos9610-troika: Enable the GPU` – jen `status = "okay"`.
+
+Záměrně **není** popsaný regulátor (pravidlo o regulátorech; panfrost si
+vezme zástupný), tabulka frekvencí (bez ACPM nejde měnit napětí, takže se
+frekvence nemění) ani napájecí doména (kernel tak do PMU kvůli GPU nic
+nezapisuje; žádný nový souhlas není potřeba). GPU poběží na tom, co nechal
+bootloader.
+
+`make CHECK_DTBS=y exynos/exynos9610-troika.dtb`: jen známé varování USB.
+
+### 19.5 Rizika prvního testu (image GPU1)
+
+- Registrace CMU_G3D čte registry v doméně G3D. Ta je podle testu CLK1
+  zapnutá; kdyby nebyla, kernel při startu spadne (telefon se pak vypne
+  podržením Power + Vol−). Žádný zápis kromě bitu 30 v OPTION.
+- Panfrost při startu resetuje GPU a zapne jeho jádra. Napětí ani frekvenci
+  nemění. Kdyby větev napájení GPU nebyla zapnutá nebo hodiny neběžely,
+  ovladač selže nebo kernel spadne; hardwaru to neublíží.
+- Jaká frekvence po bootloaderu běží, nevím (na gta4xl 260 MHz); test ji
+  vypíše.
+
+Zobrazení: displej dál obsluhuje simpledrm. Jestli phoc (wlroots) dokáže
+vykreslovat na GPU a výsledek kopírovat do framebufferu simpledrm, se ukáže
+až ve druhém kroku s plným systémem. **Neověřeno.**
+
+### 19.6 Test GPU1: panfrost se navázal (2026-11-12 03:42)
+
+`fastboot boot out/troika-test-GPU1.img`; stav přečten přes telnet
+(`tools/phone-sh.py`), celý log v `device-info/dmesg-mainline-GPU1.txt`.
+
+```
+CLKDBG clock-controller@11430000: option 0x30000000 -> 0x70000000
+panfrost 11500000.gpu: clock rate = 260000000
+panfrost 11500000.gpu: bus_clock rate = 65000000
+panfrost 11500000.gpu: error -ENODEV: _opp_set_regulators: no regulator (mali) found
+panfrost 11500000.gpu: supply mali not found, using dummy regulator
+panfrost 11500000.gpu: mali-g72 id 0x6221 major 0x0 minor 0x1 status 0x0
+panfrost 11500000.gpu: shader_present=0x7 l2_present=0x1
+[drm] Initialized panfrost 1.6.0 for 11500000.gpu on minor 1
+```
+
+- GPU se ohlásilo jako Mali-G72 r0p1 se třemi jádry (`shader_present=0x7`) –
+  stejné ID 0x6221 jako na gta4xl.
+- Hodiny po bootloaderu: `fout_g3d_pll` 260 MHz → `gout_clk_g3d_g3d_clk`
+  260 MHz, `gout_g3d_busp_clk` 65 MHz. Stejných 260 MHz uvádí gta4xl.
+- OPTION CMU_G3D před zápisem `0x30000000`, po něm `0x70000000` – jako
+  u ostatních CMU.
+- Vznikly `/dev/dri/card0` (simpledrm), `card1` a `renderD128` (panfrost).
+- Žádná chyba ani pád v logu; přerušení GPU jsou zaregistrovaná (0 výskytů,
+  nic zatím nevykresluje); GPU je za běhu uspané (`runtime_status`
+  = suspended), což je v klidu správně.
+- Hlášení o chybějícím regulátoru `mali` je očekávané (19.4).
+
+Neověřeno: jestli GPU skutečně vykresluje (v testovacím initramfs není Mesa)
+a jestli ho použije phoc.
+
+### 19.7 Druhý krok: Phosh s místním kernelem (image GPU2)
+
+Aby se nemusel sestavovat balíček (1,5 h), `tools/make-local-pmos-bootimg.sh`
+složí boot image z místního kernelu (čistá větev `troika-clk`, konfigurace
+balíčku, označení verze `7.3.3-troika` kvůli modulům v systému) a z initramfs,
+cmdline a původního DTB zkontrolovaného image GUI2. Systém na PC (obraz pro
+netboot) se nemění.
+
+### 19.8 Test GPU2, první pokus: moduly z balíčku se do místního kernelu nenačetly (2026-11-12 04:07)
+
+Start skončil v ladicím shellu initramfs pmOS (fotka od uživatele: „Entering
+debug shell“, klávesnice buffyboard). Přes telnet (ladicí shell ho spouští)
+jsem přečetl `/pmOS_init.log` a `dmesg`:
+
+```
+BPF: Invalid name
+failed to validate module [nbd] BTF: -22
+modprobe: ERROR: could not insert 'nbd': Invalid argument
+Failed to get /dev/nbd0, stopping.
+```
+
+Příčina: kernel i moduly mají ladicí informace BTF (`DEBUG_INFO_BTF_MODULES=y`).
+Modul z balíčku (gcc 15.2 Alpine) se odkazuje na BTF kernelu z balíčku;
+místně sestavený kernel (gcc 16.2) má BTF jiné a modul odmítne. Označení
+verze (vermagic) sedělo, to nestačí. Chyba mého postupu, ne hardwaru ani GPU:
+panfrost se i v tomto běhu navázal.
+
+Oprava: místní kernel s `CONFIG_MODULE_ALLOW_BTF_MISMATCH=y` (modul se načte
+bez svého BTF). Týká se jen místního sestavení pro zkoušení; balíček se
+nemění.
+
+Vedlejší nález k 17.4: v tomto běhu se systém vůbec nespustil, a přesto měly
+`sda`, `sdb`, `sdc` `ro` = 1 a v logu není „was not read-only“. Pravidlo
+`60-ufs-readonly.rules` tedy zabírá **už v initramfs**; háček jen kontroluje.
+
+### 19.9 Test GPU2: Phosh vykresluje na GPU (2026-11-12 13:33)
+
+Opravený image GPU2 (místní kernel z `troika-clk` s
+`MODULE_ALLOW_BTF_MISMATCH=y`, sha256 začíná `8a4d0449`) nastartoval celý:
+SSH odpovídalo 13:33:19, Phosh běží.
+
+Výstup z telefonu (okno ssh uživatele):
+
+- `lsblk`: `sda` a oddíly RO = 1 (vypsány první řádky);
+- `/dev/dri/`: `card0` (simpledrm), `card1` a `renderD128` (panfrost);
+- `/proc/interrupts`: `panfrost-job` **15 638** přerušení, `panfrost-mmu` 3,
+  `panfrost-gpu` 0.
+
+Tisíce přerušení od úloh GPU znamenají, že phoc vykresluje přes panfrost,
+a to bez jakéhokoli nastavení: Mesa pro neznámý ovladač displeje (simpledrm)
+použije vrstvu kmsro a k ní si najde GPU s uzlem pro vykreslování. Hotový
+snímek pak simpledrm kopíruje do framebufferu bootloaderu.
+
+Platí to pro GPU na 260 MHz (nejnižší stupeň původní tabulky) bez řízení
+frekvence a napětí. **Neověřeno:** jak moc je rozhraní plynulejší (čeká se
+na dojem uživatele), delší zátěž, teplota, uspání GPU za běhu pod zátěží,
+jaký řetězec vykreslovače hlásí Mesa.
+

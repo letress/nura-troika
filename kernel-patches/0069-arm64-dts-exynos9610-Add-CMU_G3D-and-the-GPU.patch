@@ -1,0 +1,57 @@
+From 4d835f33edf9e826de2ba2351db1844f96545f56 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 03:29:29 +0100
+Subject: [PATCH 69/70] arm64: dts: exynos9610: Add CMU_G3D and the GPU
+
+The Mali-G72 sits at 0x11500000 with the job, MMU and GPU interrupts on
+SPI 66, 67 and 65 (mali node of the vendor exynos9610.dtsi). Its clocks
+come from CMU_G3D at 0x11430000 (cmucal-sfr.c).
+
+The G3D power domain is not described. The bootloader leaves it on.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 27 ++++++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 12079a8..11e2087 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -210,6 +210,33 @@ pinctrl_shub: pinctrl@11080000 {
+ 			interrupts = <GIC_SPI 116 IRQ_TYPE_LEVEL_HIGH>;
+ 		};
+ 
++		cmu_g3d: clock-controller@11430000 {
++			compatible = "samsung,exynos9610-cmu-g3d";
++			reg = <0x11430000 0x10000>;
++			#clock-cells = <1>;
++
++			clocks = <&oscclk>,
++				 <&cmu_top CLK_DOUT_CMU_G3D_SWITCH>,
++				 <&cmu_top CLK_DOUT_CMU_HPM>;
++			clock-names = "oscclk",
++				      "dout_cmu_g3d_switch",
++				      "dout_cmu_hpm";
++		};
++
++		gpu: gpu@11500000 {
++			compatible = "samsung,exynos9610-mali", "arm,mali-bifrost";
++			reg = <0x11500000 0x5000>;
++			interrupts = <GIC_SPI 66 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 65 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "job", "mmu", "gpu";
++			clocks = <&cmu_g3d CLK_GOUT_CLK_G3D_G3D_CLK>,
++				 <&cmu_g3d CLK_GOUT_G3D_BUSP_CLK>,
++				 <&cmu_g3d CLK_GOUT_G3D_BUSD_CLK>;
++			clock-names = "gpu", "bus", "bus_ace";
++			status = "disabled";
++		};
++
+ 		cmu_apm: clock-controller@11800000 {
+ 			compatible = "samsung,exynos9610-cmu-apm";
+ 			reg = <0x11800000 0x10000>;
+-- 
+2.56.0
+
