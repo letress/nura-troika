@@ -45,6 +45,23 @@ cmdline="$(sed -n 's/^command line args: //p' "$tmp/info")"
 	exit 1
 }
 
+# Modul firmwaru ACPM pro změnu frekvencí: ovladač exynos-acpm je zabudovaný
+# a soubor chce dřív, než je připojený kořenový systém, takže musí být
+# v initramfs. Initramfs z balíčku ho nemá; připojí se za něj jako druhý
+# archiv cpio (kernel jich umí rozbalit víc za sebou).
+fvp="$root/refs/downstream-kernel/firmware/exynos9610_acpm_fvp.fw"
+if [ -f "$fvp" ]; then
+	mkdir -p "$tmp/fw/usr/lib/firmware"
+	install -m 644 "$fvp" "$tmp/fw/usr/lib/firmware/"
+	(cd "$tmp/fw" && echo usr/lib/firmware/exynos9610_acpm_fvp.fw |
+		cpio -o -H newc -R 0:0 --quiet) > "$tmp/fw.cpio"
+	# Kernel pozná další archiv cpio jen na adrese dělitelné čtyřmi
+	# (init/initramfs.c), nuly mezi archivy přeskakuje.
+	pad=$(( (4 - $(stat -c %s "$tmp/ramdisk") % 4) % 4 ))
+	head -c "$pad" /dev/zero >> "$tmp/ramdisk"
+	cat "$tmp/fw.cpio" >> "$tmp/ramdisk"
+fi
+
 # uniLoader jako v balíčku (troika_defconfig): initrd a cmdline z DTB bootloaderu.
 install -m 644 "$image" "$uni/blob/Image"
 install -m 644 "$dtb" "$uni/blob/dtb"

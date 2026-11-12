@@ -1422,6 +1422,70 @@ to. Po restartu je firmware, frekvence i napětí v původním stavu.
 stupně 260 až 764 MHz a zpět, napětí větve na každém stupni odpovídá tabulce
 firmwaru (FINDINGS.md 25.5).
 
+## 5aa. Test GPU3: Phosh s GPU na vyšší frekvenci (ruční přepínání)
+
+Cíl: stabilita a plynulost Phoshe s GPU na 455 a 764 MHz (FINDINGS.md 26).
+Frekvenci přepínáš ty; každý takový příkaz pošle firmwaru žádost o změnu
+frekvence a napětí GPU, stejnou jako v testu ACPM6.
+
+1. Telefon vypnutý nebo ve fastbootu. Na PC spusť netboot server (nech ho
+   běžet v jednom terminálu):
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports netboot serve
+```
+
+2. V druhém terminálu:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-GPU3.img
+```
+
+3. Po přihlášení do Phoshe se připoj (`ssh user@172.16.42.1`) a zkontroluj,
+   že se modul připojil a soubory existují (má vypsat 0 a dva soubory):
+
+```bash
+sudo sh -c 'dmesg | grep -c "Failed to attach plugin"; ls /sys/kernel/debug/ | grep acpmdbg'
+```
+
+4. Výchozí stav – chvíli se pohybuj v prostředí na 260 MHz a přečti teploty
+   (tisíciny stupně: GPU, malá jádra, velká jádra):
+
+```bash
+cat /sys/class/thermal/thermal_zone*/temp
+```
+
+5. Přepni na 455 MHz, zkus prostředí, přečti teploty:
+
+```bash
+echo 455000 | sudo tee /sys/kernel/debug/acpmdbg_g3d_khz
+```
+
+6. Když je vše v pořádku, 764 MHz, zkus prostředí delší dobu (pár minut),
+   průběžně teploty:
+
+```bash
+echo 764000 | sudo tee /sys/kernel/debug/acpmdbg_g3d_khz
+```
+
+7. Zpět na 260 MHz pro porovnání:
+
+```bash
+echo 260000 | sudo tee /sys/kernel/debug/acpmdbg_g3d_khz
+```
+
+8. Napiš mi, jak se prostředí chovalo na jednotlivých frekvencích, teploty
+   a případné chyby (`sudo dmesg | tail -n 30`, řádek s parametry kernelu
+   mi neposílej).
+
+Když teplota GPU nebo jader přesáhne 85 000, vrať se na 260 MHz. Při
+105 000 se telefon sám vypne. Kdyby prostředí zamrzlo: podrž Power + Vol−;
+po restartu je vše v původním stavu.
+
+**Výsledek GPU3 (2026-11-12): částečně** – po opravě image se modul nahrál
+a přepnutí na 455, 764 a zpět na 260 MHz v běžícím Phoshi prošlo bez chyby
+(FINDINGS.md 26.2). Chybí hodnocení plynulosti a delší zátěž.
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

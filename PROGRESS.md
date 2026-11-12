@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: Firmware umí nastavit stupně GPU 260 až 764 MHz včetně napětí – test ACPM6, se souhlasem uživatele; napětí `BUCK5` na každém stupni sedí s tabulkou (FINDINGS.md 25.5). Souhlas platil jen pro tento postup; stupně nad 764 MHz, procesor, paměť a zápisy do PMIC vyžadují nový. Neověřeno: GPU pod zátěží na vyšší frekvenci. `troika-clk` 89 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-12 včetně testu ACPM6 (commit „GPU: stupně do 764 MHz přes firmware…“); pmaports beze změny (`6a3faa4df`)
+## Stav: Zkouška GPU3 – v běžícím Phoshi prošlo přepnutí GPU na 455, 764 a zpět na 260 MHz bez chyby (FINDINGS.md 26.2); chybí dojem uživatele z plynulosti a delší zátěž. Soubor modulu FVP jde připojit za initramfs balíčku (zarovnání na 4 bajty, 26.1). `troika-clk` 89 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-12 včetně zkoušky GPU3 (commit „GPU3: Phosh s GPU na vyšší frekvenci…“); pmaports beze změny (`6a3faa4df`)
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1777,3 +1777,41 @@ zátěž (místní kernel + soubor modulu v initramfs pmOS; nový souhlas);
 Na pokyn uživatele: patche znovu vyexportovány (89 čistých, 8 ladicích),
 hlavní repozitář commitnut a pushnut. pmaports beze změny. Telefon běží
 v ACPM6, GPU na 260 MHz.
+
+### 2026-11-12 20:44 – příprava zkoušky GPU3 (Phosh, vyšší frekvence GPU)
+
+- `tools/make-local-pmos-bootimg.sh` připojuje soubor modulu FVP za
+  initramfs jako druhý archiv cpio.
+- Sestaven `out/troika-test-GPU3.img` (sha256 začíná `d229ec68`) z BL3
+  a místního kernelu (`troika-clk-test`). Obsah ověřen jen na PC.
+- Postup TESTING.md 5aa: uživatel přepíná frekvenci sám přes `sudo tee`.
+- Necommitnuto: FINDINGS kap. 26, TESTING 5aa, PROGRESS, skript.
+
+### 2026-11-12 21:05 – GPU3: první pokus bez modulu, oprava image
+
+První GPU3 nabootoval do Phoshe, ale modul FVP se nenahrál (chyba -2):
+připojený archiv cpio nebyl zarovnaný na 4 bajty a kernel ho odmítl
+(FINDINGS.md 26.1). Skript opraven, GPU3 sestaven znovu (sha256 začíná
+`62c99ea8`). Běží starý netboot server z 16:55 (drží port 9999; nový
+`netboot serve` proto končí hláškou „nbd-server quit“) – telefon obsluhuje
+ten starý. Čeká na nové spuštění GPU3 uživatelem. Necommitnuto.
+
+### 2026-11-12 21:19 – GPU3 podruhé: přepínání v Phoshi prošlo
+
+Opravený GPU3 nahrál modul FVP (kontrola 0 + dva soubory). Uživatel přepnul
+455000, 764000, 260000 přes `sudo tee`, bez chyby; teploty 43 až 47 °C
+(jednotlivá čtení). Čeká se na jeho hodnocení plynulosti. Netboot server
+běží (spuštěn 21:10). Necommitnuto: FINDINGS kap. 26, TESTING 5aa, PROGRESS,
+`tools/make-local-pmos-bootimg.sh`.
+
+### 2026-11-12 21:20 – GPU3: uživatel potvrdil plynulejší prostředí na 764 MHz
+
+Další krok (čeká na rozhodnutí uživatele): automatické škálování GPU –
+čistý poskytovatel hodin GPU přes ACPM, tabulka OPP v DT (stupně a napětí
+z tabulky firmwaru, do 764 MHz) a devfreq v panfrostu; chlazení přes
+teplotní zóny. Necommitnuto od `7a10399`.
+
+### 2026-11-12 21:21 – commit a push (GPU3)
+
+Na pokyn uživatele hlavní repozitář commitnut a pushnut. Patche kernelu se
+od `7a10399` neměnily (89 + 8). pmaports beze změny.

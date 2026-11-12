@@ -2828,3 +2828,75 @@ Závěr: firmware umí na žádost nastavit všech sedm stupňů GPU do 764 MHz
 včetně napětí. **Neověřeno:** stabilita GPU pod zátěží na vyšší frekvenci,
 stupně nad 764 MHz, procesor a paměť.
 
+## 26. Phosh s GPU na vyšší frekvenci – příprava (2026-11-12 20:44)
+
+Cíl: zjistit, jestli je GPU na vyšší frekvenci stabilní pod skutečnou zátěží
+a o kolik je prostředí plynulejší. Je to zkouška s ručním přepínáním, ne
+hotové škálování.
+
+- Image `out/troika-test-GPU3.img`: plný systém z netbootu (initramfs
+  a nastavení z BL3) s místním kernelem z větve `troika-clk-test` (89 + 8
+  ladicích commitů), tedy s ovladačem teploty, nahráváním modulu FVP
+  a ladicími soubory `acpmdbg_g3d_khz` a `acpmdbg_buck5_uv`.
+- Soubor modulu FVP v initramfs z balíčku není, proto ho
+  `tools/make-local-pmos-bootimg.sh` nově připojuje za initramfs jako druhý
+  archiv cpio (`usr/lib/firmware/exynos9610_acpm_fvp.fw`). Ověřeno jen
+  rozborem image na PC, ne na telefonu.
+- Frekvenci v plném systému přepíná uživatel sám příkazem se `sudo`
+  (TESTING.md 5aa); já tam bez hesla nemám přístup. Povolené hodnoty jsou
+  stejné jako v ACPM6 (260 až 764 MHz).
+- Panfrost o změně neví (nemá tabulku OPP ani regulátor) a frekvenci sám
+  nemění, takže ruční nastavení zůstane, dokud ho někdo nezmění nebo do
+  restartu.
+
+Rizika: GPU pod zátěží na vyšší frekvenci a napětí víc topí – zóny mají
+vypnutí při 105 °C a teploty jdou sledovat; stabilita pod zátěží je
+neověřená, při chybě GPU může prostředí zamrznout (pomůže restart, nic
+trvalého se nemění); modul TMU není připojený.
+
+### 26.1 První pokus GPU3: modul se nenahrál, chyba v mém image (21:05)
+
+Uživatel spustil GPU3; kontrola vypsala 1 varování. Z jeho výpisu `dmesg`:
+
+```
+Initramfs unpacking failed: invalid magic at start of compressed archive
+Direct firmware load for exynos9610_acpm_fvp.fw failed with error -2
+Failed to attach plugin exynos9610_acpm_fvp.fw: -2
+ACPMDBG g3d: FVP plugin not attached, no debugfs file
+```
+
+Příčina: kernel pozná další archiv cpio za komprimovaným initramfs jen na
+adrese dělitelné čtyřmi (`init/initramfs.c`, podmínka `this_header & 3`).
+Initramfs z balíčku má 12 737 019 bajtů, můj archiv tedy začínal na liché
+adrese a kernel ho zkusil rozbalit jako komprimovaný. Hlavní initramfs se
+rozbalil celý, systém nabootoval normálně.
+
+Co to zároveň ověřilo: bez souboru modulu ovladač jen vypíše varování,
+kernel běží dál a ladicí soubor pro frekvenci nevznikne (23.3 to vedlo jako
+neověřené). Firmwaru neodešla žádná žádost o frekvenci.
+
+Oprava: `tools/make-local-pmos-bootimg.sh` před připojením archivu doplní
+initramfs nulami na násobek čtyř. Nový `out/troika-test-GPU3.img` (sha256
+začíná `62c99ea8`), druhý archiv na adrese 12 737 020. Na telefonu zatím
+neověřeno.
+
+### 26.2 Druhý pokus GPU3: modul nahrán, frekvence přepnuty v Phoshi (21:19)
+
+Opravený image: kontrola vypsala 0 varování a oba ladicí soubory –
+připojený archiv cpio se rozbalil a modul FVP se nahrál z initramfs plného
+systému. Uživatel pak v běžícím Phoshi přepnul GPU na 455, 764 a zpět na
+260 MHz; všechny tři zápisy prošly bez chyby.
+
+| Stav | GPU | malá jádra | velká jádra |
+|---|---|---|---|
+| 260 MHz, před zkouškou | 43,7 | 42,7 | 43,0 °C |
+| po přepnutí na 455 MHz | 46,6 | 44,7 | 47,0 |
+| po přepnutí na 764 MHz | 43,7 | 43,7 | 43,0 |
+
+Teploty jsou jednotlivá čtení krátce po přepnutí, ne pod delší zátěží;
+o zahřívání na 764 MHz proto nic neříkají. Systém během zkoušky nespadl.
+**Chybí:** dojem uživatele z plynulosti na jednotlivých frekvencích, delší
+zátěž na 764 MHz a kontrola logu na chyby GPU.
+
+Doplnění (21:20): uživatel potvrdil, že prostředí je na 764 MHz znatelně
+plynulejší než na 260 MHz. Delší zátěž a kontrola logu dál chybí.
