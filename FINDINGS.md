@@ -1430,3 +1430,146 @@ Neověřeno: režim `recovery` (0x77665502), chování vypnutí s kabelem
 a bez něj zvlášť (uživatel nerozlišil), restart z plného systému (systemd) –
 ten přijde na řadu s balíčkem.
 
+## 17. Balíček pmaports: kernel pkgrel 5, zařízení pkgrel 3 a 4 (2026-11-11 a 12)
+
+pmaports, větev `motorola-troika-mainline`, tři místní commity (nepushnuto):
+
+| Commit | Co |
+|---|---|
+| `2b727fc1f` linux-motorola-troika-mainline: add UFS, touchscreen and reboot | 67 patchů z `troika-clk` (nové 53–67), `CONFIG_TOUCHSCREEN_HIMAX_HX83112B=y` (bylo `=m`), pkgrel 5 |
+| `03767089d` device-motorola-troika: keep the internal storage read-only | pravidlo udev `60-ufs-readonly.rules`, pkgrel 3 |
+| `f5083510b` device-motorola-troika: keep the internal storage read-only in the initramfs | pravidlo a `blockdev` i v initramfs, háček `00-ufs-readonly.sh`, pkgrel 4 (viz 17.2) |
+
+Konfigurace balíčku už měla `SCSI_UFS_EXYNOS`, `PHY_SAMSUNG_UFS`,
+`I2C_S3C2410`, `POWER_RESET_SYSCON`, `POWER_RESET_SYSCON_POWEROFF` a
+`SYSCON_REBOOT_MODE` zapnuté; od místní testovací konfigurace se liší jen
+verzí kompilátoru a zram. `pmbootstrap kconfig check` (i kategorie zram)
+prochází, checksumy v obou APKBUILD sedí.
+
+Pravidlo udev (moje rozhodnutí, uživatel o něj nežádal, dá se vypustit):
+
+```
+ACTION=="add", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", SUBSYSTEMS=="platform", KERNELS=="13520000.ufs", RUN+="/usr/bin/blockdev --setro $devnode"
+```
+
+Zabírá na disky pod řadičem UFS (`13520000.ufs`, adresa z DTS). **Neověřeno**
+– ověří se v testu NET3 příkazem `lsblk` (TESTING.md 5k). `/usr/bin/blockdev`
+v obrazu systému je (util-linux-misc).
+
+### 17.1 Kontrola prvního exportu (2026-11-12 01:22)
+
+Kernel r5 sestaven (00:52), `install` (01:16) a `export` (01:21) doběhly.
+Boot image z exportu (sha256 začíná `cfc90979`, 47 888 384 B):
+
+- hlavička v1; „kernel“ = uniLoader z balíčku r5 (bajt po bajtu), „second“ =
+  původní DTB z balíčku zařízení r3;
+- kernel 7.3.3-troika, žádný ladicí výpis (CLKDBG, USBDBG, UFSDBG, TSDBG,
+  PMUDBG = 0×), obsahuje `himax,hx83112a`, `samsung,exynos9610-pmu`,
+  `syscon-reboot-mode`, `samsung,exynos9610-ufs`;
+- konfigurace v balíčku = konfigurace v pmaports; DTB v balíčku = DTB z místního
+  sestavení (shodný bajt po bajtu);
+- initramfs má `hooks/netboot.sh` a `nbd.ko`.
+
+**Tento image jsem k testu nepustil** (neuložen jako NET3), viz 17.2.
+
+### 17.2 Initramfs pmOS a zapisovatelné UFS
+
+V kap. 17 jsem původně napsal, že initramfs na úložišti jen hledá oddíly podle
+jmenovek. To nebyla pravda; přečetl jsem skripty z exportovaného initramfs
+(postmarketos-initramfs 3.12.6-r0, `init_2nd.sh`, `init_functions*.sh`):
+
+- pravidlo `60-ufs-readonly.rules` v initramfs není (udev tam běží, ale jen
+  s vlastní sadou pravidel) – disky UFS jsou po celou dobu initramfs
+  zapisovatelné;
+- `mount_subpartitions` (volá ho i `hooks/netboot.sh` po připojení NBD):
+  když se kořenový oddíl nenajde hned podle UUID, projde všechny oddíly všech
+  disků, na každém spustí `fdisk -l` a kde vidí právě 2 „pododdíly“, udělá
+  `losetup -Pf` (zapisovatelně) a hledá kořen znovu. Najde-li se kořen právě
+  v tu chvíli (protože se mezitím objevil `nbd0p2`), zůstane smyčka nad tím
+  oddílem UFS zapsaná v `SUBPARTITION_LOOP`;
+- `resize_root_partition` pak nad `SUBPARTITION_LOOP` spustí
+  `parted -f -s … resizepart 2 100%`, tedy **zápis do oddílu UFS**.
+
+K zápisu je potřeba souběh (oddíly NBD se objeví až po prvním hledání) a oddíl
+UFS, ve kterém busybox `fdisk -l` uvidí právě dva oddíly. Zkusil jsem to
+stejným busyboxem na všech 43 obrazech v záloze (jen čtení): takový není žádný
+(všude „doesn't contain a valid partition table“). V záloze nejsou oddíly
+systému a uživatelských dat, ty jsem ověřit nemohl. Riziko je tedy malé, ale
+nenulové, a týká se pravidla „do telefonu se nezapisuje“.
+
+Oprava (pmaports commit `f5083510b`, balíček zařízení pkgrel 4, místní):
+
+- `20-ufs-readonly.files` – do initramfs se přidá pravidlo udev a
+  `/usr/bin/blockdev`;
+- háček `00-ufs-readonly.sh` (běží po startu udev a před `netboot.sh`): u každého
+  disku pod `13520000.ufs` zkontroluje `ro`; kde není 1, zavolá
+  `blockdev --setro`; kde to nejde, zastaví start (`fail_halt_boot`);
+- závislost `util-linux-misc` (dodává `blockdev`).
+
+Háček vyzkoušen nasucho busyboxem na napodobeném `/sys/block` (disk už jen pro
+čtení; disk, který pravidlo minulo; `blockdev` selže → zastavení; disk mimo
+UFS se přeskočí). Na telefonu **neověřeno**. Příznak jen pro čtení je v jádře
+u blokového zařízení, takže přežije přechod z initramfs do systému; s diskem
+jen pro čtení otevře `losetup` smyčku také jen pro čtení a `parted` zapsat
+nemůže.
+
+Kernel se znovu sestavovat nemusí; stačí `install` a `export`.
+
+### 17.3 Kontrola třetího exportu = image NET3 (2026-11-12 01:47)
+
+Druhý `install` (01:32) selhal vadou pmbootstrapu (`losetup --json --list`:
+po sestavení balíčku zařízení se nativní chroot vytvořil znovu bez
+util-linux), obraz systému zůstal prázdný. Po `pmbootstrap shutdown` třetí
+`install` (01:45) a `export` (01:46) doběhly.
+
+`out/troika-test-NET3.img` (47 896 576 B, sha256 začíná `d200dd47`):
+
+- hlavička v1; „kernel“ = uniLoader z balíčku r5, „second“ = původní DTB;
+  žádné ladicí výpisy;
+- initramfs: `hooks/00-ufs-readonly.sh` a `60-ufs-readonly.rules` shodné
+  s pmaports, `/usr/bin/blockdev` z util-linux (potřebuje jen musl),
+  `hooks/netboot.sh`, `nbd.ko`; ostatní skripty stejné jako v prvním exportu;
+- obraz systému: GPT, `pmOS_boot` (ext2) a `pmOS_root` (ext4), jejich UUID
+  souhlasí s `pmos_boot_uuid` a `pmos_root_uuid` v boot image;
+- v systému `device-motorola-troika` 1-r4 a `linux-motorola-troika-mainline`
+  7.3.3-r5.
+
+`images_netboot/` drží starý obraz z NET2, proto `netboot serve --replace`.
+
+### 17.4 Test NET3: úložiště jen pro čtení (2026-11-12 01:50–01:55)
+
+`netboot serve --replace` (01:49), `fastboot boot out/troika-test-NET3.img`,
+server v 01:49:46 našel telefon, v 01:50:27 odpovídal SSH server, přihlášení
+`ssh user@172.16.42.1` prošlo (uvítání „Welcome to Nura!“).
+
+`lsblk -o NAME,SIZE,RO,MOUNTPOINTS` v běžícím systému:
+
+- `sda` (119,2 G) a všech 42 oddílů `sda1`–`sda42`: RO = 1, žádný přípojný bod;
+- `sdb`, `sdc` (4 M): RO = 1;
+- `nbd0p1` na `/boot`, `nbd0p2` na `/` (RO = 0, to je obraz na PC);
+- `zram0` 5,4 G jako swap.
+
+`sudo dmesg | grep -c "was not read-only"` = 0: háček v initramfs nemusel
+žádný disk přepínat sám a start nezastavil. Výstup initramfs jde do logu jádra
+(`logger` → `syslogd -K`), takže by tam hlášení bylo vidět.
+
+Závěr: pravidlo `60-ufs-readonly.rules` zabírá (shoda na `13520000.ufs`)
+a úložiště telefonu je v plném systému jen pro čtení. Zda disky přepnulo
+pravidlo už v initramfs, nebo až v kořenovém systému, z těchto dvou výstupů
+jednoznačně neplyne; háček by v prvním případě mlčel a v druhém také, pokud
+by disky v době jeho běhu ještě nebyly vidět (UFS se ale hlásí v čase 2,4 s,
+tedy dřív).
+
+### 17.5 Test NET3: stav systému, dotyk, restart (2026-11-12 ~02:00)
+
+- `systemctl is-system-running` → `running`.
+- `grep hx83112a /proc/interrupts` → IRQ 43, `gpa2 4 Level`, 286 přerušení na
+  CPU0 (jedno čtení, po dotycích; v klidu bylo v testu TS2 0). Ovladač dotyku
+  je tedy v balíčku funkční. Čtení před dotykem a po něm zvlášť v záznamu
+  není.
+- `sudo reboot` z plného systému: spojení SSH se ukončilo a telefon se
+  restartoval; uživatel potvrdil, že vše proběhlo správně.
+
+Neověřeno: `sudo poweroff` z plného systému, restart do bootloaderu a do
+recovery z plného systému.
+

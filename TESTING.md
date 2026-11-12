@@ -868,6 +868,84 @@ Napiš mi ke každé akci, co telefon udělal. Když se místo restartu objeví
 `!! Prikaz se vratil` nebo výpis chyby kernelu, pošli fotku a ukonči to
 Power + Vol−.
 
+## 5k. Test NET3: balíček kernelu pkgrel 5 (UFS, dotyk, restart)
+
+Cíl: ověřit v plném systému to, co už prošlo v testovacích image: vnitřní
+úložiště (jen pro čtení), dotykovou obrazovku a restart/vypnutí.
+
+Kernel při tom zapisuje do PMU jen dříve povolené registry (`0x704`, `0x724`,
+`0x400`, `0x330c`, `0x81c`). Plný systém i jeho initramfs uvidí úložiště
+telefonu; balíček zařízení (pkgrel 4) proto přidává pravidlo udev, které jeho
+disky hned po objevení přepne na jen pro čtení, a háček v initramfs, který to
+před hledáním kořenového oddílu zkontroluje a jinak start zastaví
+(FINDINGS.md 17.2). **První kontrola po přihlášení je, že pravidlo zabralo**
+(krok 5).
+
+1. Kernel r5 je sestavený (2026-11-12 00:52). První `install` + `export`
+   (01:21) jsem k testu nepustil: initramfs měl úložiště zapisovatelné.
+   Po opravě balíčku zařízení (pkgrel 4) stačí systém vytvořit znovu, kernel se
+   nesestavuje (asi 7 minut):
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports install
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports export
+```
+
+2. Hotovo 2026-11-12 01:47: třetí `install` + `export` zkontrolován a uložen
+   jako `out/troika-test-NET3.img` (sha256 začíná `d200dd47`; FINDINGS.md
+   17.3).
+
+   Kdyby se start telefonu zastavil s hlášením „Internal storage is not
+   read-only“, je to ten háček: nic dalšího nedělej, vypni telefon (Power +
+   Vol−) a napiš mi.
+
+3. Server s novým obrazem:
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports netboot serve --replace
+```
+
+4. Do fastbootu (`adb reboot bootloader` z LineageOS, nebo Power + Vol−) a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-NET3.img
+```
+
+```bash
+ssh-keygen -R 172.16.42.1
+```
+
+```bash
+ssh user@172.16.42.1
+```
+
+5. V telefonu (v okně ssh) jako první:
+
+```bash
+lsblk -o NAME,SIZE,RO,MOUNTPOINTS
+```
+
+   U `sda`, `sdb`, `sdc` a všech oddílů `sda1`–`sda42` má být `RO` = 1 a
+   žádný přípojný bod. Kdyby někde bylo 0, nic dalšího nedělej a napiš mi.
+
+   Potom ještě, jestli pravidlo zabralo už v initramfs (má vypsat 0; jiné
+   číslo znamená, že disky musel přepnout až háček – napiš mi to):
+
+```bash
+sudo dmesg | grep -c "was not read-only"
+```
+
+6. Další kontroly: `systemctl is-system-running`, dotyk
+   (`grep hx83112a /proc/interrupts` před dotykem a po něm; konzolové rozhraní
+   na dotyk samo nereaguje) a nakonec `sudo reboot`.
+
+**Výsledek 2026-11-12: prošlo** (FINDINGS.md 17.4 a 17.5). Všechny disky a
+oddíly UFS RO = 1 a nepřipojené, systém `running`, dotyk dává přerušení,
+`sudo reboot` restartuje. `sudo poweroff` z plného systému se nezkoušel.
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: UFS, dotyk a restart/vypnutí z kernelu ověřeny a pushnuty do hlavního repozitáře. Nic z toho zatím není v balíčku pmaports (jedno sestavení na konci kola)
+## Stav: test NET3 prošel (2026-11-12): balíček kernelu r5 a zařízení r4 dávají plný systém s UFS jen pro čtení, dotykem a restartem. Vše commitnuto a pushnuto (hlavní repozitář i pmaports do `f5083510b`). Další krok určí uživatel
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1171,4 +1171,112 @@ Uživatel: „Commit a push“. `kernel-patches/` znovu exportováno z `troika-c
 Commitnuto spolu s FINDINGS kap. 16, TESTING 5j, PROGRESS, testovacím initem,
 `test-initramfs/reboot-arg.S` a úpravou `tools/make-clk-test-bootimg.sh`;
 pushnuto do `origin/main`. pmaports beze změny.
+
+### 2026-11-11 ~23:10–23:17 – balíček pmaports připraven (kernel r5, zařízení r3)
+
+Uživatel se ptal na SD kartu, WiFi, zvuk, grafiku a kameru: z původního DT je
+to dw-mshc + PMIC S2MPU09 přes SPEEDY, Samsung SCSC, ABOX + CS35L41,
+exynos9-decon/dsim + Mali, FIMC-IS. Nic z toho nejde hned; doporučil jsem
+nejdřív balíček. Uživatel: „Připrav balíček“.
+
+pmaports (FINDINGS.md kap. 17): `tools/update-kernel-pkg.sh` přenesl 67
+patchů, dotyk `=y`, kernel pkgrel 5 (commit `2b727fc1f`); balíček zařízení
+pkgrel 3 s pravidlem udev, které drží disky UFS jen pro čtení (commit
+`03767089d`; moje pojistka navíc). `kconfig check` prochází. **Nepushnuto,
+nesestaveno.**
+
+Další krok je na uživateli: sestavit, `install`, `export`, pak mi napsat;
+zkontroluju boot image a uložím jako `out/troika-test-NET3.img`.
+V hlavním repozitáři jsou necommitnuté FINDINGS kap. 17, TESTING 5k a
+PROGRESS.
+
+
+### 2026-11-12 – úklid místa na disku
+
+Sestavení balíčku kernelu r5 selhalo: došlo místo na disku (26 MB volných).
+Se souhlasem uživatele smazány jen slepé uličky (mimo git, 1,4 GB):
+`build/verify`, `build/uniloader-pkgtest`, `build/prev-fdt-test`,
+`out/troika-test-{A,B,C,D,E1,E2,E3,F,G,H,K,P,P2}.img`,
+`out/uniLoader-troika-{diag,diagboot,embedded}`. `build/linux` a
+`refs/linux-next` zůstaly. Největší položky jsou mimo projekt: zbytek
+nepovedeného sestavení v chrootu pmbootstrapu (9,2 GB, smaže `pmbootstrap
+zap`), ccache (2,8 GB), obraz pro netboot (1,4 GB).
+
+### 2026-11-12 00:52–01:40 – kernel r5 sestaven, první export zadržen
+
+Kernel r5 sestaven (00:52), `install` (01:16) a `export` (01:21) doběhly.
+Boot image z exportu odpovídá balíčkům (uniLoader = r5, „second“ = původní
+DTB, žádné ladicí výpisy; FINDINGS.md 17.1).
+
+Při kontrole initramfs jsem ale našel, že má disky UFS zapisovatelné a že
+jeho skripty (`mount_subpartitions` + `resize_root_partition`) mohou při
+souběhu spustit `parted … resizepart` nad oddílem UFS (FINDINGS.md 17.2).
+Na 43 obrazech ze zálohy podmínka nenastává, systém a uživatelská data
+v záloze nejsou. Image jsem proto **neuložil jako NET3 a k testu nepustil**.
+
+Oprava: balíček zařízení pkgrel 4 (pmaports commit `f5083510b`, místní):
+pravidlo udev a `blockdev` i v initramfs, háček `00-ufs-readonly.sh`, který
+před `netboot.sh` zkontroluje `ro` = 1 a jinak start zastaví. Háček vyzkoušen
+nasucho, na telefonu neověřen.
+
+Další krok je na uživateli: `install` a `export` znovu (kernel se
+nesestavuje), pak mi napsat. Zkontroluju, že initramfs obsahuje pravidlo,
+háček a `blockdev`, a uložím `out/troika-test-NET3.img`.
+V hlavním repozitáři jsou necommitnuté FINDINGS kap. 17, TESTING 5k a
+PROGRESS; v pmaports tři místní commity (`2b727fc1f`, `03767089d`,
+`f5083510b`), nepushnuto.
+
+### 2026-11-12 01:31–01:40 – druhý `install` selhal (vada pmbootstrapu)
+
+Balíček zařízení r4 se sestavil (01:32) a initramfs z druhého exportu (01:33)
+už obsahuje pravidlo `60-ufs-readonly.rules`, háček `hooks/00-ufs-readonly.sh`
+(oba shodné s pmaports) a `/usr/bin/blockdev` z util-linux (potřebuje jen
+musl, ten tam je).
+
+`install` ale skončil chybou v kroku 3/4: `losetup --json --list` – po sestavení
+balíčku pmbootstrap smazal a znovu vytvořil nativní chroot a util-linux do něj
+podruhé nenainstaloval (busybox `losetup` neumí `--json`). Obraz systému
+`motorola-troika.img` je proto prázdný (bez tabulky oddílů) a export k ničemu.
+Balíček r4 už je sestavený, takže další `install` nic nesestavuje a chroot
+nemaže. Postup: `pmbootstrap shutdown`, `install`, `export`.
+
+### 2026-11-12 01:41–01:50 – image NET3 připraven
+
+Po `pmbootstrap shutdown` třetí `install` (01:45) a `export` (01:46) doběhly.
+Kontrola (FINDINGS.md 17.3): boot image odpovídá balíčkům, initramfs má
+pravidlo, háček i `blockdev`, UUID oddílů v obrazu systému souhlasí s boot
+image. Uloženo jako `out/troika-test-NET3.img` (sha256 začíná `d200dd47`).
+
+Další krok je na uživateli: TESTING.md 5k kroky 3–5 (`netboot serve
+--replace`, `fastboot boot`, ssh, `lsblk`). Necommitnuto: FINDINGS kap. 17,
+TESTING 5k, PROGRESS; pmaports tři místní commity, nepushnuto.
+
+### 2026-11-12 01:49–01:56 – test NET3: start a úložiště jen pro čtení
+
+Uživatel spustil server, `fastboot boot out/troika-test-NET3.img`, přihlásil
+se přes SSH. `lsblk`: všechny disky a oddíly UFS mají RO = 1 a nejsou
+připojené; `dmesg` neobsahuje „was not read-only“ (FINDINGS.md 17.4).
+Uživatel: „vše se zobrazilo správně“.
+
+Zbývá: dotyk (`/proc/interrupts`, řádek `hx83112a`), `systemctl
+is-system-running`, `sudo reboot`, `sudo poweroff`.
+
+### 2026-11-12 ~02:00 – test NET3 prošel
+
+`systemctl is-system-running` = `running`; `hx83112a` v `/proc/interrupts`
+má 286 přerušení; `sudo reboot` restartoval telefon. Uživatel: „vše proběhlo
+správně“ (FINDINGS.md 17.5). `sudo poweroff` z plného systému se nezkoušel.
+
+Stav repozitářů: hlavní – necommitnuté FINDINGS kap. 17, TESTING 5k,
+PROGRESS; pmaports – místní commity `2b727fc1f`, `03767089d`, `f5083510b`
+(nepushnuto). Možné další kroky (rozhodne uživatel): commit a push; průzkum
+SD karty (jen čtení zdrojů, regulátory jsou zakázané); nahlášení souběhu
+v `mount_subpartitions` do postmarketos-initramfs.
+
+### 2026-11-12 ~02:05 – commit a push balíčku a testu NET3
+
+Na pokyn uživatele: hlavní repozitář (FINDINGS kap. 17, TESTING 5k, PROGRESS)
+commitnut a pushnut do `origin/main`; pmaports větev
+`motorola-troika-mainline` pushnuta do `letress/pmaports-troika` (commity
+`2b727fc1f`, `03767089d`, `f5083510b`).
 
