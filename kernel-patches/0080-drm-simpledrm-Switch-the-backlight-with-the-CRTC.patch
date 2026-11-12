@@ -1,7 +1,7 @@
 From ea9fa1c7c94680c7f4ecc20a9cfb330b1ab05e70 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 15:06:02 +0100
-Subject: [PATCH 80/85] drm/simpledrm: Switch the backlight with the CRTC
+Subject: [PATCH 80/88] drm/simpledrm: Switch the backlight with the CRTC
 
 If the device tree names a backlight for the framebuffer, turn it off
 when the CRTC is disabled and back on when it is enabled. Without this

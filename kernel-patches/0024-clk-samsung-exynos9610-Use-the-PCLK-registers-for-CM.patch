@@ -1,7 +1,7 @@
 From eccaa05a9d280dac677bd3bf152221a655665cd2 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:28 +0100
-Subject: [PATCH 24/85] clk: samsung: exynos9610: Use the PCLK registers for
+Subject: [PATCH 24/88] clk: samsung: exynos9610: Use the PCLK registers for
  CMGP USI PCLK gates
 
 The five gout_clk_cmgp_usi_cmgp0x_pclk gates are registered on the

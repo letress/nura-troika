@@ -1,7 +1,7 @@
 From d2da719bb4ee25e1cab26f8f3b8fe2d39922ea24 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 03:28:31 +0100
-Subject: [PATCH 68/85] dt-bindings: gpu: mali-bifrost: Add Samsung Exynos9610
+Subject: [PATCH 68/88] dt-bindings: gpu: mali-bifrost: Add Samsung Exynos9610
 
 The Exynos9610 and its variants have a Mali-G72 MP3.
 

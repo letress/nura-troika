@@ -1,0 +1,243 @@
+From f64c65fc539c2c74dff8b39c92f85ee6e096c1ac Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 18:53:54 +0100
+Subject: [PATCH 87/88] thermal: samsung: Add a driver for the TMU of the
+ Exynos9610
+
+The TMU of the Exynos9610 is one controller with three probes: probe 0
+in the GPU, probe 1 in the Cortex-A53 cluster and probe 2 in the
+Cortex-A73 cluster. The register layout and the conversion are taken
+from the vendor kernel (drivers/thermal/samsung/exynos_tmu.c): every
+probe has a 9-bit code and factory codes for 25 and 85 degrees Celsius
+in its TRIMINFO register.
+
+The bootloader starts the TMU with the factory trim, programs the
+thresholds and arms the hardware trip. Keep all of that and only read
+the temperatures, so the driver never writes to the TMU. A TMU that is
+not running or has no factory calibration is refused.
+
+The vendor kernel reads the temperatures through the ACPM firmware
+instead, which needs a firmware plugin that the bootloader does not
+load.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/thermal/samsung/Kconfig          |  11 ++
+ drivers/thermal/samsung/Makefile         |   1 +
+ drivers/thermal/samsung/exynos9610_tmu.c | 176 +++++++++++++++++++++++
+ 3 files changed, 188 insertions(+)
+ create mode 100644 drivers/thermal/samsung/exynos9610_tmu.c
+
+diff --git a/drivers/thermal/samsung/Kconfig b/drivers/thermal/samsung/Kconfig
+index e1e8035..d6634c6 100644
+--- a/drivers/thermal/samsung/Kconfig
++++ b/drivers/thermal/samsung/Kconfig
+@@ -10,3 +10,14 @@ config EXYNOS_THERMAL
+ 	  the TMU, reports temperature and handles cooling action if defined.
+ 	  This driver uses the Exynos core thermal APIs and TMU configuration
+ 	  data from the supported SoCs.
++
++config EXYNOS9610_THERMAL
++	tristate "Exynos9610 thermal management unit driver"
++	depends on ARCH_EXYNOS || COMPILE_TEST
++	depends on THERMAL_OF
++	depends on HAS_IOMEM
++	help
++	  If you say yes here you get support for the TMU (Thermal Management
++	  Unit) of the Samsung Exynos9610 SoC. The driver reports the
++	  temperatures of the three probes of a TMU that the bootloader has
++	  started and leaves its configuration alone.
+diff --git a/drivers/thermal/samsung/Makefile b/drivers/thermal/samsung/Makefile
+index f139407..f945561 100644
+--- a/drivers/thermal/samsung/Makefile
++++ b/drivers/thermal/samsung/Makefile
+@@ -4,3 +4,4 @@
+ #
+ obj-$(CONFIG_EXYNOS_THERMAL)			+= exynos_thermal.o
+ exynos_thermal-y				:= exynos_tmu.o
++obj-$(CONFIG_EXYNOS9610_THERMAL)		+= exynos9610_tmu.o
+diff --git a/drivers/thermal/samsung/exynos9610_tmu.c b/drivers/thermal/samsung/exynos9610_tmu.c
+new file mode 100644
+index 0000000..e77375e
+--- /dev/null
++++ b/drivers/thermal/samsung/exynos9610_tmu.c
+@@ -0,0 +1,176 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Samsung Exynos9610 Thermal Management Unit
++ *
++ * One controller with three probes. The bootloader starts the TMU with the
++ * factory trim and arms its hardware trip. That setup is kept: the driver
++ * only reads the temperatures.
++ */
++
++#include <linux/bitfield.h>
++#include <linux/bits.h>
++#include <linux/clk.h>
++#include <linux/io.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/thermal.h>
++#include <linux/units.h>
++
++#include "../thermal_hwmon.h"
++
++#define EXYNOS9610_TMU_TRIMINFO(p)		((p) * 4)
++#define EXYNOS9610_TMU_TRIMINFO_CODE_25		GENMASK(8, 0)
++#define EXYNOS9610_TMU_TRIMINFO_CODE_85		GENMASK(17, 9)
++/* Only in the TRIMINFO of probe 0 */
++#define EXYNOS9610_TMU_TRIMINFO_TWO_POINT	BIT(23)
++
++#define EXYNOS9610_TMU_CONTROL			0x20
++#define EXYNOS9610_TMU_CONTROL_CORE_EN		BIT(0)
++
++/* Probes 0 and 1 */
++#define EXYNOS9610_TMU_CURRENT_TEMP1_0		0x40
++/* Probes 2 to 4 */
++#define EXYNOS9610_TMU_CURRENT_TEMP4_2		0x44
++#define EXYNOS9610_TMU_TEMP_BITS		9
++#define EXYNOS9610_TMU_TEMP_MASK		GENMASK(8, 0)
++
++#define EXYNOS9610_TMU_NUM_PROBES		3
++
++/* Temperatures of the two factory calibration points in degrees Celsius */
++#define EXYNOS9610_TMU_CAL_TEMP_LOW		25
++#define EXYNOS9610_TMU_CAL_TEMP_HIGH		85
++
++struct exynos9610_tmu;
++
++struct exynos9610_tmu_sensor {
++	struct exynos9610_tmu *tmu;
++	unsigned int id;
++	int code_25;
++	int code_85;
++};
++
++struct exynos9610_tmu {
++	void __iomem *base;
++	bool two_point;
++	struct exynos9610_tmu_sensor sensors[EXYNOS9610_TMU_NUM_PROBES];
++};
++
++static int exynos9610_tmu_get_temp(struct thermal_zone_device *tz, int *temp)
++{
++	struct exynos9610_tmu_sensor *sensor = thermal_zone_device_priv(tz);
++	struct exynos9610_tmu *tmu = sensor->tmu;
++	unsigned int reg, shift;
++	int code;
++
++	if (!(readl(tmu->base + EXYNOS9610_TMU_CONTROL) &
++	      EXYNOS9610_TMU_CONTROL_CORE_EN))
++		return -EIO;
++
++	if (sensor->id < 2) {
++		reg = EXYNOS9610_TMU_CURRENT_TEMP1_0;
++		shift = sensor->id * EXYNOS9610_TMU_TEMP_BITS;
++	} else {
++		reg = EXYNOS9610_TMU_CURRENT_TEMP4_2;
++		shift = (sensor->id - 2) * EXYNOS9610_TMU_TEMP_BITS;
++	}
++
++	code = (readl(tmu->base + reg) >> shift) & EXYNOS9610_TMU_TEMP_MASK;
++	/* No conversion has finished yet */
++	if (!code)
++		return -EAGAIN;
++
++	if (tmu->two_point)
++		*temp = (code - sensor->code_25) *
++			(EXYNOS9610_TMU_CAL_TEMP_HIGH - EXYNOS9610_TMU_CAL_TEMP_LOW) *
++			MILLIDEGREE_PER_DEGREE /
++			(sensor->code_85 - sensor->code_25) +
++			EXYNOS9610_TMU_CAL_TEMP_LOW * MILLIDEGREE_PER_DEGREE;
++	else
++		*temp = (code - sensor->code_25 + EXYNOS9610_TMU_CAL_TEMP_LOW) *
++			MILLIDEGREE_PER_DEGREE;
++
++	return 0;
++}
++
++static const struct thermal_zone_device_ops exynos9610_tmu_ops = {
++	.get_temp = exynos9610_tmu_get_temp,
++};
++
++static int exynos9610_tmu_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct exynos9610_tmu *tmu;
++	struct clk *clk;
++	unsigned int i;
++
++	tmu = devm_kzalloc(dev, sizeof(*tmu), GFP_KERNEL);
++	if (!tmu)
++		return -ENOMEM;
++
++	tmu->base = devm_platform_ioremap_resource(pdev, 0);
++	if (IS_ERR(tmu->base))
++		return PTR_ERR(tmu->base);
++
++	clk = devm_clk_get_enabled(dev, NULL);
++	if (IS_ERR(clk))
++		return dev_err_probe(dev, PTR_ERR(clk),
++				     "failed to get the clock\n");
++
++	if (!(readl(tmu->base + EXYNOS9610_TMU_CONTROL) &
++	      EXYNOS9610_TMU_CONTROL_CORE_EN))
++		return dev_err_probe(dev, -ENODEV,
++				     "the bootloader has not started the TMU\n");
++
++	tmu->two_point = readl(tmu->base + EXYNOS9610_TMU_TRIMINFO(0)) &
++			 EXYNOS9610_TMU_TRIMINFO_TWO_POINT;
++
++	for (i = 0; i < EXYNOS9610_TMU_NUM_PROBES; i++) {
++		struct exynos9610_tmu_sensor *sensor = &tmu->sensors[i];
++		struct thermal_zone_device *tz;
++		u32 trim;
++
++		trim = readl(tmu->base + EXYNOS9610_TMU_TRIMINFO(i));
++		sensor->tmu = tmu;
++		sensor->id = i;
++		sensor->code_25 = FIELD_GET(EXYNOS9610_TMU_TRIMINFO_CODE_25, trim);
++		sensor->code_85 = FIELD_GET(EXYNOS9610_TMU_TRIMINFO_CODE_85, trim);
++		if (!sensor->code_25 ||
++		    (tmu->two_point && sensor->code_85 <= sensor->code_25))
++			return dev_err_probe(dev, -EINVAL,
++					     "probe %u is not calibrated\n", i);
++
++		tz = devm_thermal_of_zone_register(dev, i, sensor,
++						   &exynos9610_tmu_ops);
++		if (IS_ERR(tz)) {
++			/* No thermal zone uses this probe */
++			if (PTR_ERR(tz) == -ENODEV)
++				continue;
++
++			return dev_err_probe(dev, PTR_ERR(tz),
++					     "failed to register probe %u\n", i);
++		}
++
++		devm_thermal_add_hwmon_sysfs(dev, tz);
++	}
++
++	return 0;
++}
++
++static const struct of_device_id exynos9610_tmu_of_match[] = {
++	{ .compatible = "samsung,exynos9610-tmu" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, exynos9610_tmu_of_match);
++
++static struct platform_driver exynos9610_tmu_driver = {
++	.driver = {
++		.name = "exynos9610-tmu",
++		.of_match_table = exynos9610_tmu_of_match,
++	},
++	.probe = exynos9610_tmu_probe,
++};
++module_platform_driver(exynos9610_tmu_driver);
++
++MODULE_DESCRIPTION("Samsung Exynos9610 TMU driver");
++MODULE_LICENSE("GPL");
+-- 
+2.56.0
+

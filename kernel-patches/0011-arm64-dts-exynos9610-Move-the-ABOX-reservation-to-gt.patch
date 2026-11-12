@@ -1,7 +1,7 @@
 From ed87af798df14a39987e6e24417d6f00942d5c5e Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:37:13 +0100
-Subject: [PATCH 11/85] arm64: dts: exynos9610: Move the ABOX reservation to
+Subject: [PATCH 11/88] arm64: dts: exynos9610: Move the ABOX reservation to
  gta4xl
 
 The SoC dtsi reserves 40 MiB at 0xe9400000 for ABOX (the audio DSP)

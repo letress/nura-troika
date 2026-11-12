@@ -1,7 +1,7 @@
 From 9a38c0d678b329d1d74f5ca8714243a3cf3ae7b5 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 13:50:15 +0100
-Subject: [PATCH 72/85] dt-bindings: soc: samsung: usi: Add Exynos9610
+Subject: [PATCH 72/88] dt-bindings: soc: samsung: usi: Add Exynos9610
 
 The USI blocks of the Exynos9610 take the same configuration as those
 of the Exynos850.

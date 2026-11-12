@@ -2410,3 +2410,133 @@ Aktuální frekvenci je potřeba číst z hodin (PLL), ne z firmwaru.
 **Neověřeno:** že firmware na žádost frekvenci opravdu změní – to je další
 krok a vyžaduje samostatný souhlas a nejdřív čtení teploty.
 
+
+## 22. Teplota čipu: čidlo TMU (2026-11-12)
+
+### 22.1 Jak teplotu čte původní systém a co z toho plyne
+
+- Čip má jednu jednotku TMU na `0x10070000` (velikost `0x700`, přerušení
+  SPI 231) se třemi čidly: P0 v GPU, P1 u malých jader (a ISP), P2 u velkých
+  jader. Zdroj: původní DT telefonu (`device-info/live.dts`, uzly
+  `BIG@10070000` … s `sensors = <4>`, `<2>`, `<1>` = bitová maska čidla)
+  a `exynos9610.dtsi` původního kernelu (komentáře `/* P2 */`, `/* P1 */`,
+  `/* P0 */`).
+- Původní kernel (`CONFIG_EXYNOS_ACPM_THERMAL=y`) teplotu **nečte z registrů,
+  ale ptá se firmwaru**: zpráva `TMU_IPC_READ_TEMP` (typ 2) kanálem 7, který
+  patří modulu TMU (modul 4, bootloader ho nezavádí – viz 21.6). Mainline má
+  pro tyhle zprávy hotovou podporu (`exynos-acpm-tmu.c`, typy 1 a 2 jsou
+  stejné), ale bez nahrání modulu TMU nejde použít.
+- Port gta4xl (`refs/gta4xl-linux`, patch 0160) jde jinou cestou: čte přímo
+  registry TMU, které nechal běžet bootloader, a nic do nich nezapisuje.
+  Tvrdí, že bootloader Samsungu čidla zapne a nastaví ochranné vypnutí.
+  Pro troiku (bootloader Motoroly) bylo potřeba to ověřit – viz 22.3.
+
+### 22.2 Hodnoty a zdroje
+
+| Hodnota | Zdroj |
+|---|---|
+| TMU `0x10070000`, velikost `0x700`, SPI 231 | `live.dts` telefonu, `exynos9610.dtsi` původního kernelu |
+| Čidla P0 = GPU, P1 = malá jádra, P2 = velká jádra | tamtéž (`sensors`, komentáře), ověřeno zátěží (22.3) |
+| Hodiny `CLK_GOUT_PERI_BUSIF_TMU_PCLK` (CMU_PERI `0x2024`) | `cmucal-node.c`/`cmucal-sfr.c` původního kernelu, mainline `clk-exynos9610.c` |
+| `TRIMINFO(p)` = `p * 4`: kód pro 25 °C bity 8:0, pro 85 °C bity 17:9, dvoubodová kalibrace bit 23 registru čidla 0 | `exynos_tmu.c` původního kernelu (`exynos9610_tmu_initialize`) |
+| `CONTROL` `0x20`, bit 0 = jádro zapnuto, bit 12 = ochranné vypnutí | tamtéž (`tmu_core_enable`) |
+| Aktuální kódy: `0x40` (P0 bity 8:0, P1 bity 17:9), `0x44` (P2 bity 8:0) | názvy `CURRENT_TEMP1_0`, `CURRENT_TEMP4_2` a posun 9 tamtéž; ověřeno čtením (22.3) |
+| Kalibrační body 25 a 85 °C | `samsung,tmu_first_point_trim`, `…second_point_trim` v DT |
+| Přepočet: `(kód − kód25) × 60 / (kód85 − kód25) + 25` | `code_to_temp_with_sensorinfo` tamtéž |
+| Prahy původního systému pro velká jádra: 63, 83 (řízení), 95, 100, 105, 110, 115 °C; odpojování velkých jader při 96 °C | `live.dts` (`thermal-zones`, `hotplug_out_threshold`) |
+
+### 22.3 Čtení registrů z běžícího telefonu (image ACPM3, 18:48–18:56)
+
+Nový nástroj `test-initramfs/mem-rd.c` (bez libc, `/dev/mem` otevřený jen pro
+čtení, mapování `PROT_READ` – zapisovat neumí). Na telefon se dostal přes
+telnet po kouscích v base64, kontrolní součet na telefonu sedí. Ověřen na
+registru s identifikací čipu (`0x10000000` = `0xe9610000`).
+
+Hodiny TMU jsou v režimu automatického vypínání (jako ostatní CMU), přístup
+k registrům proto funguje, i když `clk_summary` ukazuje bránu jako vypnutou.
+
+Stav, který nechal bootloader (surový výpis: `device-info/tmu-regs-ACPM3.txt`):
+
+- `CONTROL` = `0x00009403`: jádro zapnuté, ochranné vypnutí zapnuté.
+- `TRIMINFO0..2` = `0x00829f12`, `0x00129f12`, `0x001a9f13`: dvoubodová
+  kalibrace, kódy pro 25 °C 274/274/275, pro 85 °C 335/335/335.
+- `AVG_CON`, `COUNTER_VALUE0/1` a pole v `CONTROL` odpovídají tomu, co by
+  nastavil `exynos9610_tmu_control` původního kernelu – bootloader čidlo
+  inicializoval stejným postupem.
+- Prahy: čidlo 0 má nejvyšší práh `0x16d` = 115 °C, další 110, 105, 100, 95,
+  90, 85 °C; přerušení povoleno jen pro nejvyšší práh čidla 0 (`INTEN0` =
+  `0x80`). Emulace teploty vypnutá.
+- Nerozumím: registr `0x74` (v původním ovladači `INTSTAT`) vrací `0x01250125`,
+  což vypadá jako kódy teploty, a `STATUS` = `0x7130`. Nepoužívám je.
+
+Teploty (přepočet podle 22.2):
+
+| Stav | GPU | malá jádra | velká jádra |
+|---|---|---|---|
+| klid | 43,7 | 42,7 | 44,0 °C |
+| 8 jader naplno, 10 s | 53,5 | 52,5 | 66,0 |
+| 60 s | 56,5 | 55,5 | 69,0 |
+| 120 s | 58,4 | 57,5 | 70,0 |
+| 25 s po zátěži | 48,6 | 47,6 | 48,0 |
+
+Zátěž = 8 nekonečných smyček v shellu na frekvencích z bootloaderu (malá
+jádra 1053 MHz, velká 1456 MHz), s vlastním koncem po 120 s a pojistkou
+při 85 °C. Čidlo u velkých jader reaguje nejvíc a během sekund – přiřazení
+čidel sedí. **Na frekvencích z bootloaderu se teplota při plné zátěži
+ustálí kolem 70 °C**, tedy pod prahem 83 °C, od kterého původní systém
+začíná brzdit. Delší zátěž než 2 minuty a zátěž GPU jsem neměřil.
+
+### 22.4 Ovladač a DT (větev `troika-clk`, +3, celkem 88 nad v7.3.3)
+
+1. `dt-bindings: thermal: Add the TMU of the Samsung Exynos9610` – nový
+   binding `samsung,exynos9610-tmu` (`#thermal-sensor-cells = <1>`, číslo
+   čidla).
+2. `thermal: samsung: Add a driver for the TMU of the Exynos9610` –
+   `drivers/thermal/samsung/exynos9610_tmu.c`, `CONFIG_EXYNOS9610_THERMAL`.
+   **Jen čte**: do TMU nezapíše ani jeden registr, nastavení z bootloaderu
+   (kalibrace, prahy, ochranné vypnutí) zůstává. Odmítne TMU, které neběží
+   nebo nemá tovární kalibraci (původní ovladač by v tom případě použil
+   náhradní hodnotu 55 z DT; já raději nic než špatnou teplotu). Teploty
+   jsou i v hwmon.
+3. `arm64: dts: exynos9610: Add the TMU and thermal zones` – uzel
+   `thermal-sensor@10070000` a zóny `gpu-thermal`, `little-thermal`,
+   `big-thermal` s dotazováním po 1 s (hodnota původního systému pro velká
+   jádra; bez obsluhy přerušení to jinak nejde).
+
+**Moje volba, ne hodnota z hardwaru:** každá zóna má jediný práh `critical`
+na 105 °C – Linux při něm telefon řádně vypne. Čip sám se natvrdo vypíná až
+při 115 °C; 105 °C je jeden ze stupňů původního systému a stejnou hodnotu
+používá port gta4xl. Chladicí zařízení (snižování frekvence) zatím žádné
+není, protože frekvence se ještě nemění.
+
+Mainline ovladač `exynos_tmu.c` jsem nerozšiřoval: počítá s jedním čidlem na
+jednotku a TMU si sám inicializuje. Cesta přes firmware (modul TMU) zůstává
+otevřená otázka pro změny frekvencí: port gta4xl modul TMU nahrává také
+a zmiňuje, že firmware řeší chování za nízkých teplot. Než se to ověří,
+neplatí to za fakt.
+
+### 22.5 Test TMU1: ovladač čte stejné teploty jako registry (2026-11-12 19:14)
+
+Image `out/troika-test-TMU1.img` (sha256 začíná `2fced37f`), výpis přes
+telnet (`device-info/tmu-TMU1.txt`).
+
+- Ovladač se navázal bez hlášek, vznikly tři zóny (`gpu-thermal`,
+  `little-thermal`, `big-thermal`), každá s prahem `critical` 105 °C,
+  a tři zařízení hwmon.
+- Registry TMU jsou po startu stejné jako v ACPM3 (`CONTROL` `0x00009403`,
+  stejná kalibrace) – ovladač do nich nesáhl.
+- Zóny odpovídají přepočtu surových kódů na tisícinu stupně:
+
+| Stav | zóny (GPU / malá / velká) | kódy P0/P1/P2 |
+|---|---|---|
+| klid | 44,7 / 43,7 / 44,0 °C | 294 / 293 / 294 |
+| 8 jader naplno, 6 s | 52,5 / 51,6 / 65,0 | 302 / 301 / 315 |
+| 12 s | 54,5 / 53,5 / 66,0 | 304 / 303 / 316 |
+| 4 s po zátěži | 47,6 / 45,7 / 47,0 | 297 / 296 / 297 |
+
+- Modul FVP se při startu znovu nahrál a připojil jako v ACPM3.
+- V logu jen dvě už známé hlášky (`exynos-clkout` −22, panfrost bez
+  regulátoru), obě jsou i v logu GPU1.
+
+Závěr: čtení teploty funguje. **Neověřeno:** vypnutí při 105 °C (té teploty
+telefon nedosáhl a schválně ji vyvolávat nebudu) a chování po uspání.

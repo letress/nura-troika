@@ -1312,6 +1312,32 @@ je firmware v původním stavu.
 a firmware odpovídá na zprávy; dotaz na frekvenci vrací 0, frekvenci je
 potřeba číst z PLL (FINDINGS.md 21.8).
 
+## 5w. Test TMU1: teploty čipu z ovladače (jen čtení)
+
+Cíl: nový ovladač `exynos9610-tmu` se naváže a tři teplotní zóny (GPU, malá
+a velká jádra) ukazují stejné teploty jako přímé čtení registrů (FINDINGS.md
+22). Ovladač do čidla nic nezapisuje. Každá zóna má práh 105 °C, při kterém
+Linux telefon vypne; čip sám se dál vypíná při 115 °C jako dosud.
+
+Image je sestavený ze stejné ladicí větve jako ACPM3, takže při startu znovu
+nahraje a připojí modul FVP (krok odsouhlasený 2026-11-12). Frekvence ani
+napětí se nemění.
+
+1. Telefon do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-TMU1.img
+```
+
+2. Na displeji má být oddíl `--- TMU ---` se třemi řádky teplot (v tisícinách
+   stupně, v klidu kolem 40 000 až 50 000). Napiš mi, že běží; zbytek přečtu
+   přes telnet: porovnám zóny s registry (`/bin/mem-rd`) a krátkou zátěží
+   ověřím, že teploty reagují.
+
+**Výsledek TMU1 (2026-11-12): prošlo** – tři zóny ukazují stejné teploty jako
+přepočet registrů (v klidu 44 až 45 °C, při zátěži velká jádra 66 °C za
+12 s), ovladač do čidla nezapsal nic (FINDINGS.md 22.5).
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

@@ -1,7 +1,7 @@
 From 1d85baf05e286e3cde92fcb8433e2c40ebd3e510 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 20:43:54 +0100
-Subject: [PATCH 60/85] arm64: dts: exynos9610-troika: Enable UFS
+Subject: [PATCH 60/88] arm64: dts: exynos9610-troika: Enable UFS
 
 Enable the UFS host and its PHY for the internal storage.
 

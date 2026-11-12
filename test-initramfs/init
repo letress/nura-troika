@@ -249,6 +249,22 @@ if [ "${test_tag#acpm}" != "$test_tag" ]; then
 	echo
 fi
 
+# TMU: teploty ze tri cidel cipu (GPU, mala a velka jadra). Ovladac jen cte,
+# nastaveni cidla z bootloaderu nemeni.
+if [ "${test_tag#tmu}" != "$test_tag" ]; then
+	echo "--- TMU ---"
+	dmesg | grep -i -E "tmu|thermal" | grep -v -i "command line" | tail -n 6 | cut -c1-110
+	n=0
+	for z in /sys/class/thermal/thermal_zone*; do
+		[ -r "$z/temp" ] || continue
+		n=$((n + 1))
+		t=$(cat "$z/temp" 2>&1)
+		echo " $(cat "$z/type"): $t (tisiciny stupne), vypnuti pri $(cat "$z/trip_point_0_temp" 2>/dev/null)"
+	done
+	[ "$n" = 3 ] || echo "!! Cekal jsem 3 teplotni zony, je jich $n."
+	echo
+fi
+
 echo "Vstupni zarizeni:"
 grep -E '^N: Name|^H: Handlers' /proc/bus/input/devices 2>/dev/null
 echo

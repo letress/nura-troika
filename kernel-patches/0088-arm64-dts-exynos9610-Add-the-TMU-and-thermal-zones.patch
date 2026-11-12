@@ -1,0 +1,93 @@
+From 73aac57f74709e97cb301127e7fa6115da6daba0 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 18:53:54 +0100
+Subject: [PATCH 88/88] arm64: dts: exynos9610: Add the TMU and thermal zones
+
+Add the TMU and a thermal zone for each of its probes. The address, the
+interrupt and the assignment of the probes are from the vendor device
+tree, the clock from the vendor clock tables (BUSIF_TMU).
+
+The TMU shuts the SoC down by itself at 115 degrees Celsius. Give the
+zones a critical trip at 105 degrees, one of the alert levels of the
+vendor kernel, so that Linux powers off in an orderly way first. There
+is no cooling device yet. Without an interrupt handler the zones have
+to be polled; use the polling delay of the vendor kernel.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 52 ++++++++++++++++++++++
+ 1 file changed, 52 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index a949264..2c8401c 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -206,6 +206,14 @@ cmu_peri: clock-controller@10030000 {
+ 				      "dout_cmu_peri_uart";
+ 		};
+ 
++		tmu: thermal-sensor@10070000 {
++			compatible = "samsung,exynos9610-tmu";
++			reg = <0x10070000 0x700>;
++			interrupts = <GIC_SPI 231 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&cmu_peri CLK_GOUT_PERI_BUSIF_TMU_PCLK>;
++			#thermal-sensor-cells = <1>;
++		};
++
+ 		cmu_cpucl0: clock-controller@10900000 {
+ 			compatible = "samsung,exynos9610-cmu-cpucl0";
+ 			reg = <0x10900000 0x10000>;
+@@ -547,6 +555,50 @@ pinctrl_dispaud: pinctrl@14a60000 {
+ 		};
+ 	};
+ 
++	thermal-zones {
++		gpu-thermal {
++			polling-delay-passive = <0>;
++			polling-delay = <1000>;
++			thermal-sensors = <&tmu 0>;
++
++			trips {
++				gpu-crit {
++					temperature = <105000>;
++					hysteresis = <0>;
++					type = "critical";
++				};
++			};
++		};
++
++		little-thermal {
++			polling-delay-passive = <0>;
++			polling-delay = <1000>;
++			thermal-sensors = <&tmu 1>;
++
++			trips {
++				little-crit {
++					temperature = <105000>;
++					hysteresis = <0>;
++					type = "critical";
++				};
++			};
++		};
++
++		big-thermal {
++			polling-delay-passive = <0>;
++			polling-delay = <1000>;
++			thermal-sensors = <&tmu 2>;
++
++			trips {
++				big-crit {
++					temperature = <105000>;
++					hysteresis = <0>;
++					type = "critical";
++				};
++			};
++		};
++	};
++
+ 	timer {
+ 		compatible = "arm,armv8-timer";
+ 		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>,
+-- 
+2.56.0
+

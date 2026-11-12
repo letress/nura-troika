@@ -1,7 +1,7 @@
 From 025467c6afe1224cb42f1a19a71986e6d8f92b27 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 15:20:24 +0100
-Subject: [PATCH 84/85] firmware: exynos-acpm: Add Exynos9610
+Subject: [PATCH 84/88] firmware: exynos-acpm: Add Exynos9610
 
 The ACPM framework of the Exynos9610 lays out the shared memory like
 the one of the GS101: struct acpm_framework and struct ipc_channel of

@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: ACPM – komunikace s firmwarem funguje: modul FVP nahrán a připojen, firmware odpovídá (test ACPM3, FINDINGS.md 21.8). Zatím jen v ladicím commitu na `troika-clk-test`. Další podle dohody: čtení teploty, pak teprve žádost o souhlas se změnou frekvence. Hlavní repozitář commitnut a pushnut 2026-11-12 (`849beb9` + zápis stavu); pmaports beze změny (`6a3faa4df`); `troika-clk` 85 commitů nad v7.3.3
+## Stav: Teplota čipu – přímé čtení registrů čidla TMU funguje (ověřeno na běžícím telefonu, FINDINGS.md 22.3) a ovladač `exynos9610-tmu`, který jen čte, prošel testem TMU1 (FINDINGS.md 22.5). ACPM: modul FVP jde nahrát a připojit (21.8), změna frekvence se nezkoušela a vyžaduje samostatný souhlas. `troika-clk` 88 commitů nad v7.3.3; hlavní repozitář commitnut a pushnut 2026-11-12 včetně teploty (commit „Teplota čipu: čtení čidla TMU…“); pmaports beze změny (`6a3faa4df`)
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1631,3 +1631,48 @@ Na pokyn uživatele: `kernel-patches/` znovu vyexportováno (85),
 pmaports beze změny (balíček kernelu pkgrel 6 stále nesestaven a bez commitů
 ACPM). Telefon běží v testovacím image ACPM3 s připojeným modulem FVP (do
 restartu). Další krok: průzkum čidla teploty (jen čtení).
+
+
+### 2026-11-12 18:45–19:00 – teplota čipu: průzkum, čtení registrů, ovladač
+
+- Průzkum (jen čtení): původní kernel čte teplotu přes firmware (modul TMU,
+  kanál 7), port gta4xl přímo z registrů TMU, které nechal běžet bootloader.
+- Nový nástroj `test-initramfs/mem-rd.c` (čte registry přes `/dev/mem`,
+  zapisovat neumí); na telefon v image ACPM3 přenesen přes telnet.
+- Na telefonu přečteny registry TMU `0x10070000`: bootloader čidlo spustil,
+  zkalibroval a zapnul ochranné vypnutí při 115 °C. Teploty v klidu 43–44 °C,
+  při plné zátěži 8 jader se velká jádra do 2 minut ustálí na 70 °C
+  (frekvence z bootloaderu). Surová data: `device-info/tmu-regs-ACPM3.txt`.
+- `troika-clk` +3 (binding, ovladač `exynos9610_tmu.c`, uzel TMU a tři
+  teplotní zóny v dtsi), `troika-clk-test` přeskládána (6 ladicích commitů).
+  `build/linux/.config`: `EXYNOS9610_THERMAL=y`. Kontroly: `dt_binding_check`
+  bez nálezu, `CHECK_DTBS` jen známé varování USB.
+- Sestaven `out/troika-test-TMU1.img` (sha256 začíná `2fced37f`), postup
+  TESTING.md 5w. Testovací init má nový oddíl `--- TMU ---`.
+- Necommitnuto v hlavním repozitáři: FINDINGS kap. 22, TESTING 5w, PROGRESS,
+  `test-initramfs/init`, `test-initramfs/mem-rd.c`,
+  `tools/make-clk-test-bootimg.sh`; `kernel-patches/` čeká na export (88).
+- Pro balíček kernelu (až bude dávka hotová): přidat `EXYNOS9610_THERMAL=y`
+  vedle `EXYNOS_MBOX=y` a `EXYNOS_ACPM_PROTOCOL=y`.
+
+Další kroky: (1) test TMU1; (2) přesunout nahrávání modulu FVP do čistého
+ovladače; (3) souhlas uživatele se změnou frekvence a první `FREQ_REQ`.
+
+### 2026-11-12 19:14 – test TMU1 prošel
+
+Telefon restartován přes telnet do fastbootu (na pokyn uživatele), uživatel
+spustil TMU1. Tři teplotní zóny a hwmon ukazují stejné hodnoty jako přepočet
+registrů čtených `/bin/mem-rd`, při zátěži reagují; registry TMU beze změny.
+Telefon běží dál v TMU1 (modul FVP připojen do restartu). Necommitnuto.
+
+Další kroky: (1) přesunout nahrávání modulu FVP z ladicího commitu do
+čistého ovladače; (2) souhlas uživatele se změnou frekvence a první
+`FREQ_REQ`; teplota se při tom dá sledovat ze zón.
+
+### 2026-11-12 19:20 – commit a push (teplota)
+
+Na pokyn uživatele: `kernel-patches/` znovu vyexportováno (88),
+`kernel-patches-debug/` (6), hlavní repozitář commitnut a pushnut. pmaports
+beze změny: balíček kernelu pkgrel 6 je stále nesestavený a chybí mu commity
+ACPM a TMU a volby `EXYNOS_MBOX=y`, `EXYNOS_ACPM_PROTOCOL=y`,
+`EXYNOS9610_THERMAL=y`. Telefon běží v TMU1.

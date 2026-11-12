@@ -1,7 +1,7 @@
 From 8eecfc7fc9322e0bcdc4b4818f637f6b54f3e42b Mon Sep 17 00:00:00 2001
 From: Alexandru Chimac <alex@chimac.ro>
 Date: Wed, 22 Jul 2026 23:44:03 +0300
-Subject: [PATCH 19/85] dt-bindings: soc: exynos-sysreg: Add Exynos9610 SYSREG
+Subject: [PATCH 19/88] dt-bindings: soc: exynos-sysreg: Add Exynos9610 SYSREG
  bindings
 
 Add bindings for SYSREG nodes (required for ACG), compatible with the

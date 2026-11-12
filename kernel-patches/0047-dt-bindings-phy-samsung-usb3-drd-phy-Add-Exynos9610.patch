@@ -1,7 +1,7 @@
 From 47e54137a198f507bd7582592e59f01286b30367 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 14:33:35 +0100
-Subject: [PATCH 47/85] dt-bindings: phy: samsung,usb3-drd-phy: Add Exynos9610
+Subject: [PATCH 47/88] dt-bindings: phy: samsung,usb3-drd-phy: Add Exynos9610
 
 Document the USB 2.0 PHY of the Exynos9610. It is the same controller
 generation as the one in the Exynos850 and takes the same two clocks.

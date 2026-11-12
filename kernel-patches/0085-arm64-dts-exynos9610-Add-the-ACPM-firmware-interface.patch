@@ -1,7 +1,7 @@
 From bc2383336591d179e8f32f17faa3a3538b09cad0 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 15:20:24 +0100
-Subject: [PATCH 85/85] arm64: dts: exynos9610: Add the ACPM firmware interface
+Subject: [PATCH 85/88] arm64: dts: exynos9610: Add the ACPM firmware interface
 
 The APM core runs the ACPM firmware. Its SRAM at 0x2039000 holds the
 shared memory, and the AP rings it through the mailbox at 0x11900000
