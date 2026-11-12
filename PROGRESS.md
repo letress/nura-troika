@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: ACPM – komunikace s firmwarem funguje: modul FVP nahrán a připojen, firmware odpovídá (test ACPM3, FINDINGS.md 21.8). Zatím jen v ladicím commitu na `troika-clk-test`. Další podle dohody: čtení teploty, pak teprve žádost o souhlas se změnou frekvence. Hlavní repozitář necommitnut od `1c45912`; `troika-clk` 85 commitů nad v7.3.3
+## Stav: ACPM – komunikace s firmwarem funguje: modul FVP nahrán a připojen, firmware odpovídá (test ACPM3, FINDINGS.md 21.8). Zatím jen v ladicím commitu na `troika-clk-test`. Další podle dohody: čtení teploty, pak teprve žádost o souhlas se změnou frekvence. Hlavní repozitář commitnut a pushnut 2026-11-12 (`849beb9` + zápis stavu); pmaports beze změny (`6a3faa4df`); `troika-clk` 85 commitů nad v7.3.3
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1624,3 +1624,10 @@ Další kroky: (1) čtení teploty – průzkum čidla TMU; (2) přesunout nahr�
 modulu z ladicího commitu do čistého ovladače; (3) až potom souhlas uživatele
 se změnou frekvence (zpráva `FREQ_REQ`).
 
+### 2026-11-12 18:45 – commit a push (ACPM)
+
+Na pokyn uživatele: `kernel-patches/` znovu vyexportováno (85),
+`kernel-patches-debug/` (6), hlavní repozitář commitnut (`849beb9`) a pushnut.
+pmaports beze změny (balíček kernelu pkgrel 6 stále nesestaven a bez commitů
+ACPM). Telefon běží v testovacím image ACPM3 s připojeným modulem FVP (do
+restartu). Další krok: průzkum čidla teploty (jen čtení).
