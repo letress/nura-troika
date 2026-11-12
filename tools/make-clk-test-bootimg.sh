@@ -69,6 +69,14 @@ if [ -f "$bits/busybox-extras" ] && [ -f "$bits/unudhcpd" ] && [ -f "$bits/ld-mu
 	ln -s ld-musl-aarch64.so.1 "$tmp/lib/libc.musl-aarch64.so.1"
 	install -m 755 "$bits/busybox-extras" "$bits/unudhcpd" "$tmp/usr/bin/"
 fi
+# Nástroje pro hledání sítí a připojení (test WLAN2), z tools/fetch-wifi-tools.sh.
+# Nic se nespouští samo.
+wtools="$root/dl/wifi-tools"
+if [ -x "$wtools/bin/wpa_supplicant" ] && [ -f "$tmp/lib/ld-musl-aarch64.so.1" ]; then
+	mkdir -p "$tmp/usr/sbin" "$tmp/usr/lib" "$tmp/run" "$tmp/tmp" "$tmp/etc"
+	install -m 755 "$wtools/bin/wpa_supplicant" "$wtools/bin/wpa_cli" "$tmp/usr/sbin/"
+	install -m 755 "$wtools"/lib/* "$tmp/usr/lib/"
+fi
 (cd "$tmp" && find . | LC_ALL=C sort | cpio --quiet -o -H newc -R 0:0) | gzip -9n > "$out/test-initramfs-$name.cpio.gz"
 
 # uniLoader jako v balíčku (troika_defconfig): initrd a cmdline z DTB bootloaderu.

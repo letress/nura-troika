@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: WiFi – rádio startuje: test WLAN1, ovladač SCSC 11.19 s firmwarem 6906, `wlan0` jde zapnout (FINDINGS.md 30.8). Další krok: hledání sítí a připojení (rádio začne vysílat – nový souhlas), nejspíš v plném systému; doplnit adresu MAC a databázi zemí. Souběžně: dávka balíčků s GPU (TESTING.md 5ae) čeká na sestavení uživatelem. `troika-clk` 94 commitů nad v7.3.3, `troika-clk-test` +9; hlavní repozitář commitnut a pushnut 2026-11-12 včetně testu WLAN1 (commit „WiFi: rádio startuje…“); pmaports pushnut do `b651290cc` (balíčky nesestavené)
+## Stav: WiFi funguje v testovacím image od startu rádia po přenos dat – test WLAN2: hledání, připojení WPA2 na 5 GHz, DHCP, internet (FINDINGS.md 30.10, 30.11). Zbývá: adresa MAC ze zálohy, databáze zemí, zařazení do systému a balíčků (moduly, firmware rádia, NetworkManager), Bluetooth. Souběžně: dávka balíčků s GPU (TESTING.md 5ae) čeká na sestavení uživatelem. `troika-clk` 94 commitů nad v7.3.3, `troika-clk-test` +9; hlavní repozitář commitnut a pushnut 2026-11-12 včetně testu WLAN2 (commit „WiFi: hledání sítí, připojení a přenos dat…“); pmaports pushnut do `b651290cc`
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1933,3 +1933,32 @@ Na pokyn uživatele: patche znovu vyexportovány (94 čistých, 9 ladicích
 včetně pracovního commitu WiFi), hlavní repozitář commitnut a pushnut;
 pmaports pushnut (`e70a787a6`, `18f3e8f2c`, `b651290cc`), balíčky stále
 nesestavené. Telefon běží ve WLAN1.
+
+### 2026-11-12 23:31 – WiFi: image WLAN2 pro hledání sítí
+
+Nový `tools/fetch-wifi-tools.sh` (wpa_supplicant + knihovny z chrootu, jen
+čtení), `tools/make-clk-test-bootimg.sh` je přidává do initramfs. Sestaven
+`out/troika-test-WLAN2.img` (sha256 začíná `e942ad2b`). Souhlas s vysíláním
+zatím není. Necommitnuto: FINDINGS 30.9, TESTING 5ag, PROGRESS, dva skripty.
+
+### 2026-11-12 23:34 – test WLAN2: hledání sítí prošlo
+
+Souhlas přes AskUserQuestion („Ano, vyhledej sítě“). Moduly, `wlan0`,
+`wpa_supplicant`, `wpa_cli scan`: 7 sítí (6× 2,4 GHz, 1× 5 GHz). Telefon
+běží ve WLAN2 s rádiem zapnutým a `wpa_supplicant` spuštěným, připravený na
+připojení uživatelem. Necommitnuto: FINDINGS 30.9 a 30.10, TESTING 5ag,
+PROGRESS, `tools/fetch-wifi-tools.sh`, úprava `make-clk-test-bootimg.sh`.
+
+### 2026-11-12 23:40 – test WLAN2: připojení a internet přes WiFi
+
+Uživatel se připojil sám (telnet, `wpa_cli`). DHCP, ping na bránu
+a `1.1.1.1`, stažení 10 a 50 MB – vše prošlo, bez varování ovladače.
+Telefon běží ve WLAN2 připojený k síti uživatele. Necommitnuto: FINDINGS
+30.9 až 30.11, TESTING 5ag, PROGRESS, `tools/fetch-wifi-tools.sh`, úprava
+`make-clk-test-bootimg.sh`.
+
+### 2026-11-12 23:42 – commit a push (WLAN2)
+
+Na pokyn uživatele hlavní repozitář commitnut a pushnut. Patche kernelu
+beze změny (94 + 9). pmaports beze změny (`b651290cc`). Telefon běží ve
+WLAN2 připojený k síti uživatele.

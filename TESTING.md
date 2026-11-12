@@ -1619,6 +1619,48 @@ to.
 nastartovalo, firmware 6906 komunikuje s ovladačem 11.19, `wlan0` jde
 zapnout; hledání sítí nezkoušeno (FINDINGS.md 30.8).
 
+## 5ag. Test WLAN2: hledání sítí
+
+Cíl: rádio najde okolní sítě (FINDINGS.md 30.9). Při hledání rádio vysílá.
+Samotné spuštění image na rádio nesahá.
+
+1. Telefon do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-WLAN2.img
+```
+
+2. Napiš mi, že běží. Zkontroluju výchozí stav a zeptám se na souhlas;
+   pak načtu moduly, zapnu `wlan0`, spustím `wpa_supplicant` a `wpa_cli scan`.
+
+**Výsledek WLAN2 (2026-11-12): prošlo** – nalezeno 7 sítí v pásmech 2,4
+i 5 GHz (FINDINGS.md 30.10).
+
+### Připojení k síti (heslo zadává uživatel)
+
+Telefon běží ve WLAN2 s nahranými moduly a spuštěným `wpa_supplicant`. Na PC:
+
+```bash
+telnet 172.16.42.1
+```
+
+a v něm (název sítě a heslo v uvozovkách tak, jak jsou napsané):
+
+```
+W="wpa_cli -p /run/wpa_supplicant -i wlan0"
+$W add_network
+$W set_network 0 ssid '"NAZEV_SITE"'
+$W set_network 0 psk '"HESLO"'
+$W enable_network 0
+sleep 8; $W status | grep wpa_state
+```
+
+Čekám `wpa_state=COMPLETED`. Heslo mi neposílej; adresu z DHCP a zkoušku
+spojení pak udělám přes telnet sám.
+
+**Výsledek připojení (2026-11-12): prošlo** – WPA2 na 5 GHz, DHCP, ping do
+internetu, stahování řádově 100 až 200 Mb/s (FINDINGS.md 30.11).
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

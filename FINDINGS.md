@@ -3292,3 +3292,72 @@ Závěr: **rádio startuje a novější ovladač se starším firmwarem komuniku
 **Neověřeno:** hledání sítí, připojení, přenos dat, skutečná adresa MAC,
 databáze zemí (bez ní můžou být omezené kanály), chování v plném systému.
 
+### 30.9 Příprava hledání sítí: image WLAN2 (23:31)
+
+Místo plného systému (kam bych moduly a firmware nedostal bez hesla
+uživatele) jde hledání sítí udělat v testovacím image, kde mám telnet:
+
+- `tools/fetch-wifi-tools.sh` zkopíruje `wpa_supplicant`, `wpa_cli` a devět
+  knihoven z chrootu systému pmbootstrapu (jen čtení) do `dl/wifi-tools`;
+  `tools/make-clk-test-bootimg.sh` je přidá do initramfs. Nástroj `iw`
+  v systému není, hledání půjde přes `wpa_cli scan`.
+- Image `out/troika-test-WLAN2.img`: moduly sestavené s opravenými cestami,
+  firmware i s „plochými“ jmény konfigurace, nástroje. **Nic se nespouští
+  samo.**
+
+Postup po souhlasu (přes telnet): tři `insmod`, `ip link set wlan0 up`,
+`wpa_supplicant -B -i wlan0 -D nl80211` s prázdnou konfigurací,
+`wpa_cli scan`, `wpa_cli scan_results`.
+
+Co je na tom nové: **rádio začne vysílat** (aktivní hledání posílá krátké
+dotazy na kanálech 2,4 a 5 GHz). Bez databáze zemí platí výchozí nastavení
+firmwaru a konfigurace `LEMAN_S620_TROIKA_DUALFEM`, tedy to, s čím telefon
+prošel schválením; které kanály přesně použije, nevím. Adresa MAC bude
+náhodná. Výsledkem hledání jsou názvy okolních sítí – do repozitáře je
+nezapíšu, jen jejich počet.
+
+### 30.10 Test WLAN2: hledání sítí funguje (23:34)
+
+Souhlas uživatele: „Ano, vyhledej sítě“ (start rádia jako ve WLAN1 a hledání
+sítí s vysíláním na 2,4 a 5 GHz, bez připojení). Výpis:
+`device-info/wlan-WLAN2.txt` (bez názvů a adres sítí).
+
+- Moduly načteny, `wlan0` zapnuto napoprvé – opravy cest ve zdrojích sedí
+  (firmware i konfigurace se našly pod `motorola/troika`).
+- `wpa_supplicant` 2.11 (ovladač `nl80211`) běží, stav `DISCONNECTED`.
+- `wpa_cli scan` → **7 sítí: 6 v pásmu 2,4 GHz (kanály 1, 2, 6, 8, 10)
+  a 1 v pásmu 5 GHz (5560 MHz)**, nejsilnější −47 dBm.
+- V logu žádné varování ani chyba ovladače kromě chybějících volitelných
+  souborů (`log-strings.bin`, `localmib.hcf`, `slsi_reg_database.bin`).
+  Teploty 44 až 45 °C.
+
+Závěr: příjem i vysílání rádia fungují, výsledky hledání prochází celou
+cestou firmware → ovladač → cfg80211 → wpa_supplicant. **Neověřeno:**
+připojení (WPA2/WPA3), DHCP a přenos dat, skutečná adresa MAC, databáze
+zemí, delší provoz.
+
+### 30.11 Test WLAN2: připojení a přenos dat fungují (23:40)
+
+Uživatel se k vlastní síti připojil sám přes telnet (`wpa_cli`, heslo zadal
+on; `wpa_state=COMPLETED`). Zbytek přes telnet já; název sítě, adresy
+a heslo jsem nečetl ani neukládal.
+
+- Spojení: 5 GHz (5560 MHz), Wi-Fi 5, `WPA2-PSK`/`CCMP`, signál −46 až
+  −49 dBm, rychlost linky 433 Mb/s.
+- DHCP: adresa přidělena (`udhcpc` s vlastním skriptem).
+- `ping` na bránu 5/5 (průměr 19 ms), na `1.1.1.1` 5/5 (průměr 16 ms).
+- Stahování: 10 MB za asi 2 s, 50 MB za asi 3 s (měřeno na celé sekundy,
+  tedy řádově 100 až 200 Mb/s). První pokus z jiného serveru vypršel, na
+  spojení to podle následných zkoušek nebylo.
+- Chyby rozhraní: 0 při příjmu i odesílání, 18 zahozených přijatých paketů.
+  V logu žádné varování ovladače. Teploty 44 až 46 °C.
+
+Závěr: **WiFi funguje od startu rádia po přenos dat** s ovladačem 11.19
+a firmwarem 6906, zatím jen v testovacím image s ručním postupem.
+
+Zbývá: skutečná adresa MAC (teď náhodná), databáze zemí, WPA3 a 2,4 GHz
+neověřeny, delší provoz a uspání, zařazení do systému (moduly, firmware
+rádia jako další binární soubor výrobce, NetworkManager) a do balíčků,
+`CFG80211` v balíčku je modul, kdežto zkouška běžela se zabudovaným,
+Bluetooth.
+
