@@ -1,7 +1,7 @@
 From bdb5f4aca2056907864901b2e0c72b85e31da3c3 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:36:25 +0100
-Subject: [PATCH 07/93] arm64: dts: exynos9610: Rename xclkout pin groups to
+Subject: [PATCH 07/94] arm64: dts: exynos9610: Rename xclkout pin groups to
  match the binding
 
 Pin configuration nodes must be named "*-pins". The two xclkout groups

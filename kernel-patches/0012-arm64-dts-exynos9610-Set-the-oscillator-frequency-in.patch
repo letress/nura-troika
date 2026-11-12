@@ -1,7 +1,7 @@
 From ee285b21cd78acc5b2a99cf877939f08e861eb67 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:37:13 +0100
-Subject: [PATCH 12/93] arm64: dts: exynos9610: Set the oscillator frequency in
+Subject: [PATCH 12/94] arm64: dts: exynos9610: Set the oscillator frequency in
  the board
 
 The external oscillator is a board component, so its frequency should

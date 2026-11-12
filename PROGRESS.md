@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: Automatické škálování GPU funguje i v Phoshi – zkouška GPU4: plynulost dobrá, teploty do 49 °C (FINDINGS.md 27.4); log a zvolené frekvence z plného systému nemám. Chybí teplotní brzdění GPU, stupně nad 764 MHz a zařazení do balíčku (commity ACPM/TMU/hodiny, `EXYNOS_MBOX=y`, `EXYNOS_ACPM_PROTOCOL=y`, `EXYNOS_ACPM_CLK=y`, `EXYNOS9610_THERMAL=y`, soubor modulu FVP v initramfs – o jeho zdroji rozhodne uživatel). `troika-clk` 93 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-12 včetně zkoušky GPU4 (commit „GPU: automatické škálování přes firmware…“); pmaports beze změny (`6a3faa4df`)
+## Stav: GPU je hotové po funkční stránce v testovacích image: automatické škálování 260 až 764 MHz přes firmware (27) a teplotní brzdění od 88 °C (28.1, mechanismus ověřen ručně, skutečné zahřátí ne). Zbývá zařazení do balíčku: 94 commitů, volby `EXYNOS_MBOX=y`, `EXYNOS_ACPM_PROTOCOL=y`, `EXYNOS_ACPM_CLK=y`, `EXYNOS9610_THERMAL=y` a soubor modulu FVP v initramfs (o zdroji rozhodne uživatel). `troika-clk` 94 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-12 včetně testu ACPM8 (commit „GPU: teplotní brzdění od 88 °C…“); pmaports beze změny (`6a3faa4df`)
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1843,3 +1843,23 @@ kap. 27, TESTING 5ab a 5ac, PROGRESS; export patchů 93 + 8.
 Na pokyn uživatele: patche znovu vyexportovány (93 čistých, 8 ladicích),
 hlavní repozitář commitnut a pushnut. pmaports beze změny. Telefon běží
 v GPU4 (Phosh, netboot).
+
+### 2026-11-12 21:58 – teplotní brzdění GPU: DT a image ACPM8
+
+`troika-clk` +1 (práh `passive` 88 °C / 5 °C a mapa chlazení v zóně GPU),
+`troika-clk-test` přeskládána, `CHECK_DTBS` bez nových nálezů, sestaven
+`out/troika-test-ACPM8.img`. Telefon běží v GPU4 (Phosh). Necommitnuto:
+FINDINGS kap. 28, TESTING 5ad, PROGRESS; export patchů 94 + 8.
+
+### 2026-11-12 22:03 – test ACPM8 prošel
+
+Zóna GPU s prahem 88 °C navázaná na chlazení; ruční stav chlazení 3 a 6
+snížil GPU ze 764 na 455 a 260 MHz (napětí podle tabulky), po uvolnění
+návrat. Telefon běží v ACPM8 na 260 MHz. Necommitnuto: FINDINGS kap. 28,
+TESTING 5ad, PROGRESS; export patchů 94 + 8.
+
+### 2026-11-12 22:07 – commit a push (ACPM8)
+
+Na pokyn uživatele: patche znovu vyexportovány (94 čistých, 8 ladicích),
+hlavní repozitář commitnut a pushnut. pmaports beze změny. Telefon běží
+v ACPM8.

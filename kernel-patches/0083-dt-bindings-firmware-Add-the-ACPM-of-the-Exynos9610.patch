@@ -1,7 +1,7 @@
 From b331cfe1be20e40ef5c827865593773701675b8b Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 15:20:24 +0100
-Subject: [PATCH 83/93] dt-bindings: firmware: Add the ACPM of the Exynos9610
+Subject: [PATCH 83/94] dt-bindings: firmware: Add the ACPM of the Exynos9610
 
 Co-Authored-By: Claude <noreply@anthropic.com>
 ---

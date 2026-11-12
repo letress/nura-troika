@@ -1,7 +1,7 @@
 From 37036ce7cf189a0ae2bf9e94f1ed6a7eeb742c69 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 21:25:13 +0100
-Subject: [PATCH 92/93] clk: samsung: acpm: Add the GPU clock of the Exynos9610
+Subject: [PATCH 92/94] clk: samsung: acpm: Add the GPU clock of the Exynos9610
 
 On the Exynos9610 the firmware reprograms the PLL of the GPU in CMU_G3D
 and sets the voltage that the rate needs. The firmware cannot tell the

@@ -1,7 +1,7 @@
 From bb8d03dc38873fdc749db7065d36b8b126cd0e00 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 13:50:15 +0100
-Subject: [PATCH 75/93] arm64: dts: exynos9610-troika: Enable the bus of the
+Subject: [PATCH 75/94] arm64: dts: exynos9610-troika: Enable the bus of the
  backlight controller
 
 The SGM37603A that drives the backlight of the panel answers at 0x36 on

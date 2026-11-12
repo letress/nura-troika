@@ -1,7 +1,7 @@
 From 94126577da7d96179293889f4e8a9de3fb9df0db Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:37:13 +0100
-Subject: [PATCH 10/93] arm64: dts: exynos9610: Move ramoops to the gta4xl
+Subject: [PATCH 10/94] arm64: dts: exynos9610: Move ramoops to the gta4xl
  board
 
 The SoC dtsi reserves a ramoops region at 0xf9d10000. Where a bootloader

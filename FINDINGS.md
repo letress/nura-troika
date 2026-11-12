@@ -2976,3 +2976,51 @@ a podobné práci nepřesáhly 49 °C; víc zátěže se v Phoshi udělat nedalo
 neuvedl), výpis `dmesg` (chyby GPU, devfreq), delší nebo těžší zátěž GPU.
 Teplotní brzdění GPU dál neexistuje.
 
+## 28. Teplotní brzdění GPU (2026-11-12)
+
+Větev `troika-clk` +1 (celkem 94): `arm64: dts: exynos9610: Throttle the GPU
+when it gets hot`. Zóna `gpu-thermal` dostala práh `passive` a mapu chlazení
+na GPU (chladicí zařízení devfreq z kapitoly 27).
+
+| Hodnota | Zdroj |
+|---|---|
+| práh 88 °C, hystereze 5 °C, typ `passive` | `gpu-control-temp` zóny `G3D` v `live.dts` (`0x157c0`, `0x1388`) |
+| dotazování při brzdění po 100 ms | `polling-delay-passive = <0x64>` tamtéž |
+| celý rozsah chladicího zařízení GPU | `cooling-maps/map0` tamtéž (`mali`, bez mezí) |
+
+Rozdíl proti původnímu systému: ten používá regulátor `power_allocator`
+s parametry z tabulky ECT, mainline tady výchozí `step_wise` – nad prahem
+postupně ubírá nejvyšší povolený stupeň, pod prahem ho vrací. Firmwaru se
+tím neposílá nic nového; mění se jen to, které z ověřených stupňů kernel
+smí použít.
+
+Kontrola `CHECK_DTBS` bez nových nálezů. Image `out/troika-test-ACPM8.img`.
+Skutečného zahřátí na 88 °C se v testu nedosáhne (při plné zátěži
+procesoru mělo GPU 58 °C); ověřit jde vazbu zóny na chladicí zařízení
+a to, že ruční stav chladicího zařízení sníží nejvyšší frekvenci.
+
+### 28.1 Test ACPM8: chlazení GPU omezuje frekvenci (22:03)
+
+Souhlas uživatele: „Ano, souhlasím“ (kernel přepíná GPU mezi sedmi
+ověřenými stupni, čtení napětí; jen pro ACPM8). Výpis:
+`device-info/acpm-ACPM8.txt`.
+
+- Zóna `gpu-thermal`: práh 0 `passive` 88 °C s hysterezí 5 °C, práh 1
+  `critical` 105 °C, regulátor `step_wise`; chladicí zařízení
+  `devfreq-11500000.gpu` (stavy 0 až 6) je navázané na práh 0.
+- Ruční zkouška chladicího zařízení při GPU vynuceném na 764 MHz:
+
+| Stav chlazení | Frekvence | Napětí |
+|---|---|---|
+| 0 | 764,4 MHz | 743,75 mV |
+| 3 | 455,0 MHz | 612,5 mV |
+| 6 | 260,0 MHz | 581,25 mV |
+| 0 | 764,4 MHz | 743,75 mV |
+
+  Omezení má přednost před vynuceným minimem, po uvolnění se frekvence
+  vrátí. Na konci vše zpět (260 MHz, chlazení 0).
+- Teploty 42 až 43 °C, v logu žádná nová chyba.
+
+**Neověřeno:** že regulátor při skutečném dosažení 88 °C stav chlazení sám
+zvedne – té teploty test nedosáhl a schválně ji vyvolávat nebudu.
+

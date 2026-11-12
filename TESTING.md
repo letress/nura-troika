@@ -1536,6 +1536,25 @@ prostředí zamrzlo: Power + Vol−.
 **Výsledek GPU4 (2026-11-12): prošlo podle uživatele** – plynulost dobrá,
 teploty do 49 °C; log a zvolené frekvence nedodány (FINDINGS.md 27.4).
 
+## 5ad. Test ACPM8: teplotní brzdění GPU
+
+Cíl: zóna GPU má práh 88 °C navázaný na chladicí zařízení GPU a to umí
+snížit nejvyšší frekvenci (FINDINGS.md 28). Kernel při tom přepíná GPU mezi
+sedmi ověřenými stupni jako v ACPM7.
+
+1. Telefon do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ACPM8.img
+```
+
+2. Napiš mi, že běží. Přes telnet zkontroluju zónu a vyzkouším chladicí
+   zařízení ručně (`cooling_device0/cur_state`) při GPU vynuceném na 764 MHz.
+
+**Výsledek ACPM8 (2026-11-12): prošlo** – práh 88 °C je navázaný na chlazení
+GPU a ruční stav chlazení snižuje frekvenci i napětí; skutečné zahřátí
+neověřeno (FINDINGS.md 28.1).
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

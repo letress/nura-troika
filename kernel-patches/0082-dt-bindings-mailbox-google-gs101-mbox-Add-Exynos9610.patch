@@ -1,7 +1,7 @@
 From b64b0aa11e446af2d222f5dd62bcce0e065e362b Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 15:20:24 +0100
-Subject: [PATCH 82/93] dt-bindings: mailbox: google,gs101-mbox: Add Exynos9610
+Subject: [PATCH 82/94] dt-bindings: mailbox: google,gs101-mbox: Add Exynos9610
 
 The AP to APM mailbox of the Exynos9610 rings the doorbell through
 INTGR0 and masks the interrupts of the APM in INTMR1, like the one of

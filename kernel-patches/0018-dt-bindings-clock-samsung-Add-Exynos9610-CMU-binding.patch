@@ -1,7 +1,7 @@
 From ba2b27ba4fa38be903d9bf1362d067b60fb4492b Mon Sep 17 00:00:00 2001
 From: Alexandru Chimac <alex@chimac.ro>
 Date: Wed, 22 Jul 2026 23:44:02 +0300
-Subject: [PATCH 18/93] dt-bindings: clock: samsung: Add Exynos9610 CMU
+Subject: [PATCH 18/94] dt-bindings: clock: samsung: Add Exynos9610 CMU
  bindings
 
 This clock management unit has a topmost block (CMU_TOP)

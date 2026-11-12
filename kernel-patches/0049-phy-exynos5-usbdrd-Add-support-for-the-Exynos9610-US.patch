@@ -1,7 +1,7 @@
 From f8f06791336fa2a1aa8d2dd46bf5ae1368e1086d Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 14:33:35 +0100
-Subject: [PATCH 49/93] phy: exynos5-usbdrd: Add support for the Exynos9610 USB
+Subject: [PATCH 49/94] phy: exynos5-usbdrd: Add support for the Exynos9610 USB
  2.0 PHY
 
 The Exynos9610 has the same USB 2.0 PHY controller generation as the

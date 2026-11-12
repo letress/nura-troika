@@ -1,7 +1,7 @@
 From e385c8ff29e8c5d82f886391d7c9f2d212d32daa Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 20:04:17 +0100
-Subject: [PATCH 56/93] scsi: ufs: exynos: Read the available lanes before the
+Subject: [PATCH 56/94] scsi: ufs: exynos: Read the available lanes before the
  pre-link hook
 
 The pre_link hooks of several SoCs set per-lane attributes with

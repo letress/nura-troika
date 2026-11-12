@@ -1,7 +1,7 @@
 From 3f36f5ed93cef72753344153235b09ab14627e9b Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 20:04:28 +0100
-Subject: [PATCH 57/93] scsi: ufs: exynos: Only set PA_TxTrailingClocks when a
+Subject: [PATCH 57/94] scsi: ufs: exynos: Only set PA_TxTrailingClocks when a
  value is given
 
 exynos_ufs_config_unipro() writes PA_TxTrailingClocks for every SoC, so

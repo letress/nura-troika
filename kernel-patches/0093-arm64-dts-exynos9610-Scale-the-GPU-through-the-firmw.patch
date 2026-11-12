@@ -1,7 +1,7 @@
 From 7a4645d224d0d7caec16ae4e0850f9f121e8e586 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 21:25:13 +0100
-Subject: [PATCH 93/93] arm64: dts: exynos9610: Scale the GPU through the
+Subject: [PATCH 93/94] arm64: dts: exynos9610: Scale the GPU through the
  firmware
 
 Take the clock of the GPU from the ACPM firmware and add the operating

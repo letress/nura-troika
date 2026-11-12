@@ -1,7 +1,7 @@
 From a9e75574c34b6b66c678c5e32a935faeea60796f Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 21:25:12 +0100
-Subject: [PATCH 91/93] firmware: exynos-acpm: Add the DVFS requests of the
+Subject: [PATCH 91/94] firmware: exynos-acpm: Add the DVFS requests of the
  Exynos9610
 
 The firmware of the Exynos9610 takes the same DVFS request as the one

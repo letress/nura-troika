@@ -1,4 +1,4 @@
-From f0ab1f723f9c850dbd4778451a1c076c0cc166b9 Mon Sep 17 00:00:00 2001
+From 401c0c998f3182d565e8d495fb1da5297c7f99e3 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 22:52:06 +0100
 Subject: [PATCH 5/8] DEBUG: soc: samsung: exynos-pmu: print the reboot

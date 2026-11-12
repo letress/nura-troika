@@ -1,7 +1,7 @@
 From 44c0b41a696a2b677a45d9809dbe730ba9c5103d Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 14:08:40 +0100
-Subject: [PATCH 78/93] arm64: dts: exynos9610-troika: Add the backlight
+Subject: [PATCH 78/94] arm64: dts: exynos9610-troika: Add the backlight
 
 The backlight of the panel is driven by an SGM37603A. The vendor kernel
 sets its brightness code to 0xccc for normal operation and to 0xfff for

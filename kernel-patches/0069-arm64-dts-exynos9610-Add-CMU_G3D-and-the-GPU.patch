@@ -1,7 +1,7 @@
 From 4d835f33edf9e826de2ba2351db1844f96545f56 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 03:29:29 +0100
-Subject: [PATCH 69/93] arm64: dts: exynos9610: Add CMU_G3D and the GPU
+Subject: [PATCH 69/94] arm64: dts: exynos9610: Add CMU_G3D and the GPU
 
 The Mali-G72 sits at 0x11500000 with the job, MMU and GPU interrupts on
 SPI 66, 67 and 65 (mali node of the vendor exynos9610.dtsi). Its clocks

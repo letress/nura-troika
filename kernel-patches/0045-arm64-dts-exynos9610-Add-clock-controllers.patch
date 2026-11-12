@@ -1,7 +1,7 @@
 From 17c4201ef22502f2d53dad7b6cbc059e098d8618 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:47:55 +0100
-Subject: [PATCH 45/93] arm64: dts: exynos9610: Add clock controllers
+Subject: [PATCH 45/94] arm64: dts: exynos9610: Add clock controllers
 
 Add the clock management units that are always powered: TOP, APM, CMGP,
 CORE, CPUCL0, PERI, FSYS and USB, plus DISPAUD, whose power domain the

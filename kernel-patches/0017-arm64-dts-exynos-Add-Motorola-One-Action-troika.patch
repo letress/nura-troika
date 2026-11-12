@@ -1,7 +1,7 @@
 From 5adaa3367f8ea84fb7bc5d981a5610132bc3cda6 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:39:08 +0100
-Subject: [PATCH 17/93] arm64: dts: exynos: Add Motorola One Action (troika)
+Subject: [PATCH 17/94] arm64: dts: exynos: Add Motorola One Action (troika)
 
 Add a minimal device tree for the Motorola One Action (XT2013, codename
 troika), an Exynos9609 phone. Enough is described to get a kernel log

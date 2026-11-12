@@ -1,7 +1,7 @@
 From f64c65fc539c2c74dff8b39c92f85ee6e096c1ac Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 18:53:54 +0100
-Subject: [PATCH 87/93] thermal: samsung: Add a driver for the TMU of the
+Subject: [PATCH 87/94] thermal: samsung: Add a driver for the TMU of the
  Exynos9610
 
 The TMU of the Exynos9610 is one controller with three probes: probe 0

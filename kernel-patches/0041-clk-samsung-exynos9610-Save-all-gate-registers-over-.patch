@@ -1,7 +1,7 @@
 From 86226eaa2e90b6ff0d8d46dbfc62f1895f0d5408 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:32 +0100
-Subject: [PATCH 41/93] clk: samsung: exynos9610: Save all gate registers over
+Subject: [PATCH 41/94] clk: samsung: exynos9610: Save all gate registers over
  suspend
 
 Four gate registers that have a clock registered on them are missing
