@@ -1,0 +1,28 @@
+From 9a38c0d678b329d1d74f5ca8714243a3cf3ae7b5 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 13:50:15 +0100
+Subject: [PATCH 72/81] dt-bindings: soc: samsung: usi: Add Exynos9610
+
+The USI blocks of the Exynos9610 take the same configuration as those
+of the Exynos850.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ Documentation/devicetree/bindings/soc/samsung/exynos-usi.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/soc/samsung/exynos-usi.yaml b/Documentation/devicetree/bindings/soc/samsung/exynos-usi.yaml
+index c694926..603cdce 100644
+--- a/Documentation/devicetree/bindings/soc/samsung/exynos-usi.yaml
++++ b/Documentation/devicetree/bindings/soc/samsung/exynos-usi.yaml
+@@ -37,6 +37,7 @@ properties:
+           - enum:
+               - google,gs101-usi
+               - samsung,exynos2200-usi
++              - samsung,exynos9610-usi
+               - samsung,exynosautov9-usi
+               - samsung,exynosautov920-usi
+           - const: samsung,exynos850-usi
+-- 
+2.56.0
+

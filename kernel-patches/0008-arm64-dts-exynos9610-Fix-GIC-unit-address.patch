@@ -1,7 +1,7 @@
 From 2cef1cf257962606d617b0ba9a554b7469752e2f Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:36:47 +0100
-Subject: [PATCH 08/70] arm64: dts: exynos9610: Fix GIC unit address
+Subject: [PATCH 08/81] arm64: dts: exynos9610: Fix GIC unit address
 
 The GIC node is named interrupt-controller@12300000 while its first reg
 entry (the distributor) is at 0x12301000, so dtc warns:

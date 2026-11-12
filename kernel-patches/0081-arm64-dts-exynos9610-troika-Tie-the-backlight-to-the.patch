@@ -1,0 +1,35 @@
+From 42335286f1e30e8357d51bc4e65fb08fcd401e3e Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 15:06:03 +0100
+Subject: [PATCH 81/81] arm64: dts: exynos9610-troika: Tie the backlight to the
+ framebuffer
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 5cd5ced..08c185f 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -32,6 +32,7 @@ framebuffer0: framebuffer@ed000000 {
+ 			height = <2520>;
+ 			stride = <(1080 * 4)>;
+ 			format = "a8r8g8b8";
++			backlight = <&backlight>;
+ 		};
+ 	};
+ 
+@@ -139,7 +140,7 @@ &hsi2c_3 {
+ 	 * The vendor kernel uses 0xccc as the brightness for normal operation
+ 	 * and reserves the range above it for a high brightness mode.
+ 	 */
+-	backlight@36 {
++	backlight: backlight@36 {
+ 		compatible = "sgmicro,sgm37603a";
+ 		reg = <0x36>;
+ 		max-brightness = <3276>;
+-- 
+2.56.0
+

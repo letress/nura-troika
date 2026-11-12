@@ -215,6 +215,29 @@ if [ "${test_tag#gpu}" != "$test_tag" ]; then
 	echo
 fi
 
+# Podsviceni: sbernice HSI2C_3 a cip SGM37603A na adrese 0x36. Registry se
+# jen ctou (stejne, jake cte puvodni ovladac pri startu); nic se nezapisuje.
+if [ "${test_tag#bl}" != "$test_tag" ]; then
+	echo "--- PODSVICENI ---"
+	dmesg | grep -i -E "11d10000|exynos-usi|hsi2c|sysreg" | tail -n 6 | cut -c1-110
+	bl_bus=
+	for a in /sys/bus/i2c/devices/i2c-*; do
+		[ -e "$a" ] || continue
+		case "$(readlink -f "$a")" in
+			*11d10000.i2c*) bl_bus="${a##*-}" ;;
+		esac
+	done
+	if [ -n "$bl_bus" ]; then
+		echo "sbernice: i2c-$bl_bus"
+		for r in 10 11 19 1a 1b 1f; do
+			echo " reg 0x$r = $(/bin/i2c-reg "$bl_bus" 36 "$r" 2>&1)"
+		done
+	else
+		echo "!! Sbernice 11d10000.i2c se neobjevila."
+	fi
+	echo
+fi
+
 echo "Vstupni zarizeni:"
 grep -E '^N: Name|^H: Handlers' /proc/bus/input/devices 2>/dev/null
 echo

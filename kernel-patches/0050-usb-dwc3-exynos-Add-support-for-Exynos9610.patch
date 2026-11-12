@@ -1,7 +1,7 @@
 From f422828c514d4f70b74d2f8d44ca4ecae747ae37 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 14:33:36 +0100
-Subject: [PATCH 50/70] usb: dwc3: exynos: Add support for Exynos9610
+Subject: [PATCH 50/81] usb: dwc3: exynos: Add support for Exynos9610
 
 The DWC3 glue of the Exynos9610 needs the same two clocks as the one of
 the Exynos850, so reuse its driver data.

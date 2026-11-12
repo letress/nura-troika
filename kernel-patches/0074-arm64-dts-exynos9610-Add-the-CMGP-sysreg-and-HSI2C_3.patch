@@ -1,0 +1,77 @@
+From 75a326d57c1d538bbef50ac2c2c9583dbb82b82e Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 13:50:15 +0100
+Subject: [PATCH 74/81] arm64: dts: exynos9610: Add the CMGP sysreg and HSI2C_3
+
+HSI2C_3 at 0x11d10000 is the I2C half of the first USI pair of the CMGP
+block. Its mode register is at offset 0x2004 of the CMGP sysreg
+(usi_0_cmgp_i2c and hsi2c_3 of the vendor exynos9610.dtsi).
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 37 ++++++++++++++++++++++
+ 1 file changed, 37 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 11e2087..01663e4 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -7,6 +7,7 @@
+ 
+ #include <dt-bindings/clock/samsung,exynos9610-cmu.h>
+ #include <dt-bindings/interrupt-controller/arm-gic.h>
++#include <dt-bindings/soc/samsung,exynos-usi.h>
+ 
+ / {
+ 	compatible = "samsung,exynos9610";
+@@ -289,11 +290,47 @@ cmu_cmgp: clock-controller@11c00000 {
+ 				      "gout_cmu_cmgp_bus";
+ 		};
+ 
++		sysreg_cmgp: system-controller@11c10000 {
++			compatible = "samsung,exynos9610-cmgp-sysreg", "syscon";
++			reg = <0x11c10000 0x2048>;
++			clocks = <&cmu_cmgp CLK_GOUT_CMGP_SYSREG_PCLK>;
++		};
++
+ 		pinctrl_cmgp: pinctrl@11c20000 {
+ 			compatible = "samsung,exynos9610-pinctrl";
+ 			reg = <0x11c20000 0x1000>;
+ 		};
+ 
++		usi_cmgp0_i2c: usi@11d100c0 {
++			compatible = "samsung,exynos9610-usi",
++				     "samsung,exynos850-usi";
++			reg = <0x11d100c0 0x20>;
++			samsung,sysreg = <&sysreg_cmgp 0x2004>;
++			samsung,mode = <USI_MODE_I2C>;
++			#address-cells = <1>;
++			#size-cells = <1>;
++			ranges;
++			clocks = <&cmu_cmgp CLK_GOUT_CMGP_I2C_CMGP00_PCLK>,
++				 <&cmu_cmgp CLK_GOUT_CMGP_I2C_CMGP00_IPCLK>;
++			clock-names = "pclk", "ipclk";
++			status = "disabled";
++
++			hsi2c_3: i2c@11d10000 {
++				compatible = "samsung,exynos9610-hsi2c",
++					     "samsung,exynosautov9-hsi2c";
++				reg = <0x11d10000 0xc0>;
++				interrupts = <GIC_SPI 273 IRQ_TYPE_LEVEL_HIGH>;
++				#address-cells = <1>;
++				#size-cells = <0>;
++				pinctrl-names = "default";
++				pinctrl-0 = <&hsi2c3_bus>;
++				clocks = <&cmu_cmgp CLK_GOUT_CMGP_I2C_CMGP00_IPCLK>,
++					 <&cmu_cmgp CLK_GOUT_CMGP_I2C_CMGP00_PCLK>;
++				clock-names = "hsi2c", "hsi2c_pclk";
++				status = "disabled";
++			};
++		};
++
+ 		cmu_core: clock-controller@120f0000 {
+ 			compatible = "samsung,exynos9610-cmu-core";
+ 			reg = <0x120f0000 0x10000>;
+-- 
+2.56.0
+

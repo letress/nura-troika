@@ -1,0 +1,47 @@
+From bb8d03dc38873fdc749db7065d36b8b126cd0e00 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 13:50:15 +0100
+Subject: [PATCH 75/81] arm64: dts: exynos9610-troika: Enable the bus of the
+ backlight controller
+
+The SGM37603A that drives the backlight of the panel answers at 0x36 on
+HSI2C_3, which the vendor kernel runs at 400 kHz. There is no driver for
+it yet, so only the bus is enabled.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 28592c4..43601dd 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -126,6 +126,16 @@ &gpu {
+ 	status = "okay";
+ };
+ 
++/*
++ * The divider of the controller rounds the bus frequency up. With the 99.9 MHz
++ * clock that the bootloader leaves, 400 kHz would give 416 kHz, more than the
++ * backlight controller takes.
++ */
++&hsi2c_3 {
++	clock-frequency = <390000>;
++	status = "okay";
++};
++
+ &oscclk {
+ 	clock-frequency = <26000000>;
+ };
+@@ -218,3 +228,7 @@ &usbdrd_dwc3 {
+ &usbdrd_phy {
+ 	status = "okay";
+ };
++
++&usi_cmgp0_i2c {
++	status = "okay";
++};
+-- 
+2.56.0
+

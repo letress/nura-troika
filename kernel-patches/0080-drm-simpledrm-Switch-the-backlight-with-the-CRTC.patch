@@ -1,0 +1,158 @@
+From ea9fa1c7c94680c7f4ecc20a9cfb330b1ab05e70 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 15:06:02 +0100
+Subject: [PATCH 80/81] drm/simpledrm: Switch the backlight with the CRTC
+
+If the device tree names a backlight for the framebuffer, turn it off
+when the CRTC is disabled and back on when it is enabled. Without this
+a panel that the firmware has lit keeps glowing behind a blanked
+screen.
+
+The backlight is optional and its driver may bind later than simpledrm,
+so it is looked up when it is first needed. The display keeps working
+if it never shows up.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/gpu/drm/sysfb/Kconfig     |  1 +
+ drivers/gpu/drm/sysfb/simpledrm.c | 82 +++++++++++++++++++++++++++++++
+ 2 files changed, 83 insertions(+)
+
+diff --git a/drivers/gpu/drm/sysfb/Kconfig b/drivers/gpu/drm/sysfb/Kconfig
+index f7e4817..b078c68 100644
+--- a/drivers/gpu/drm/sysfb/Kconfig
++++ b/drivers/gpu/drm/sysfb/Kconfig
+@@ -57,6 +57,7 @@ config DRM_OFDRM
+ config DRM_SIMPLEDRM
+ 	tristate "Simple framebuffer driver"
+ 	depends on DRM && MMU
++	depends on BACKLIGHT_CLASS_DEVICE || !BACKLIGHT_CLASS_DEVICE
+ 	select APERTURE_HELPERS
+ 	select DRM_CLIENT_SELECTION
+ 	select DRM_GEM_SHMEM_HELPER
+diff --git a/drivers/gpu/drm/sysfb/simpledrm.c b/drivers/gpu/drm/sysfb/simpledrm.c
+index 21ddf45..714c8de 100644
+--- a/drivers/gpu/drm/sysfb/simpledrm.c
++++ b/drivers/gpu/drm/sysfb/simpledrm.c
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ 
+ #include <linux/aperture.h>
++#include <linux/backlight.h>
+ #include <linux/clk.h>
+ #include <linux/minmax.h>
+ #include <linux/of_address.h>
+@@ -245,6 +246,12 @@ struct simpledrm_device {
+ 	struct device_link **pwr_dom_links;
+ #endif
+ 
++	/* backlight */
++#if defined CONFIG_OF && IS_ENABLED(CONFIG_BACKLIGHT_CLASS_DEVICE)
++	struct device_node *backlight_node;
++	struct backlight_device *backlight;
++#endif
++
+ 	/* modesetting */
+ 	u32 formats[DRM_SYSFB_PLANE_NFORMATS(1)];
+ 	struct drm_plane primary_plane;
+@@ -566,6 +573,60 @@ static int simpledrm_device_attach_genpd(struct simpledrm_device *sdev)
+ }
+ #endif
+ 
++#if defined CONFIG_OF && IS_ENABLED(CONFIG_BACKLIGHT_CLASS_DEVICE)
++/*
++ * Backlight handling code.
++ *
++ * The firmware leaves the backlight on. Without help it stays on while the
++ * display is disabled, as nothing else ties it to this output. If the
++ * device tree names a backlight, switch it together with the CRTC.
++ *
++ * The backlight's driver may bind after this one, and the display has to
++ * work without it. The backlight is therefore looked up when it is needed
++ * instead of at probe time.
++ */
++static struct backlight_device *
++simpledrm_device_get_backlight(struct simpledrm_device *sdev)
++{
++	if (!sdev->backlight && sdev->backlight_node)
++		sdev->backlight = of_find_backlight_by_node(sdev->backlight_node);
++
++	return sdev->backlight;
++}
++
++static void simpledrm_device_release_backlight(void *res)
++{
++	struct simpledrm_device *sdev = res;
++
++	if (sdev->backlight)
++		put_device(&sdev->backlight->dev);
++	of_node_put(sdev->backlight_node);
++}
++
++static int simpledrm_device_init_backlight(struct simpledrm_device *sdev)
++{
++	struct drm_device *dev = &sdev->sysfb.dev;
++
++	sdev->backlight_node = of_parse_phandle(dev->dev->of_node, "backlight", 0);
++	if (!sdev->backlight_node)
++		return 0;
++
++	return devm_add_action_or_reset(dev->dev,
++					simpledrm_device_release_backlight, sdev);
++}
++#else
++static struct backlight_device *
++simpledrm_device_get_backlight(struct simpledrm_device *sdev)
++{
++	return NULL;
++}
++
++static int simpledrm_device_init_backlight(struct simpledrm_device *sdev)
++{
++	return 0;
++}
++#endif
++
+ /*
+  * Modesetting
+  */
+@@ -583,8 +644,26 @@ static const struct drm_plane_funcs simpledrm_primary_plane_funcs = {
+ 	.destroy = drm_plane_cleanup,
+ };
+ 
++static void simpledrm_crtc_helper_atomic_enable(struct drm_crtc *crtc,
++						struct drm_atomic_commit *state)
++{
++	struct simpledrm_device *sdev = container_of(crtc, struct simpledrm_device, crtc);
++
++	backlight_enable(simpledrm_device_get_backlight(sdev));
++}
++
++static void simpledrm_crtc_helper_atomic_disable(struct drm_crtc *crtc,
++						 struct drm_atomic_commit *state)
++{
++	struct simpledrm_device *sdev = container_of(crtc, struct simpledrm_device, crtc);
++
++	backlight_disable(simpledrm_device_get_backlight(sdev));
++}
++
+ static const struct drm_crtc_helper_funcs simpledrm_crtc_helper_funcs = {
+ 	DRM_SYSFB_CRTC_HELPER_FUNCS,
++	.atomic_enable = simpledrm_crtc_helper_atomic_enable,
++	.atomic_disable = simpledrm_crtc_helper_atomic_disable,
+ };
+ 
+ static const struct drm_crtc_funcs simpledrm_crtc_funcs = {
+@@ -654,6 +733,9 @@ static struct simpledrm_device *simpledrm_device_create(struct drm_driver *drv,
+ 	if (ret)
+ 		return ERR_PTR(ret);
+ 	ret = simpledrm_device_attach_genpd(sdev);
++	if (ret)
++		return ERR_PTR(ret);
++	ret = simpledrm_device_init_backlight(sdev);
+ 	if (ret)
+ 		return ERR_PTR(ret);
+ 
+-- 
+2.56.0
+

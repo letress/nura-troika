@@ -1952,3 +1952,204 @@ Rozsah: největší ze tří, dny až týdny; nejistý výsledek.
 Balíček kernelu sestavit po kroku 1 (GPU + rozměr panelu + podsvícení),
 další až po kroku 2 nebo 3.
 
+### 20.6 Podsvícení, krok 1: popis sběrnice (2026-11-12)
+
+Stav na telefonu podle původního systému (`device-info/live.dts`):
+`hsi2c@11D10000` je zapnutý, 400 kHz, s dítětem `backlight_i2c@36`;
+`usi@11C12004` má `usi_v2_mode = "i2c"`.
+
+Uzly v mainline (větev `troika-clk`):
+
+| Uzel | Hodnoty | Zdroj |
+|---|---|---|
+| `sysreg_cmgp` | 0x11c10000, délka 0x2048 | původní `exynos9610.dtsi` (`sysreg = <0x11C10000>` u ADC; poslední přepínač USI na 0x11C12044) |
+| `usi_cmgp0_i2c` | registry USI na 0x11d100c0, přepínač na `sysreg_cmgp` + 0x2004, režim I2C | původní `usi_0_cmgp_i2c: usi@11C12004`; původní `i2c-exynos5.c` (`USI_CON` na +0xC4); `usi_v2.c` (I2C = bit 2, stejně jako mainline `exynos-usi.c`) |
+| `hsi2c_3` | 0x11d10000, SPI 273, piny `hsi2c3_bus` | původní `hsi2c_3` |
+| hodiny | `CLK_GOUT_CMGP_I2C_CMGP00_IPCLK`, `_PCLK` | původní `GATE_I2C_CMGP00_QCH`, `CMGP_I2C` |
+
+Varianta ovladače: `samsung,exynosautov9-hsi2c` (původní výpočet děliče
+`fs_div = ipclk / (op_clk * 16)` je vzorec této varianty). Původní kernel
+navíc nastavuje hodiny sběrnice na 200 MHz (`default-clk`); mainline frekvenci
+nemění a dělič spočítá z té, kterou najde.
+
+Co kernel při startu zapíše: režim I2C do přepínače USI (stejná hodnota jako
+původní systém), uvolnění resetu USI a nastavení řadiče I2C. Na samotné
+sběrnici se nic neděje, dokud o to někdo nepožádá.
+
+Image BL1 čip jen čte (registry 0x10, 0x11, 0x19, 0x1a, 0x1b, 0x1f – tytéž
+čte původní ovladač při startu). **Neověřeno** na telefonu.
+
+### 20.7 Test BL1: sběrnice funguje, čip odpovídá (2026-11-12 13:59)
+
+`fastboot boot out/troika-test-BL1.img`; čteno přes telnet.
+
+- `exynos-usi` a řadič I2C se navázaly: `i2c-1` =
+  `…/11d100c0.usi/11d10000.i2c`, `/dev/i2c-1`, 49 přerušení řadiče.
+- Hodiny sběrnice: `gout_clk_cmgp_i2c_cmgp00_ipclk` 99 937 500 Hz (původní
+  kernel si nastavuje 200 MHz). Mainline z toho spočítá dělič 14, tedy asi
+  416 kHz místo 400 kHz (zaokrouhlení ve vzorci varianty autov9). Čtení
+  funguje; k dořešení před balíčkem.
+- Nástroj `i2c-reg` funguje (výpis použití i čtení).
+
+Registry SGM37603A, jak je nechal bootloader, a jejich význam podle
+datasheetu výrobce (SG Micro, SGM37603A rev. A, září 2021, tabulky 1–9;
+`sg-micro.com/rect/assets/87b0126e-…/SGM37603A.pdf`):
+
+| Registr | Hodnota | Význam |
+|---|---|---|
+| 0x10 zapnutí | 0x1f | čip i všechny tři řetězce LED zapnuté (výchozí po zapnutí) |
+| 0x11 režim | 0x65 | `LED_MOD` = 11: jas = kód I2C × střída PWM (výchozí); náběh vypnutý |
+| 0x19 jas, horních 8 bitů | 0xcc | kód jasu 0xCCC – přesně „běžný režim“ původního ovladače |
+| 0x1a jas, dolní 4 bity | 0xfc | (horní čtyři bity jsou vyhrazené a čtou se jako 1) |
+| 0x1b max. proud | 0x00 | 25 mA na řetězec (výchozí, nejnižší ze čtyř stupňů) |
+| 0x1f chyby | 0x00 | žádná chyba |
+
+Závěr z datasheetu: v režimu I2C × PWM je proud úměrný kódu jasu, kód 0
+znamená vypnuto („Off, device in standby mode“, tabulka 9). Displej tedy
+**půjde ztlumit i zhasnout jen zápisem do 0x19/0x1a**, bez ovladače displeje;
+PWM od řadiče displeje zůstane, jak ho nastavil bootloader. Pořadí zápisu
+podle původního ovladače: nejdřív dolní 4 bity (0x1a), pak horní bajt (0x19).
+
+Meze pro ovladač: rozsah 0–0xCCC (3276), nikdy výš; registr 0x1b (max. proud)
+a 0x10/0x11 neměnit. **Zápis zatím neproveden** – čeká na souhlas uživatele.
+
+### 20.8 Pokusný zápis jasu (2026-11-12 14:05)
+
+Souhlas uživatele (otázka „Povoluješ pokusné zápisy jasu do registrů 0x1a
+a 0x19 čipu podsvícení?“ → „Ano, všechny čtyři“): kódy 0x400, 0x100, 0x000
+a zpět 0xCCC. Provedeno přes telnet nástrojem `i2c-reg` v běžícím BL1,
+mezi kroky 6 s; pořadí zápisu 0x1a (dolní 4 bity), pak 0x19.
+
+| Kód | 0x19 po zápisu | 0x1a po zápisu | 0x1f (chyby) |
+|---|---|---|---|
+| 0x400 | 0x40 | 0xf0 | 0x00 |
+| 0x100 | 0x10 | 0xf0 | 0x00 |
+| 0x000 | 0x00 | 0xf0 | 0x00 |
+| 0xCCC | 0xcc | 0xfc | 0x00 |
+
+Zápisy prošly, zpětné čtení sedí, čip nehlásí chybu a je zpět na původní
+hodnotě. **Neověřeno:** co bylo vidět na displeji – čeká se na uživatele.
+
+### 20.9 Pokus potvrzen, ovladač podsvícení (2026-11-12)
+
+Uživatel potvrdil, že se displej při pokusu 20.8 ve dvou krocích ztlumil a pak
+na pár sekund zhasl. Jas tedy jde řídit jen přes I2C.
+
+Kernel, větev `troika-clk` (+3, celkem 78 nad v7.3.3):
+
+1. `dt-bindings: leds: backlight: Add SG Micro SGM37603A` – compatible
+   `sgmicro,sgm37603a` (předpona `sgmicro` v `vendor-prefixes.yaml` už je).
+2. `backlight: Add a driver for the SG Micro SGM37603A` –
+   `drivers/video/backlight/sgm37603a.c`: zapisuje jen kód jasu (dolní 4 bity
+   do 0x1a, pak horní bajt do 0x19), při startu jas přečte a nic nezapíše
+   (displej neblikne), `max-brightness` z DT. Registry 0x10, 0x11 a 0x1b
+   nechává být.
+3. `arm64: dts: exynos9610-troika: Add the backlight` – uzel `backlight@36`
+   s `max-brightness = <3276>` (0xCCC).
+
+Frekvence sběrnice v DT je 390 kHz: čip snese nejvýš 400 kHz (datasheet,
+„SCL Clock Period“ min. 2,5 µs) a mainline by ze 400 kHz udělal 416 kHz;
+s 390 kHz vychází dělič 15, tedy 390,4 kHz. (Původní kernel s hodinami
+200 MHz a svým vzorcem běžel asi na 368 kHz.)
+
+Konfigurace: `BACKLIGHT_CLASS_DEVICE=y` a `BACKLIGHT_SGM37603A=y` (v balíčku
+je dosud třída podsvícení jako modul; ovladač tam není).
+
+**Neověřeno:** ovladač na telefonu; jestli Phosh při zhasnutí obrazovky
+vypne i podsvícení (simpledrm o podsvícení neví, takže to nejspíš zůstane na
+uživatelském prostoru).
+
+### 20.10 Test BL2: ovladač se navázal, Phosh posuvník neukazuje (2026-11-12 14:40)
+
+Image BL2 nastartoval. `/sys/class/backlight/*/brightness` = 3276,
+`max_brightness` = 3276 → ovladač `sgm37603a` se navázal a přečetl jas po
+bootloaderu. Uživatel: posuvník jasu se v horní liště Phoshe neukazuje.
+
+Příčina (zdroj Phoshe, `src/udev-manager.c`,
+`phosh_udev_manager_find_backlight()`): Phosh hledá podsvícení podle
+konektoru displeje. Zařízení typu `firmware` a `platform` a libovolné `raw`
+bere jen pro **vestavěný** konektor (eDP, LVDS, DSI…); jinak jen `raw`, jehož
+rodič je konektor DRM stejného jména a je zapnutý. simpledrm vytváří konektor
+typu `Unknown` (`drivers/gpu/drm/sysfb/simpledrm.c:868`), pro Phosh tedy
+`Unknown-1` není vestavěný, a naše podsvícení visí pod zařízením I2C.
+
+Možnosti: (a) ladicí přepínač Phoshe `PHOSH_DEBUG=fake-builtin` (bere displej
+jako vestavěný; `phosh-session` načítá `~/.phoshdebug`) – rychlá zkouška bez
+zásahu do kernelu; (b) skutečný ovladač displeje s konektorem DSI – správné
+řešení, ale velká práce; (c) navrhnout Phoshi, aby jediný konektor simpledrm
+bral jako vestavěný. **Neověřeno**, jestli (a) zabere.
+
+### 20.11 Posuvník jasu s `PHOSH_DEBUG=fake-builtin` (2026-11-12 ~14:55)
+
+Uživatel vytvořil `~/.phoshdebug` s `export PHOSH_DEBUG=fake-builtin`,
+restartoval greetd a přihlásil se: „nyní se objevil posuvník a funguje
+správně“. Řetěz Phosh → logind → `/sys/class/backlight` → `sgm37603a` → čip
+tedy funguje.
+
+Pro balíček: Phosh běží jako uživatelská služba systemd
+`mobi.phosh.Shell.service`, takže proměnnou jde nastavit doplňkem služby.
+Připraveno v pmaports (necommitnuto, balíček zařízení pkgrel 6, podbalíček
+`-phosh`): `/usr/lib/systemd/user/mobi.phosh.Shell.service.d/50-builtin-display.conf`
+s `Environment=PHOSH_DEBUG=fake-builtin`. **Neověřeno**, že doplněk služby
+zabere stejně jako `~/.phoshdebug` – nejdřív zkouška naživo v
+`/etc/systemd/user/…`.
+
+**Neověřeno:** co se děje s podsvícením při zhasnutí obrazovky.
+
+### 20.12 Doplněk služby potvrzen; zhasínání obrazovky (2026-11-12 ~15:00)
+
+Uživatel smazal `~/.phoshdebug`, vytvořil
+`/etc/systemd/user/mobi.phosh.Shell.service.d/troika.conf` s
+`Environment=PHOSH_DEBUG=fake-builtin` a restartoval greetd: posuvník zůstal.
+Doplněk služby tedy funguje → pmaports commit `dd0c8a565`
+(„device-motorola-troika: let Phosh find the backlight“, pkgrel 6, místní).
+
+Zhasínání podle uživatele:
+
+- obrazovka zhasne sama (nečinnost): podsvícení zhasne úplně – Phosh před
+  vypnutím výstupu stáhne jas na nulu;
+- zhasnutí tlačítkem Power: obraz zčerná, **podsvícení zůstane svítit** –
+  Phosh jen vypne výstup a spoléhá, že podsvícení zhasne kernel (to dělají
+  ovladače panelů; simpledrm o podsvícení neví).
+
+Oprava v kernelu (větev `troika-clk`, +3, celkem 81 nad v7.3.3):
+
+1. `dt-bindings: display: simple-framebuffer: Add a backlight` – nepovinná
+   vlastnost `backlight` (odkaz na podsvícení).
+2. `drm/simpledrm: Switch the backlight with the CRTC` – při vypnutí CRTC
+   `backlight_disable()`, při zapnutí `backlight_enable()`. Podsvícení se
+   hledá až při prvním použití, takže displej nezávisí na tom, jestli a kdy
+   se ovladač podsvícení naváže. Závislost v Kconfig kvůli třídě podsvícení
+   jako modulu.
+3. `arm64: dts: exynos9610-troika: Tie the backlight to the framebuffer`.
+
+Kontroly: `dtbs_check` (jen známé varování USB), `dt_binding_check` pro
+`simple-framebuffer.yaml` a `sgmicro,sgm37603a.yaml` bez hlášení, překlad bez
+varování. Vlastnost `backlight` u `simple-framebuffer` není v upstreamu;
+je to náš patch. **Neověřeno** na telefonu (image BL3).
+
+### 20.13 Test BL3: podsvícení zhasíná s obrazovkou (2026-11-12 15:10)
+
+Image BL3 (místní kernel z `troika-clk`, 81 nad v7.3.3). Uživatel: „všechno
+nyní funguje správně“ – po stisku Power zhasne obraz i podsvícení, po dalším
+stisku se displej rozsvítí na stejný jas, posuvník jasu a zhasnutí nečinností
+fungují dál. `sudo reboot bootloader` z plného systému skončil ve fastbootu
+(restart do bootloaderu je tím ověřený i z plného systému).
+
+### 20.14 Balíček: kernel pkgrel 6, zařízení pkgrel 6 (2026-11-12 15:13)
+
+pmaports, místní commity (nepushnuto):
+
+| Commit | Co |
+|---|---|
+| `dd0c8a565` device-motorola-troika: let Phosh find the backlight | doplněk služby Phoshe, pkgrel 6 |
+| „linux-motorola-troika-mainline: add the GPU and the backlight“ | 81 patchů, `BACKLIGHT_CLASS_DEVICE=y`, `BACKLIGHT_SGM37603A=y`, pkgrel 6 |
+
+Konfigurace balíčku se od místní, na které testy proběhly, liší jen verzí
+kompilátoru, `LOCALVERSION_AUTO` a `MODULE_ALLOW_BTF_MISMATCH` (obojí místní
+pomůcky). `pmbootstrap kconfig check` prochází, checksumy sedí.
+**Nesestaveno.**
+
+Co v této dávce není: fyzický rozměr panelu v DT (měřítko pro Phosh řeší
+`phoc.ini`; rozměr by potřeboval uzel panelu, pro který nemáme binding).
+

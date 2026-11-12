@@ -37,6 +37,9 @@ install -m 755 "$busybox" "$tmp/bin/busybox"
 install -m 755 "$root/test-initramfs/init" "$tmp/init"
 # Restart s argumentem (test RB): busybox ho předat neumí.
 aarch64-linux-gcc -nostdlib -static -o "$tmp/bin/reboot-arg" "$root/test-initramfs/reboot-arg.S"
+# Čtení a zápis registru I2C (test BL): busybox nástroje i2c* nemá.
+aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
+	-o "$tmp/bin/i2c-reg" "$root/test-initramfs/i2c-reg.c"
 # DHCP server a telnetd z initramfs pmOS (dynamicky linkované proti musl).
 # Bez nich test poběží taky, jen bez DHCP a telnetu.
 bits="$root/dl/pmos-bits"

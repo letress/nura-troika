@@ -1,0 +1,29 @@
+From 9890a48647930b3dd3a74ff17790705b4663daa8 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 13:50:15 +0100
+Subject: [PATCH 73/81] dt-bindings: i2c: exynos5: Add Exynos9610
+
+The HSI2C controllers of the Exynos9610 are part of USI blocks. Their
+clock divider follows the formula of the ExynosAutoV9 variant:
+FSCL = IPCLK / ((CLK_DIV + 1) * 16).
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ Documentation/devicetree/bindings/i2c/i2c-exynos5.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/i2c/i2c-exynos5.yaml b/Documentation/devicetree/bindings/i2c/i2c-exynos5.yaml
+index 3226923..1a44e89 100644
+--- a/Documentation/devicetree/bindings/i2c/i2c-exynos5.yaml
++++ b/Documentation/devicetree/bindings/i2c/i2c-exynos5.yaml
+@@ -42,6 +42,7 @@ properties:
+               - google,gs101-hsi2c
+               - samsung,exynos2200-hsi2c
+               - samsung,exynos850-hsi2c
++              - samsung,exynos9610-hsi2c
+               - samsung,exynos990-hsi2c
+           - const: samsung,exynosautov9-hsi2c
+       - const: samsung,exynos5-hsi2c    # Exynos5250 and Exynos5420
+-- 
+2.56.0
+

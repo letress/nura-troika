@@ -1,7 +1,7 @@
 From 44d81c601b4e3856e6f7a590542536cd8b78fc66 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 14:33:59 +0100
-Subject: [PATCH 51/70] arm64: dts: exynos9610: Add PMU, USB PHY and USB
+Subject: [PATCH 51/81] arm64: dts: exynos9610: Add PMU, USB PHY and USB
  controller
 
 Add the PMU as a syscon, the USB 2.0 PHY and the DWC3 controller. The

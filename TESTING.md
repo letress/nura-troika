@@ -1125,6 +1125,125 @@ První pokus selhal na neshodě BTF modulů z balíčku s místním kernelem
 (FINDINGS.md 19.8); místní kernel proto potřebuje
 `CONFIG_MODULE_ALLOW_BTF_MISMATCH=y`.
 
+## 5p. Test BL1: čtení čipu podsvícení (bez zápisu)
+
+Cíl: ověřit, že sběrnice HSI2C_3 v mainline funguje a čip SGM37603A na adrese
+0x36 odpovídá; přečíst, jak ho nastavil bootloader (FINDINGS.md 20.2, 20.6).
+Do čipu se nic nezapisuje.
+
+1. Telefon do fastbootu (netboot server není potřeba) a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-BL1.img
+```
+
+2. Na displeji bude oddíl `--- PODSVICENI ---` se šesti registry. Napiš mi,
+   že běží; hodnoty si přečtu přes telnet.
+
+3. Zápis jasu zkusím až potom a až mi ho odsouhlasíš – napíšu předem, které
+   hodnoty do kterých registrů.
+
+**Výsledek BL1 (2026-11-12): prošlo** – sběrnice funguje, čip odpovídá,
+kód jasu po bootloaderu je 0xCCC, žádná chyba (FINDINGS.md 20.7).
+
+Pokusný zápis jasu (FINDINGS.md 20.8) prošel: displej se ztlumil a zhasl.
+
+## 5q. Test BL2: ovladač podsvícení v Phoshi
+
+Cíl: posuvník jasu v Phoshi mění jas displeje; zjistit, co se děje při
+zhasnutí obrazovky. Místní kernel (větev `troika-clk` s ovladačem
+`sgm37603a`), systém z netbootu jako u GPU2.
+
+1. Server:
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports netboot serve
+```
+
+2. Do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-BL2.img
+```
+
+3. V Phoshi stáhni horní lištu a zkus posuvník jasu. Pak nech obrazovku
+   zhasnout (nebo krátce stiskni Power) a podívej se, jestli podsvícení
+   opravdu zhasne, nebo jen zčerná obraz.
+
+4. Přes SSH:
+
+```bash
+ssh user@172.16.42.1
+```
+
+```bash
+cat /sys/class/backlight/*/brightness /sys/class/backlight/*/max_brightness
+```
+
+**Výsledek BL2 (2026-11-12):** ovladač podsvícení funguje; posuvník jasu
+v Phoshi jen s `PHOSH_DEBUG=fake-builtin` (pak funguje správně); při
+nečinnosti podsvícení zhasne, při zhasnutí tlačítkem Power zůstává svítit
+(FINDINGS.md 20.10–20.12).
+
+## 5r. Test BL3: podsvícení zhasíná s obrazovkou
+
+Cíl: po stisku Power zhasne i podsvícení a po probuzení se vrátí na stejný
+jas. Místní kernel se změnou simpledrm (FINDINGS.md 20.12), systém z netbootu
+(v něm zůstal doplněk služby z testu BL2, takže posuvník bude).
+
+1. Netboot server nech běžet. Telefon pošli z Phoshe do fastbootu (zároveň
+   se tím ověří restart do bootloaderu z plného systému):
+
+```bash
+sudo reboot bootloader
+```
+
+2. Na PC:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-BL3.img
+```
+
+3. Po přihlášení: stiskni Power – má zhasnout obraz i podsvícení. Stiskni
+   znovu – displej se má rozsvítit na původní jas. Zkus i posuvník jasu
+   a zhasnutí nečinností.
+
+**Výsledek BL3 (2026-11-12): prošlo** – Power zhasíná obraz i podsvícení,
+probuzení vrací jas, posuvník funguje; `sudo reboot bootloader` z plného
+systému funguje (FINDINGS.md 20.13).
+
+## 5s. Test PKG6: balíček kernelu pkgrel 6 a zařízení pkgrel 6
+
+Cíl: totéž, co prošlo s místními image (GPU, podsvícení, posuvník, zhasínání),
+ale z balíčků, bez ručních zásahů v systému.
+
+Před sestavením: telefon vypnutý (`sudo poweroff`), netboot server ukončený
+(Ctrl+C).
+
+1. Sestavení kernelu (asi 1,5 h), potom systém a export:
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64 linux-motorola-troika-mainline
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports build --arch aarch64 device-motorola-troika
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports install
+```
+
+```bash
+pmbootstrap -p ~/nura-troika/pmaports export
+```
+
+2. Napiš mi; zkontroluju image a uložím ho jako `out/troika-test-PKG6.img`.
+
+3. `netboot serve --replace`, `fastboot boot`, a ověřit: `lsblk` (RO = 1),
+   `grep panf /proc/interrupts` (GPU), posuvník jasu bez ručního nastavení,
+   zhasnutí tlačítkem Power.
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

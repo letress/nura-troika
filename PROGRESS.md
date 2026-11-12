@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: GPU funguje (Phosh přes panfrost, 260 MHz), vše pushnuto. Uživatel chce dál podsvícení, frekvenci GPU přes firmware a WiFi; průzkum a plán jsou ve FINDINGS.md kap. 20. Další krok: podsvícení – popsat sběrnici `hsi2c_3` v DT a místním image čip SGM37603A jen přečíst. Balíček kernelu je stále r5 (sestaví se jednou po dávce změn)
+## Stav: první dávka je hotová a ověřená místními image: GPU (panfrost) a podsvícení (ovladač, posuvník v Phoshi, zhasínání s obrazovkou). Balíčky jsou připravené, nesestavené: kernel pkgrel 6 (81 patchů), zařízení pkgrel 6. Vše commitnuto a pushnuto. Další krok: sestavení balíčku uživatelem (TESTING.md 5s)
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1430,7 +1430,7 @@ i s rozměrem panelu); commit a push. Další možné kroky: řízení frekvence
 přes ACPM (podklad: gta4xl `0170-exynos9611-gpu-dvfs.patch`), ovladač
 displeje (gta4xl `0130`, jiný panel).
 
-### 2026-11-12 ~13:45 – commit a push GPU
+### 2026-11-12 ~13:40 – commit a push GPU
 
 Uživatel: Phosh je „mnohem více plynulejší“. Na jeho pokyn commit a push
 hlavního repozitáře: FINDINGS kap. 19, TESTING 5n a 5o, PROGRESS,
@@ -1442,7 +1442,7 @@ Další přání uživatele: podsvícení displeje a změna frekvence GPU přes
 firmware, s co nejméně sestaveními kernelu → zkoušet místními image,
 balíček sestavit jednou na konci.
 
-### 2026-11-12 ~13:45–14:20 – průzkum podsvícení, ACPM a WiFi
+### 2026-11-12 ~13:40–13:48 – průzkum podsvícení, ACPM a WiFi
 
 Uživatel: Phosh je s GPU mnohem plynulejší; chce zkusit ztmavování displeje,
 změnu frekvence GPU přes firmware a WiFi, s co nejméně sestaveními kernelu.
@@ -1454,4 +1454,110 @@ Doporučené pořadí: podsvícení → ACPM/GPU → WiFi. Vše zkoušet místn�
 balíček sestavit jednou po dávce.
 
 Rozpracováno: nic v kernelu (jen průzkum).
+
+### 2026-11-12 13:48–13:58 – podsvícení, krok 1: sběrnice a image BL1
+
+Uživatel: „Ano, podsvícení“.
+
+- Kernel, větev `troika-clk` (+5, celkem 75 nad v7.3.3): tři bindingy
+  (`samsung,exynos9610-cmgp-sysreg`, `-usi`, `-hsi2c`), v dtsi `sysreg_cmgp`,
+  `usi_cmgp0_i2c` a `hsi2c_3`, na troice zapnutí sběrnice na 400 kHz.
+  Bez uzlu čipu – ovladač zatím není. dtbs_check: jen známé varování USB.
+- `test-initramfs/i2c-reg.c`: malý nástroj pro čtení a zápis registru I2C
+  (busybox žádný nemá); `tools/make-clk-test-bootimg.sh` ho přibaluje.
+  Na PC se nedal vyzkoušet (qemu z chrootu pmbootstrapu padá), ověří se na
+  telefonu.
+- `test-initramfs/init`: oddíl `--- PODSVICENI ---` pro značku `bl*`, jen čte
+  registry 0x10, 0x11, 0x19, 0x1a, 0x1b, 0x1f.
+- `out/troika-test-BL1.img` (sha256 začíná `233a5769`), kernel z větve
+  `troika-clk-test` s konfigurací balíčku.
+
+Další krok: uživatel spustí BL1; já přes telnet přečtu registry. Zápis jasu
+až po jeho souhlasu s konkrétními hodnotami.
+
+### 2026-11-12 13:59–14:05 – test BL1 prošel
+
+Sběrnice `i2c-1` (11d10000.i2c) funguje, `i2c-reg` funguje, registry čipu:
+0x10 = 0x1f, 0x11 = 0x65, 0x19 = 0xcc, 0x1a = 0xfc, 0x1b = 0x00, 0x1f = 0x00
+(FINDINGS.md 20.7). Stažen datasheet SGM37603A (mimo repozitář): režim
+I2C × PWM, kód 0 = vypnuto → stmívání půjde přes I2C.
+
+Jiná session upozornila, že zkouška `i2c-reg` pod qemu na PC shodila qemu
+a že by se skutečnými argumenty sahala na sběrnici PC; poučení uloženo do
+paměti. Nic se nestalo.
+
+Další krok: se souhlasem uživatele zapsat přes telnet kódy 0x400, 0x100,
+0x000 a zpět 0xCCC a sledovat displej; pak napsat ovladač podsvícení.
+
+### 2026-11-12 14:03–14:06 – pokusný zápis jasu
+
+Uživatel odsouhlasil čtyři zápisy (AskUserQuestion: „Ano, všechny čtyři“).
+Provedeno přes telnet; zpětné čtení sedí, bez chyb, čip vrácen na 0xCCC
+(FINDINGS.md 20.8). Co bylo vidět na displeji, zatím nevím.
+
+### 2026-11-12 14:06–14:30 – ovladač podsvícení
+
+Uživatel potvrdil ztlumení a zhasnutí displeje při pokusu. Napsán ovladač
+`sgm37603a` + binding + uzel v DT (FINDINGS.md 20.9); frekvence sběrnice
+snížena na 390 kHz (commit sběrnice přepsán přes autosquash).
+`troika-clk-test` znovu postaven nad `troika-clk` (`rebase --onto`).
+
+Místní konfigurace: `BACKLIGHT_CLASS_DEVICE=y`, `BACKLIGHT_SGM37603A=y`.
+Pozor: sestavení jsem pustil s `W=1`, což vyvolalo plné přeložení (asi
+18 min); po něm je potřeba buď `W=1` držet, nebo přeložit znovu bez něj.
+
+### 2026-11-12 14:32 – image BL2 připraven
+
+Kernel z `troika-clk` (s `W=1`, plné sestavení 23 min, ovladač bez varování)
+→ `tools/make-local-pmos-bootimg.sh BL2 out/troika-test-GUI2.img` →
+`out/troika-test-BL2.img` (sha256 začíná `dbaee858`); ramdisk a „second“
+shodné s GUI2. Na pozadí běží přeložení bez `W=1`, aby další sestavení byla
+zase přírůstková. Další krok je na uživateli: TESTING.md 5q.
+
+### 2026-11-12 14:39–14:50 – test BL2: ovladač ano, posuvník ne
+
+BL2 běží, ovladač podsvícení navázán (3276/3276). Posuvník v Phoshi chybí:
+Phosh páruje podsvícení s vestavěným konektorem, simpledrm má `Unknown`
+(FINDINGS.md 20.10). Uživateli navržena zkouška s `~/.phoshdebug`
+(`PHOSH_DEBUG=fake-builtin`) a restartem greetd.
+
+### 2026-11-12 ~14:55–15:00 – posuvník jasu funguje
+
+S `~/.phoshdebug` (`PHOSH_DEBUG=fake-builtin`) se posuvník objevil a jas
+mění (FINDINGS.md 20.11). Do balíčku zařízení připraven doplněk služby
+`mobi.phosh.Shell.service` (pkgrel 6, soubor `phosh-builtin-display.conf`;
+zatím necommitnuto, čeká na zkoušku naživo). Přeložení kernelu bez `W=1`
+doběhlo, `build/linux` je z čisté větve `troika-clk`.
+
+### 2026-11-12 ~15:00–15:08 – doplněk služby potvrzen, simpledrm a image BL3
+
+Uživatel: s doplňkem služby posuvník zůstal; při nečinnosti displej zhasne
+úplně, po stisku Power zůstává podsvícení svítit (FINDINGS.md 20.12).
+
+- pmaports: commit `dd0c8a565` (zařízení pkgrel 6, doplněk služby Phoshe).
+- Kernel: 3 commity (binding `backlight` u simple-framebuffer, simpledrm
+  vypíná podsvícení s CRTC, propojení v DT troiky); kontroly čisté.
+- `out/troika-test-BL3.img` (sha256 začíná `400815f8`).
+
+### 2026-11-12 15:10–15:16 – BL3 prošel, balíčky připraveny
+
+Uživatel: s BL3 „všechno funguje správně“ (Power zhasíná i podsvícení,
+`sudo reboot bootloader` funguje; FINDINGS.md 20.13).
+
+- pmaports: kernel pkgrel 6 (81 patchů přes `tools/update-kernel-pkg.sh`,
+  podsvícení vestavěné), `kconfig check` prochází; commit místně.
+- Hlavní repozitář: `kernel-patches/` přeexportováno na 81, `-debug` 5.
+- Postup pro sestavení a test balíčku: TESTING.md 5s.
+
+Necommitnuto v hlavním repozitáři: FINDINGS 20.6–20.14, TESTING 5p–5s,
+PROGRESS, `test-initramfs/init`, `test-initramfs/i2c-reg.c`,
+`tools/make-clk-test-bootimg.sh`, `kernel-patches*/`.
+
+### 2026-11-12 ~15:20 – commit a push podsvícení a balíčků
+
+Na pokyn uživatele: hlavní repozitář commitnut a pushnut (FINDINGS 20.6–20.14,
+TESTING 5p–5s, PROGRESS, `test-initramfs/init`, `test-initramfs/i2c-reg.c`,
+`tools/make-clk-test-bootimg.sh`, `kernel-patches/` 81, `-debug/` 5);
+pmaports větev pushnuta do `letress/pmaports-troika` (`dd0c8a565` zařízení
+pkgrel 6, `6a3faa4df` kernel pkgrel 6).
 

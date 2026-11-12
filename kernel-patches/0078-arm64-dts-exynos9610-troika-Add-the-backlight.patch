@@ -1,0 +1,39 @@
+From 44c0b41a696a2b677a45d9809dbe730ba9c5103d Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 14:08:40 +0100
+Subject: [PATCH 78/81] arm64: dts: exynos9610-troika: Add the backlight
+
+The backlight of the panel is driven by an SGM37603A. The vendor kernel
+sets its brightness code to 0xccc for normal operation and to 0xfff for
+a high brightness mode (sgm37603a.h); the bootloader leaves 0xccc. Limit
+the range to the former.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 43601dd..5cd5ced 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -134,6 +134,16 @@ &gpu {
+ &hsi2c_3 {
+ 	clock-frequency = <390000>;
+ 	status = "okay";
++
++	/*
++	 * The vendor kernel uses 0xccc as the brightness for normal operation
++	 * and reserves the range above it for a high brightness mode.
++	 */
++	backlight@36 {
++		compatible = "sgmicro,sgm37603a";
++		reg = <0x36>;
++		max-brightness = <3276>;
++	};
+ };
+ 
+ &oscclk {
+-- 
+2.56.0
+
