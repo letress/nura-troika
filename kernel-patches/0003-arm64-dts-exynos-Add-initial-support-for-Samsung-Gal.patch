@@ -1,7 +1,7 @@
 From 6d8e10ee7b8f8495ca8b8fdb8455944f453c65fe Mon Sep 17 00:00:00 2001
 From: Alexandru Chimac <alex@chimac.ro>
 Date: Sun, 14 Sep 2025 20:44:21 +0000
-Subject: [PATCH 03/81] arm64: dts: exynos: Add initial support for Samsung
+Subject: [PATCH 03/85] arm64: dts: exynos: Add initial support for Samsung
  Galaxy Tab S6 Lite (gta4xl)
 
 Add initial support for the Samsung Galaxy Tab S6 Lite (SM-P610/P615):

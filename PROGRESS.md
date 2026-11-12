@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: první dávka je hotová a ověřená místními image: GPU (panfrost) a podsvícení (ovladač, posuvník v Phoshi, zhasínání s obrazovkou). Balíčky jsou připravené, nesestavené: kernel pkgrel 6 (81 patchů), zařízení pkgrel 6. Vše commitnuto a pushnuto. Další krok: sestavení balíčku uživatelem (TESTING.md 5s)
+## Stav: ACPM – komunikace s firmwarem funguje: modul FVP nahrán a připojen, firmware odpovídá (test ACPM3, FINDINGS.md 21.8). Zatím jen v ladicím commitu na `troika-clk-test`. Další podle dohody: čtení teploty, pak teprve žádost o souhlas se změnou frekvence. Hlavní repozitář necommitnut od `1c45912`; `troika-clk` 85 commitů nad v7.3.3
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1560,4 +1560,67 @@ TESTING 5p–5s, PROGRESS, `test-initramfs/init`, `test-initramfs/i2c-reg.c`,
 `tools/make-clk-test-bootimg.sh`, `kernel-patches/` 81, `-debug/` 5);
 pmaports větev pushnuta do `letress/pmaports-troika` (`dd0c8a565` zařízení
 pkgrel 6, `6a3faa4df` kernel pkgrel 6).
+
+### 2026-11-12 15:16–15:28 – ACPM: průzkum a image ACPM1
+
+Uživatel se ptal, jestli už sestavovat balíček; doporučil jsem počkat
+a přidat nejdřív základ ACPM (frekvence CPU a GPU, SD karta). Uživatel:
+„pusťme se do komunikace s firmwarem“ (krok jen čtení; změna frekvence až
+po dalším výslovném souhlasu).
+
+- Průzkum: mainline ovladač ACPM pro GS101 sedí i na 9610 – stejné uspořádání
+  sdílené paměti, mailbox jako Exynos850 (FINDINGS.md 21.1–21.2).
+- Kernel: 4 commity na `troika-clk` (85 nad v7.3.3); na `troika-clk-test`
+  nový ladicí commit `ACPMDBG` (6 DEBUG celkem).
+- `test-initramfs/init`: oddíl `--- ACPM ---` pro značku `acpm*`.
+- `out/troika-test-ACPM1.img` (sha256 začíná `dc265bc4`).
+
+### 2026-11-12 16:02–16:10 – test ACPM1 a image ACPM2
+
+ACPM1: ovladač a mailbox se navázaly, kanály přečteny (8). Dotazy na
+frekvenci mainline odmítl odeslat (kanál 5 bez dotazování), tabulky fvmap
+byly ze špatné adresy – leží v modulu DVFS (FINDINGS.md 21.5). Firmwaru
+nebyla poslána žádná zpráva.
+
+Ladicí commit přepsán: vypisuje seznam modulů firmwaru, vlastníky kanálů
+a tabulky z adresy modulu DVFS; nic neodesílá. `out/troika-test-ACPM2.img`
+(sha256 začíná `28e5be23`).
+
+Pozn.: při čtení logu jsem vypsal i začátek řádku s příkazovou řádkou
+kernelu (zkrácený na 170 znaků, sériové číslo v něm nebylo); filtr doplněn
+do `test-initramfs/init`, v dalších příkazech ho hlídat.
+
+### 2026-11-12 16:10–16:20 – test ACPM2: moduly a tabulky
+
+Telefon poslán do fastbootu přes telnet (na pokyn uživatele; první pokus
+`reboot-arg` nezabral, druhý s plnou cestou `/bin/reboot-arg` ano).
+ACPM2: 6 modulů firmwaru, DVFS zavedený, FVP a TMU ne; tabulky frekvencí
+a napětí přečteny ze SRAM + 0x12400; kanály 0, 1, 5, 6 patří modulu FVP,
+kanál 7 modulu TMU (FINDINGS.md 21.6). Soubory obou modulů nalezeny ve
+zdrojích původního kernelu (`firmware/`, po 5120 bajtech).
+
+Výpis uložen do `device-info/acpm-fvmap-ACPM2.txt` (gitignore).
+Další krok: požádat uživatele o souhlas s nahráním modulu FVP (zápis kódu
+firmwaru do SRAM APM + zpráva „attach“ kanálem 4), případně i TMU.
+
+### 2026-11-12 16:20–16:40 – souhlas s modulem FVP, image ACPM3
+
+Uživatel: „Ano, nahrát modul“ (souhlas jen s modulem FVP a dotazy na
+frekvenci). Dohledán přesný postup původního kernelu: žádost o připojení
+kanálem 4, dotazy na frekvenci kanálem 0 (ne 5). Ladicí commit rozšířen
+o zápis modulu se zpětným čtením, žádost o připojení a pět dotazů; vše
+s pojistkami (FINDINGS.md 21.7). `tools/make-clk-test-bootimg.sh` přidává
+soubor modulu do initramfs. `out/troika-test-ACPM3.img` (sha256 začíná
+`8f74232a`).
+
+### 2026-11-12 16:55–17:05 – test ACPM3 prošel
+
+Telefon poslán do fastbootu přes telnet (na pokyn uživatele). ACPM3: modul
+FVP zapsán na SRAM + 0x9000, zpětné čtení sedí, připojení potvrzeno, firmware
+odpovídá na zprávy kanálem 0; `FREQ_GET` vrací 0 (FINDINGS.md 21.8). Telefon
+po testu v pořádku, frekvence beze změny.
+
+Další kroky: (1) čtení teploty – průzkum čidla TMU; (2) přesunout nahrávání
+modulu z ladicího commitu do čistého ovladače; (3) až potom souhlas uživatele
+se změnou frekvence (zpráva `FREQ_REQ`).
 

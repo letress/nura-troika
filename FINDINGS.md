@@ -2153,3 +2153,260 @@ pomůcky). `pmbootstrap kconfig check` prochází, checksumy sedí.
 Co v této dávce není: fyzický rozměr panelu v DT (měřítko pro Phosh řeší
 `phoc.ini`; rozměr by potřeboval uzel panelu, pro který nemáme binding).
 
+## 21. ACPM: komunikace s firmwarem řídicího procesoru (2026-11-12)
+
+### 21.1 Co to je a co už existuje
+
+ACPM je firmware jádra APM v čipu. Původní kernel přes něj mění frekvence
+(a firmware s nimi napětí) procesoru, GPU a paměti a ovládá PMIC. Zprávy se
+předávají ve sdílené paměti (SRAM) a ohlašují „zvonkem“ v mailboxu.
+
+Mainline to umí pro Google GS101: `drivers/firmware/samsung/exynos-acpm*.c`,
+`drivers/mailbox/exynos-mailbox.c` (má i variantu Exynos850). Pro 9610 chybí
+jen popis a jedna konstanta.
+
+### 21.2 Hodnoty a zdroje
+
+| Co | Hodnota | Zdroj |
+|---|---|---|
+| mailbox AP→APM | 0x11900000, SPI 38 | původní `exynos9610.dtsi`, uzel `acpm_ipc` |
+| SRAM APM | 0x2039000, délka 0x15000 | tamtéž |
+| začátek popisu kanálů v SRAM | 0x6f00 | tamtéž (`initdata-base`) |
+| tabulky frekvencí a napětí (fvmap) | SRAM + 0x6000 | uzel `acpm` (`fvmap_offset`), i v `device-info/live.dts:4807` |
+| kanál pro frekvence | 5 | uzel `acpm_dvfs` (`acpm-ipc-channel`) |
+| zvonek | zápis `(1 << kanál) << 16` do INTGR0 (0x8) | původní `acpm_ipc.c:478`; = varianta Exynos850 v mainline |
+| maska přerušení od APM | INTMR1 (0x24) | původní `acpm_ipc.h`; = varianta Exynos850 |
+| hodiny mailboxu | `CLK_GOUT_APM_MAILBOX_APM2AP_PCLK` (0x2060) | `cmucal-sfr.c:38` |
+| čísla domén | MIF 0, INT 1, CPUCL0 2, CPUCL1 3, G3D 4, INTCAM 5, CAM 6, DISP 7, AUD 8, CP 9 | původní `dt-bindings/clock/exynos9610.h` (`ACPM_DVFS_*`, dolních 16 bitů) |
+| zpráva „jaká je frekvence“ | `{id, 0, 1, 0}`, odpověď v druhém slově (kHz) | původní `cal-if/acpm_dvfs.c` (`FREQ_GET`) |
+
+Uspořádání sdílené paměti je stejné jako u GS101: původní
+`struct acpm_framework` a `struct ipc_channel` (`fw_header/framework.h`)
+se pole po poli kryjí s mainline `struct acpm_shmem` a
+`struct acpm_chan_shmem`; pořadové číslo zprávy je v obou v bitech 21:16
+prvního slova. Port gta4xl používá mainline ovladač se stejnou konstantou
+0x6f00 (jeho `0095`).
+
+### 21.3 Změny (větev `troika-clk`, +4, celkem 85 nad v7.3.3)
+
+1. `dt-bindings: mailbox: google,gs101-mbox: Add Exynos9610` – compatible
+   `samsung,exynos9610-mbox` se záložním `samsung,exynos850-mbox` (ovladač se
+   nemění).
+2. `dt-bindings: firmware: Add the ACPM of the Exynos9610`.
+3. `firmware: exynos-acpm: Add Exynos9610` – začátek popisu kanálů 0x6f00,
+   zatím bez hodin přes ACPM.
+4. `arm64: dts: exynos9610: Add the ACPM firmware interface` – uzly
+   `apm_sram`, `apm_mailbox`, `firmware/power-management`.
+
+Místní konfigurace: `EXYNOS_MBOX=y`, `EXYNOS_ACPM_PROTOCOL=y` (v balíčku jsou
+zatím jako moduly). `dtbs_check` a `dt_binding_check` obou bindingů čisté.
+
+### 21.4 Co udělá testovací image ACPM1
+
+Jen čte. Ladicí commit (`ACPMDBG`, větev `troika-clk-test`) po navázání
+ovladače:
+
+1. vypíše kanály (číslo, režim dotazování, délky);
+2. přečte ze SRAM tabulky frekvencí a napětí všech deseti domén;
+3. pošle firmwaru pět dotazů „jaká je frekvence“ (MIF, INT, CPUCL0, CPUCL1,
+   G3D) a vypíše odpovědi.
+
+Zápisy, ke kterým při tom dojde: maska přerušení a zvonek v mailboxu a zpráva
+s ukazatelem fronty ve sdílené paměti – nutná součást každé zprávy, stejná
+jako v původním kernelu. Žádná frekvence ani napětí se nemění. Kdyby firmware
+zprávě nerozuměl, dotaz vyprší (100 ms) a v logu bude chyba.
+**Neověřeno** na telefonu.
+
+### 21.5 Test ACPM1: ovladač se navázal, dva mé předpoklady byly špatně (2026-11-12 16:02)
+
+`fastboot boot out/troika-test-ACPM1.img`, čteno přes telnet.
+
+Funguje: mailbox i ovladač ACPM se navázaly, popis kanálů na 0x6f00 se přečetl
+smysluplně – 8 kanálů, všechny s délkou zprávy 16 bajtů:
+
+| Kanál | Dotazování | Délka fronty |
+|---|---|---|
+| 0 | ano | 15 |
+| 1 | ano | 3 |
+| 2 | ano | 3 |
+| 3 | ne | 1 |
+| 4 | ano | 3 |
+| 5 | ne | 1 |
+| 6 | ne | 1 |
+| 7 | ano | 5 |
+
+Špatně bylo:
+
+1. **Dotazy na frekvenci se vůbec neodeslaly.** Kanál 5 (podle původního DT
+   kanál `acpm_dvfs`) nepracuje v režimu dotazování, odpověď ohlašuje
+   přerušením. Mainline ovladač takové kanály neumí a odmítl je
+   („Interrupt mode not supported“, -95) ještě před odesláním. Firmwaru tedy
+   zatím nebyla poslána žádná zpráva.
+2. **Tabulky frekvencí nejsou na SRAM + 0x6000.** Vypsané hodnoty byly
+   nesmysl (liché offsety, 73 „stupňů“). Původní kernel počítá adresu jinak
+   (`acpm.c`, `plugins_init`): základ **modulu (pluginu) DVFS** v SRAM
+   + `fvmap_offset`. Firmware je totiž složený z modulů, z nichž některé
+   zavádí až kernel ze souboru (`firmware_update` + zpráva „attach“);
+   seznam modulů je v SRAM (`struct plugin`, `fw_header/common.h`: id, základ,
+   velikost, `is_attached`, `stay_attached`, jméno souboru).
+
+Co z toho plyne: než půjde číst tabulky nebo se ptát na frekvenci, je potřeba
+vědět, jestli je modul DVFS na troice už zavedený bootloaderem, nebo ho musí
+zavést kernel. Port gta4xl ho zavádí sám ze souboru (`0160`,
+`acpm_exynos9610_load_plugin`) – to by znamenalo zápis kódu firmwaru do SRAM
+řídicího procesoru, tedy krok, ke kterému je potřeba zvláštní souhlas.
+
+Image ACPM2 (jen čtení, nic se neodesílá): vypíše seznam modulů (stav,
+základ, velikost, jméno souboru), u kanálů navíc vlastníka a typ,
+a pokud je modul DVFS zavedený, tabulky ze správné adresy.
+
+### 21.6 Test ACPM2: moduly firmwaru a tabulky frekvencí (2026-11-12 16:12)
+
+`fastboot boot out/troika-test-ACPM2.img`; čteno přes telnet, celý výpis
+v `device-info/acpm-fvmap-ACPM2.txt`. Firmwaru nebyla poslána žádná zpráva.
+
+Moduly firmwaru (popis v SRAM na 0x5898, 6 položek):
+
+| Č. | Základ | Velikost | Zavedený | Má zůstat | Soubor |
+|---|---|---|---|---|---|
+| 0 | – | – | ano | ano | (jádro firmwaru) |
+| 1 | 0xc400 | 0x8c00 | **ano** | ano | `plugin_DVFS_0_0_0.fw` |
+| 2 | 0x9000 | 0x1400 | **ne** | ano | `exynos9610_acpm_fvp.fw` |
+| 3 | 0x4920 | – | ano | ano | – |
+| 4 | 0xa400 | 0x1400 | **ne** | ano | `exynos9610_acpm_tmu.fw` |
+| 5 | 0xb800 | 0xc00 | ano | ano | – |
+
+Kanály a jejich vlastníci (pole `owner` je bitová maska čísla modulu):
+
+| Kanál | Vlastník | Dotazování | Použití v původním DT |
+|---|---|---|---|
+| 0 | modul 2 (FVP) | ano | hodiny (`clock`, `acpm-ipc-channel = <0>`) |
+| 1 | modul 2 (FVP) | ano | správce DVFS |
+| 2 | modul 3 | ano | – |
+| 3 | modul 1 (DVFS) | ne | – |
+| 4 | modul 0 (jádro) | ano | `acpm` (připojování modulů) |
+| 5 | modul 2 (FVP) | ne | `acpm_dvfs` (změna frekvence) |
+| 6 | modul 2 (FVP) | ne | – |
+| 7 | modul 4 (TMU) | ano | teplota |
+
+Závěry:
+
+- Modul DVFS s tabulkami zavedl bootloader; tabulky jsou na SRAM + 0x12400
+  (základ 0xc400 + 0x6000) a dávají smysl.
+- **Moduly FVP (změna frekvence a napětí) a TMU (teplota) zavedené nejsou**
+  a mají příznak „má zůstat“. Původní kernel je při každém startu nahraje
+  ze souboru do SRAM a připojí (`acpm.c`, `plugins_init`). Bez modulu FVP
+  nemá na kanálech 0, 1, 5 a 6 kdo odpovídat.
+- Oba soubory jsou součástí zdrojů původního kernelu
+  (`refs/downstream-kernel/firmware/exynos9610_acpm_fvp.fw`
+  a `…_tmu.fw`, vestavěné přes `fw-external` při `CONFIG_EXYNOS9610_ACPM`);
+  oba mají 5120 bajtů = 0x1400, tedy přesně velikost z tabulky modulů.
+  V oddílu vendor nejsou. sha256 začínají `8f71dccb` (fvp) a `ef4d33ff` (tmu).
+- Cizí port gta4xl dělá totéž (stejné základy 0x9000 a 0xa400).
+
+Tabulky frekvencí a napětí pro tento kus (kHz / µV; `init` = stupeň po
+bootloaderu):
+
+| Stupeň | CPUCL0 (A53) | CPUCL1 (A73) | G3D |
+|---|---|---|---|
+| 0 | 2 054 000 / 1 293 750 | 2 704 000 / 1 225 000 | 1 053 000 / 950 000 |
+| 1 | 1 950 000 / 1 225 000 | 2 600 000 / 1 225 000 | 949 000 / 856 250 |
+| 2 | 1 846 000 / 1 118 750 | 2 496 000 / 1 225 000 | 839 000 / 781 250 |
+| 3 | 1 742 000 / 1 056 250 | 2 314 000 / 1 225 000 | 764 000 / 743 750 |
+| 4 | 1 638 000 / 1 000 000 | 2 210 000 / 1 175 000 | 683 000 / 700 000 |
+| 5 | 1 534 000 / 943 750 | 2 184 000 / 1 131 250 | 572 000 / 656 250 |
+| 6 | 1 456 000 / 906 250 | 2 080 000 / 1 087 500 | 546 000 / 650 000 |
+| 7 | 1 326 000 / 850 000 | 1 976 000 / 1 031 250 | 455 000 / 612 500 |
+| 8 | 1 222 000 / 818 750 | 1 898 000 / 987 500 | 385 000 / 587 500 |
+| 9 | 1 118 000 / 781 250 | 1 768 000 / 943 750 | 338 000 / 581 250 |
+| 10 | 1 053 000 / 762 500 (init) | 1 664 000 / 900 000 | 260 000 / 581 250 (init) |
+| 11 | 910 000 / 718 750 | 1 508 000 / 831 250 | |
+| 12 | 806 000 / 687 500 | 1 456 000 / 812 500 (init) | |
+| 13 | 702 000 / 656 250 | 1 352 000 / 781 250 | |
+| 14 | 598 000 / 631 250 | 1 248 000 / 750 000 | |
+| 15 | 403 000 / 581 250 | 1 144 000 / 725 000 | |
+| 16–19 | | 1 040 000 … 728 000 / 706 250 … 643 750 | |
+
+Počáteční stupně sedí s tím, co mainline naměřil: `fout_cpucl0_pll`
+1053 MHz (test CLK1) a `fout_g3d_pll` 260 MHz (test GPU1). Paměť (MIF) má
+10 stupňů 419–2093 MHz, počáteční 1794 MHz.
+
+Tabulka je společná pro rodinu 9610 a obsahuje i stupně, které 9609 podle
+všeho používat nemá (A73 až 2704 MHz). Horní meze pro troiku je potřeba
+vzít z původního DT telefonu, ne z této tabulky. **Neověřeno.**
+
+### 21.7 Souhlas a příprava: nahrání a připojení modulu FVP (2026-11-12 16:38)
+
+Souhlas uživatele (otázka „Povoluješ nahrát modul frekvencí do paměti řídicího
+procesoru a připojit ho?“ → „Ano, nahrát modul“). Platí pro modul FVP
+(`exynos9610_acpm_fvp.fw`), jeho připojení a dotazy na aktuální frekvence.
+**Neplatí** pro změnu frekvence nebo napětí ani pro modul TMU.
+
+Postup podle původního kernelu:
+
+| Krok | Původní kernel | Zdroj |
+|---|---|---|
+| kam zapsat | SRAM + (`base_addr` & ~1) z tabulky modulů, tj. 0x9000 | `acpm.c`, `plugins_init` |
+| co zapsat | celý soubor, 5120 bajtů | `firmware_update` / `firmware_load` |
+| žádost o připojení | první slovo `(1 << 25) | (id << 26)`, ostatní 0, s odpovědí | `handle_dynamic_plugin`; `acpm_ipc_ctrl.h` (`ACPM_IPC_PROTOCOL_DP_A` = 25, `_ID` = 26) |
+| kterým kanálem | kanál uzlu `acpm` = 4 (vlastní ho jádro firmwaru) | původní DT |
+| dotaz na frekvenci | `{id, 0, 1, 0}` kanálem uzlu hodin = 0 | `acpm_dvfs.c`; `exynos_acpm_set_device()` dostává uzel hodin, takže kanál DVFS je 0, ne 5 (kanál 5 slouží hlášením o paměti, `acpm_noti_mif`) |
+
+Pojistky v ladicím kódu (commit `ACPMDBG` na `troika-clk-test`), při
+nesplnění kterékoli se nic nezapíše:
+
+- modul se hledá podle jména souboru v tabulce firmwaru; musí být nezavedený
+  a mít příznak „má zůstat“;
+- velikost souboru se musí rovnat velikosti z tabulky;
+- oblast nesmí přesahovat SRAM, překrývat jiný modul ani ležet pod daty
+  jádra firmwaru;
+- kanál 4 musí patřit jádru firmwaru a být v režimu dotazování;
+- po zápisu se oblast přečte zpět a porovná; žádost o připojení se pošle jen
+  při shodě;
+- na frekvence se ptá jen tehdy, když firmware modul označí za zavedený
+  a kanál 0 mu patří.
+
+Soubor je ze zdrojů původního kernelu
+(`refs/downstream-kernel/firmware/exynos9610_acpm_fvp.fw`, sha256 začíná
+`8f71dccb`); do testovacího initramfs ho přidává
+`tools/make-clk-test-bootimg.sh` (do repozitáře se nekopíruje).
+Image: `out/troika-test-ACPM3.img`. **Neověřeno** na telefonu.
+
+### 21.8 Test ACPM3: modul FVP připojen, firmware odpovídá (2026-11-12 16:56)
+
+`fastboot boot out/troika-test-ACPM3.img`; čteno přes telnet, výpis
+v `device-info/acpm-ACPM3.txt`.
+
+```
+fvp: writing 5120 bytes to SRAM + 0x9000
+fvp: read back matches
+fvp: attach ret 0 reply 0a010000 00000000 00000000 00000000
+fvp: attached 1 after the request
+get rate MIF:    ret 0 reply 00010000 00000000 00000000 00000000
+get rate INT:    ret 0 reply 00020000 00000000 00000000 00000000
+get rate CPUCL0: ret 0 reply 00030000 00000000 00000000 00000000
+get rate CPUCL1: ret 0 reply 00040000 00000000 00000000 00000000
+get rate G3D:    ret 0 reply 00050000 00000000 00000000 00000000
+```
+
+- Všechny pojistky prošly, zápis sedí se souborem bajt po bajtu.
+- Žádost o připojení: odpověď `0x0a010000` = příznak připojení (bit 25),
+  číslo modulu 2 (bity 26–28) a pořadové číslo 1 (bity 16–21) – firmware
+  žádost vrátil potvrzenou. V tabulce modulů je FVP nově veden jako zavedený.
+- Dotazy na frekvenci kanálem 0: firmware na všech pět odpověděl (návrat 0,
+  pořadová čísla 1–5 sedí). **Frekvenci ale nevrací** – druhé slovo je 0
+  a první obsahuje jen pořadové číslo. Dotaz `FREQ_GET` tedy modul FVP na
+  9610 buď neumí, nebo vrací 0, dokud mu někdo frekvenci nenastaví. Sedí to
+  s poznámkou portu gta4xl, že odpovědi FVP nesou v prvním slově stav 0
+  místo čísla domény, a s tím, že ten port čte frekvenci přímo z PLL.
+  (`exynos_acpm_set_init_freq` v původním kernelu existuje, ale nikdo ho
+  nevolá.)
+- Stav telefonu po testu: bez chyb v logu, `fout_cpucl0_pll` 1053 MHz
+  a `fout_g3d_pll` 260 MHz beze změny, UFS jen pro čtení.
+
+Závěr: komunikace s firmwarem funguje oběma směry a modul pro změnu
+frekvencí je připojený (do příštího restartu; bootloader ho nezavádí).
+Aktuální frekvenci je potřeba číst z hodin (PLL), ne z firmwaru.
+**Neověřeno:** že firmware na žádost frekvenci opravdu změní – to je další
+krok a vyžaduje samostatný souhlas a nejdřív čtení teploty.
+

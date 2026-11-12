@@ -1,7 +1,7 @@
 From 9890a48647930b3dd3a74ff17790705b4663daa8 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 13:50:15 +0100
-Subject: [PATCH 73/81] dt-bindings: i2c: exynos5: Add Exynos9610
+Subject: [PATCH 73/85] dt-bindings: i2c: exynos5: Add Exynos9610
 
 The HSI2C controllers of the Exynos9610 are part of USI blocks. Their
 clock divider follows the formula of the ExynosAutoV9 variant:

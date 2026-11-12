@@ -1244,6 +1244,74 @@ pmbootstrap -p ~/nura-troika/pmaports export
    `grep panf /proc/interrupts` (GPU), posuvník jasu bez ručního nastavení,
    zhasnutí tlačítkem Power.
 
+## 5t. Test ACPM1: komunikace s firmwarem (jen čtení)
+
+Cíl: mainline ovladač ACPM se naváže, přečte tabulky frekvencí a napětí
+a dostane od firmwaru odpověď na dotaz na aktuální frekvence
+(FINDINGS.md kap. 21). Nic se nemění. Místní testovací image, žádný balíček.
+
+1. Z Phoshe do fastbootu (netboot server pak můžeš ukončit, tenhle test ho
+   nepotřebuje):
+
+```bash
+sudo reboot bootloader
+```
+
+2. Na PC:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ACPM1.img
+```
+
+3. Na displeji bude oddíl `--- ACPM ---`. Napiš mi, že běží; celý výpis si
+   přečtu přes telnet.
+
+**Výsledek ACPM1 (2026-11-12):** ovladač se navázal a přečetl 8 kanálů;
+dotazy se neodeslaly (kanál 5 není v režimu dotazování) a tabulky jsem četl
+ze špatné adresy (FINDINGS.md 21.5).
+
+## 5u. Test ACPM2: seznam modulů firmwaru (jen čtení, nic se neodesílá)
+
+Cíl: zjistit, jestli je modul DVFS firmwaru na troice zavedený, a přečíst
+tabulky frekvencí a napětí ze správné adresy.
+
+1. Telefon do fastbootu (z běžícího testovacího systému to umím přes telnet,
+   když řekneš; jinak Power + Vol−).
+
+2. Na PC:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ACPM2.img
+```
+
+3. Napiš mi, že běží; výpis přečtu přes telnet.
+
+**Výsledek ACPM2 (2026-11-12): prošlo** – přečten seznam modulů firmwaru
+a tabulky frekvencí a napětí. Moduly FVP a TMU nejsou zavedené
+(FINDINGS.md 21.6); další krok vyžaduje souhlas uživatele.
+
+## 5v. Test ACPM3: nahrání a připojení modulu FVP, dotaz na frekvence
+
+Cíl: firmware přijme modul pro změnu frekvencí a odpoví, na jakých
+frekvencích teď běží procesor, GPU a paměť (FINDINGS.md 21.7). Frekvence ani
+napětí se nemění. Uživatel krok odsouhlasil 2026-11-12.
+
+1. Telefon do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ACPM3.img
+```
+
+2. Napiš mi, že běží (nebo co se stalo). Výpis přečtu přes telnet.
+
+Kdyby telefon po startu zamrzl nebo se sám restartoval, je to nejspíš
+firmware řídicího procesoru: podrž Power + Vol− a napiš mi to. Po restartu
+je firmware v původním stavu.
+
+**Výsledek ACPM3 (2026-11-12): prošlo** – modul FVP zapsán, připojen
+a firmware odpovídá na zprávy; dotaz na frekvenci vrací 0, frekvenci je
+potřeba číst z PLL (FINDINGS.md 21.8).
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

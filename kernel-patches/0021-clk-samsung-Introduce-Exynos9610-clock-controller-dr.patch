@@ -1,7 +1,7 @@
 From d1eaab6e150483f4dfa0aaa0367e2c595da1c746 Mon Sep 17 00:00:00 2001
 From: Alexandru Chimac <alex@chimac.ro>
 Date: Wed, 22 Jul 2026 23:44:05 +0300
-Subject: [PATCH 21/81] clk: samsung: Introduce Exynos9610 clock controller
+Subject: [PATCH 21/85] clk: samsung: Introduce Exynos9610 clock controller
  driver
 
 The current implementation contains support for:

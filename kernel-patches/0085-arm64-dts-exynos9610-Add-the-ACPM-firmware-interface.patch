@@ -1,0 +1,68 @@
+From bc2383336591d179e8f32f17faa3a3538b09cad0 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 15:20:24 +0100
+Subject: [PATCH 85/85] arm64: dts: exynos9610: Add the ACPM firmware interface
+
+The APM core runs the ACPM firmware. Its SRAM at 0x2039000 holds the
+shared memory, and the AP rings it through the mailbox at 0x11900000
+(acpm_ipc node of the vendor exynos9610.dtsi).
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 26 ++++++++++++++++++++++
+ 1 file changed, 26 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 01663e4..a949264 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -124,6 +124,14 @@ cpu103: cpu@103 {
+ 		};
+ 	};
+ 
++	firmware {
++		acpm: power-management {
++			compatible = "samsung,exynos9610-acpm-ipc";
++			mboxes = <&apm_mailbox>;
++			shmem = <&apm_sram>;
++		};
++	};
++
+ 	psci {
+ 		compatible = "arm,psci";
+ 		method = "smc";
+@@ -169,6 +177,14 @@ soc: soc@0 {
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+ 
++		apm_sram: sram@2039000 {
++			compatible = "mmio-sram";
++			reg = <0x02039000 0x15000>;
++			#address-cells = <1>;
++			#size-cells = <1>;
++			ranges = <0x0 0x02039000 0x15000>;
++		};
++
+ 		chipid@10000000 {
+ 			compatible = "samsung,exynos9610-chipid",
+ 				     "samsung,exynos850-chipid";
+@@ -279,6 +295,16 @@ reboot: syscon-reboot {
+ 			};
+ 		};
+ 
++		apm_mailbox: mailbox@11900000 {
++			compatible = "samsung,exynos9610-mbox",
++				     "samsung,exynos850-mbox";
++			reg = <0x11900000 0x1000>;
++			clocks = <&cmu_apm CLK_GOUT_APM_MAILBOX_APM2AP_PCLK>;
++			clock-names = "pclk";
++			interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
++			#mbox-cells = <0>;
++		};
++
+ 		cmu_cmgp: clock-controller@11c00000 {
+ 			compatible = "samsung,exynos9610-cmu-cmgp";
+ 			reg = <0x11c00000 0x10000>;
+-- 
+2.56.0
+

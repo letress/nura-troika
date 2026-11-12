@@ -1,0 +1,332 @@
+From 5736bcec84cb826e84ed0c704e1e418d9e5e40fb Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 15:20:56 +0100
+Subject: [PATCH 6/6] DEBUG: firmware: exynos-acpm: dump the firmware layout,
+ attach the FVP plugin
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/firmware/samsung/exynos-acpm.c | 292 ++++++++++++++++++++++++-
+ 1 file changed, 291 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/firmware/samsung/exynos-acpm.c b/drivers/firmware/samsung/exynos-acpm.c
+index 77d81ba..5d4dfc2 100644
+--- a/drivers/firmware/samsung/exynos-acpm.c
++++ b/drivers/firmware/samsung/exynos-acpm.c
+@@ -13,6 +13,7 @@
+ #include <linux/delay.h>
+ #include <linux/device.h>
+ #include <linux/find.h>
++#include <linux/firmware.h>
+ #include <linux/firmware/samsung/exynos-acpm-protocol.h>
+ #include <linux/io.h>
+ #include <linux/iopoll.h>
+@@ -700,6 +701,293 @@ static const struct acpm_ops exynos_acpm_driver_ops = {
+ 	},
+ };
+ 
++/*
++ * DEBUG: report what the firmware offers, then load and attach the FVP
++ * plugin the way plugins_init() of the vendor acpm.c does, and ask it for
++ * the current rates. No rate or voltage is changed.
++ */
++#define ACPMDBG_FVMAP_OFFSET	0x6000	/* fvmap_offset of the vendor acpm node */
++#define ACPMDBG_FRAMEWORK_CHAN	4	/* acpm-ipc-channel of the vendor acpm node */
++#define ACPMDBG_FREQ_CHAN	0	/* acpm-ipc-channel of the vendor clock node */
++#define ACPMDBG_FVP_NAME	"exynos9610_acpm_fvp.fw"
++#define ACPMDBG_DP_ATTACH	BIT(25)	/* ACPM_IPC_PROTOCOL_DP_A */
++#define ACPMDBG_DP_ID_SHIFT	26	/* ACPM_IPC_PROTOCOL_ID */
++#define ACPMDBG_FREQ_GET	1
++
++/* struct plugin of the vendor fw_header/common.h */
++struct acpmdbg_plugin {
++	u32 id;
++	u32 base_addr;
++	u32 acpm_ops;
++	u32 plugin_ops;
++	u32 secure_func_mask;
++	u32 extern_func_mask;
++	u32 timer_period;
++	u32 timer_multiplier;
++	u32 is_attached;	/* u8 */
++	u32 size;
++	u32 stay_attached;	/* u8 */
++	u32 fw_name;
++};
++
++/* struct fvmap_header of the vendor cal-if/fvmap.h */
++struct acpmdbg_fvmap_header {
++	u8 dvfs_type;
++	u8 num_of_lv;
++	u8 num_of_members;
++	u8 num_of_pll;
++	u8 num_of_mux;
++	u8 num_of_div;
++	u16 gearratio;
++	u8 init_lv;
++	u8 num_of_gate;
++	u8 reserved[2];
++	u16 block_addr[3];
++	u16 o_members;
++	u16 o_ratevolt;
++	u16 o_tables;
++};
++
++static void acpmdbg_dump_fvmap(struct acpm_info *acpm, u32 base,
++			       resource_size_t sram_size)
++{
++	static const char * const names[] = {
++		"MIF", "INT", "CPUCL0", "CPUCL1", "G3D",
++		"INTCAM", "CAM", "DISP", "AUD", "CP",
++	};
++	struct device *dev = acpm->dev;
++	void __iomem *fvmap;
++	int i, j;
++
++	if (base + ARRAY_SIZE(names) * sizeof(struct acpmdbg_fvmap_header) > sram_size) {
++		dev_info(dev, "ACPMDBG fvmap at %#x is outside of the SRAM\n", base);
++		return;
++	}
++	fvmap = acpm->sram_base + base;
++	dev_info(dev, "ACPMDBG fvmap at SRAM + %#x\n", base);
++
++	for (i = 0; i < ARRAY_SIZE(names); i++) {
++		struct acpmdbg_fvmap_header h;
++
++		memcpy_fromio(&h, fvmap + i * sizeof(h), sizeof(h));
++		dev_info(dev, "ACPMDBG fvmap %s: type %u levels %u init_lv %u pll %u o_ratevolt %#x\n",
++			 names[i], h.dvfs_type, h.num_of_lv, h.init_lv,
++			 h.num_of_pll, h.o_ratevolt);
++		if (!h.num_of_lv || h.num_of_lv > 40 || (h.o_ratevolt & 3) ||
++		    base + h.o_ratevolt + h.num_of_lv * 8 > sram_size) {
++			dev_info(dev, "ACPMDBG   %s: table skipped\n", names[i]);
++			continue;
++		}
++		for (j = 0; j < h.num_of_lv; j++) {
++			u32 rate = readl(fvmap + h.o_ratevolt + j * 8);
++			u32 volt = readl(fvmap + h.o_ratevolt + j * 8 + 4);
++
++			dev_info(dev, "ACPMDBG   %s lv %2d: %7u kHz %7u uV\n",
++				 names[i], j, rate, volt);
++		}
++	}
++}
++
++static void acpmdbg_read_plugin(struct acpm_info *acpm, u32 plugins, int i,
++				struct acpmdbg_plugin *p, char *name, size_t len,
++				resource_size_t sram_size)
++{
++	int j;
++
++	memcpy_fromio(p, acpm->sram_base + plugins + i * sizeof(*p), sizeof(*p));
++	memset(name, 0, len);
++	if (p->fw_name && p->fw_name + len <= sram_size) {
++		memcpy_fromio(name, acpm->sram_base + p->fw_name, len - 1);
++		for (j = 0; name[j]; j++)
++			if (name[j] < 0x20 || name[j] > 0x7e)
++				name[j] = '?';
++	}
++}
++
++static void acpmdbg_attach_fvp(struct acpm_info *acpm, u32 plugins,
++			       u32 num_plugins, resource_size_t sram_size)
++{
++	static const char * const names[] = {
++		"MIF", "INT", "CPUCL0", "CPUCL1", "G3D",
++	};
++	struct acpm_chan_shmem __iomem *chans;
++	struct device *dev = acpm->dev;
++	const struct firmware *fw;
++	struct acpmdbg_plugin p, q;
++	struct acpm_xfer xfer = { };
++	char name[32], other[32];
++	u32 cmd[4] = { };
++	u32 base, i, n;
++	int ret;
++
++	for (n = 0; n < num_plugins; n++) {
++		acpmdbg_read_plugin(acpm, plugins, n, &p, name, sizeof(name),
++				    sram_size);
++		if (!strcmp(name, ACPMDBG_FVP_NAME))
++			break;
++	}
++	if (n == num_plugins) {
++		dev_info(dev, "ACPMDBG fvp: no such plugin, nothing done\n");
++		return;
++	}
++
++	if (p.is_attached & 0xff) {
++		dev_info(dev, "ACPMDBG fvp: already attached\n");
++		goto rates;
++	}
++
++	base = p.base_addr & ~1U;
++	if (!(p.stay_attached & 0xff) || !base || !p.size || p.id > 7 ||
++	    base + p.size > sram_size) {
++		dev_info(dev, "ACPMDBG fvp: unexpected plugin entry, nothing done\n");
++		return;
++	}
++
++	/* The plugin must not overlap another one or the framework data. */
++	for (i = 0; i < num_plugins; i++) {
++		u32 obase;
++
++		if (i == n)
++			continue;
++		acpmdbg_read_plugin(acpm, plugins, i, &q, other, sizeof(other),
++				    sram_size);
++		obase = q.base_addr & ~1U;
++		if (q.size && base < obase + q.size && obase < base + p.size) {
++			dev_info(dev, "ACPMDBG fvp: overlaps plugin %u, nothing done\n", i);
++			return;
++		}
++	}
++	if (base < plugins + num_plugins * sizeof(p) ||
++	    base < readl(&acpm->shmem->chans) + acpm->num_chans * sizeof(*chans) ||
++	    base < ACPM_EXYNOS9610_INITDATA_BASE + sizeof(*acpm->shmem)) {
++		dev_info(dev, "ACPMDBG fvp: base %#x below the framework data, nothing done\n",
++			 base);
++		return;
++	}
++
++	/* The attach request goes to the framework, which must own its channel. */
++	chans = acpm->sram_base + readl(&acpm->shmem->chans);
++	if (acpm->num_chans <= ACPMDBG_FRAMEWORK_CHAN ||
++	    readl(&chans[ACPMDBG_FRAMEWORK_CHAN].reserved[1]) != BIT(0) ||
++	    !acpm->chans[ACPMDBG_FRAMEWORK_CHAN].poll_completion) {
++		dev_info(dev, "ACPMDBG fvp: channel %d is not the framework's, nothing done\n",
++			 ACPMDBG_FRAMEWORK_CHAN);
++		return;
++	}
++
++	ret = request_firmware(&fw, ACPMDBG_FVP_NAME, dev);
++	if (ret) {
++		dev_info(dev, "ACPMDBG fvp: no firmware file (%d), nothing done\n", ret);
++		return;
++	}
++	if (fw->size != p.size) {
++		dev_info(dev, "ACPMDBG fvp: file has %zu bytes, plugin %u, nothing done\n",
++			 fw->size, p.size);
++		release_firmware(fw);
++		return;
++	}
++
++	dev_info(dev, "ACPMDBG fvp: writing %zu bytes to SRAM + %#x\n", fw->size, base);
++	memcpy_toio(acpm->sram_base + base, fw->data, fw->size);
++	for (i = 0; i < fw->size; i++)
++		if (readb(acpm->sram_base + base + i) != fw->data[i])
++			break;
++	if (i != fw->size) {
++		dev_info(dev, "ACPMDBG fvp: read back differs at %u, not attaching\n", i);
++		release_firmware(fw);
++		return;
++	}
++	release_firmware(fw);
++	dev_info(dev, "ACPMDBG fvp: read back matches\n");
++
++	cmd[0] = ACPMDBG_DP_ATTACH | p.id << ACPMDBG_DP_ID_SHIFT;
++	acpm_set_xfer(&xfer, cmd, ARRAY_SIZE(cmd), ACPMDBG_FRAMEWORK_CHAN, true);
++	ret = acpm_do_xfer(&acpm->handle, &xfer);
++	dev_info(dev, "ACPMDBG fvp: attach ret %d reply %08x %08x %08x %08x\n",
++		 ret, cmd[0], cmd[1], cmd[2], cmd[3]);
++
++	msleep(100);
++	acpmdbg_read_plugin(acpm, plugins, n, &p, name, sizeof(name), sram_size);
++	dev_info(dev, "ACPMDBG fvp: attached %u after the request\n",
++		 p.is_attached & 0xff);
++	if (ret || !(p.is_attached & 0xff))
++		return;
++
++rates:
++	chans = acpm->sram_base + readl(&acpm->shmem->chans);
++	if (readl(&chans[ACPMDBG_FREQ_CHAN].reserved[1]) != BIT(p.id)) {
++		dev_info(dev, "ACPMDBG fvp: channel %d is not the plugin's, no rates asked\n",
++			 ACPMDBG_FREQ_CHAN);
++		return;
++	}
++
++	for (i = 0; i < ARRAY_SIZE(names); i++) {
++		u32 get[4] = { i, 0, ACPMDBG_FREQ_GET, 0 };
++		struct acpm_xfer x = { };
++
++		acpm_set_xfer(&x, get, ARRAY_SIZE(get), ACPMDBG_FREQ_CHAN, true);
++		ret = acpm_do_xfer(&acpm->handle, &x);
++		dev_info(dev, "ACPMDBG get rate %s: ret %d reply %08x %08x %08x %08x\n",
++			 names[i], ret, get[0], get[1], get[2], get[3]);
++	}
++}
++
++static void acpmdbg_dump(struct acpm_info *acpm, resource_size_t sram_size)
++{
++	struct acpm_chan_shmem __iomem *chans;
++	struct device *dev = acpm->dev;
++	u32 plugins, num_plugins;
++	int i, j;
++
++	/* struct acpm_framework: plugins, num_plugins, ipc_channels, ... */
++	plugins = readl(&acpm->shmem->reserved[0]);
++	num_plugins = readl(&acpm->shmem->reserved[1]);
++	dev_info(dev, "ACPMDBG framework: plugins %u at %#x, channels %u at %#x\n",
++		 num_plugins, plugins, acpm->num_chans,
++		 readl(&acpm->shmem->chans));
++
++	chans = acpm->sram_base + readl(&acpm->shmem->chans);
++	for (i = 0; i < acpm->num_chans; i++) {
++		struct acpm_chan *achan = &acpm->chans[i];
++
++		/* reserved[] of the channel is field, owner, type */
++		dev_info(dev, "ACPMDBG chan %d: id %u owner %d type %u poll %d mlen %u qlen %u\n",
++			 i, achan->id, (int)readl(&chans[i].reserved[1]),
++			 readl(&chans[i].reserved[2]), achan->poll_completion,
++			 achan->mlen, achan->qlen);
++	}
++
++	if (num_plugins > 16 ||
++	    plugins + num_plugins * sizeof(struct acpmdbg_plugin) > sram_size) {
++		dev_info(dev, "ACPMDBG plugin table looks wrong, skipped\n");
++		return;
++	}
++
++	for (i = 0; i < num_plugins; i++) {
++		struct acpmdbg_plugin p;
++		char name[32] = "";
++
++		memcpy_fromio(&p, acpm->sram_base + plugins + i * sizeof(p),
++			      sizeof(p));
++		if (p.fw_name && p.fw_name + sizeof(name) <= sram_size) {
++			memcpy_fromio(name, acpm->sram_base + p.fw_name,
++				      sizeof(name) - 1);
++			for (j = 0; name[j]; j++)
++				if (name[j] < 0x20 || name[j] > 0x7e)
++					name[j] = '?';
++		}
++		dev_info(dev, "ACPMDBG plugin %d: id %u base %#x size %#x attached %u stay %u fw '%s'\n",
++			 i, p.id, p.base_addr, p.size, p.is_attached & 0xff,
++			 p.stay_attached & 0xff, name);
++
++		if ((p.is_attached & 0xff) && (strstr(name, "DVFS") || strstr(name, "dvfs")))
++			acpmdbg_dump_fvmap(acpm, (p.base_addr & ~1U) + ACPMDBG_FVMAP_OFFSET,
++					   sram_size);
++	}
++
++	acpmdbg_attach_fvp(acpm, plugins, num_plugins, sram_size);
++}
++
+ static int acpm_probe(struct platform_device *pdev)
+ {
+ 	const struct acpm_match_data *match_data;
+@@ -744,8 +1032,10 @@ static int acpm_probe(struct platform_device *pdev)
+ 
+ 	platform_set_drvdata(pdev, acpm);
+ 
+-	if (!match_data->acpm_clk_dev_name)
++	if (!match_data->acpm_clk_dev_name) {
++		acpmdbg_dump(acpm, size);
+ 		return devm_of_platform_populate(dev);
++	}
+ 
+ 	acpm_clk_pdev = platform_device_register_data(dev,
+ 						match_data->acpm_clk_dev_name,
+-- 
+2.56.0
+

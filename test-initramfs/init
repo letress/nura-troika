@@ -238,6 +238,17 @@ if [ "${test_tag#bl}" != "$test_tag" ]; then
 	echo
 fi
 
+# ACPM: co nabizi firmware ridiciho procesoru (ladici radky "ACPMDBG"):
+# kanaly, tabulky frekvenci a napeti a aktualni frekvence. Nic se nemeni.
+if [ "${test_tag#acpm}" != "$test_tag" ]; then
+	echo "--- ACPM ---"
+	dmesg | grep -i -E "acpm|mbox|mailbox" | grep -v -i -E "ACPMDBG|command line" | tail -n 4 | cut -c1-110
+	dmesg | sed -n 's/^.*ACPMDBG \(framework.*\)$/\1/p; s/^.*ACPMDBG \(plugin .*\)$/\1/p' | cut -c1-110
+	dmesg | sed -n 's/^.*ACPMDBG \(fvp: .*\)$/\1/p; s/^.*ACPMDBG \(get rate.*\)$/\1/p' | cut -c1-110
+	echo "radku ACPMDBG: $(dmesg | grep -c ACPMDBG)"
+	echo
+fi
+
 echo "Vstupni zarizeni:"
 grep -E '^N: Name|^H: Handlers' /proc/bus/input/devices 2>/dev/null
 echo

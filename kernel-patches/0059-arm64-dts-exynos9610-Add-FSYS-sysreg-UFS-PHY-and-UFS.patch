@@ -1,7 +1,7 @@
 From 4f3af86c9799fa10c1097d7bab44967cdcdd6918 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 20:43:54 +0100
-Subject: [PATCH 59/81] arm64: dts: exynos9610: Add FSYS sysreg, UFS PHY and
+Subject: [PATCH 59/85] arm64: dts: exynos9610: Add FSYS sysreg, UFS PHY and
  UFS host
 
 Add the UFS host controller with its M-PHY, and the FSYS system

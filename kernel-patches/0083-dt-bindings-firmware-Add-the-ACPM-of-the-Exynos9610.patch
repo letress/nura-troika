@@ -1,0 +1,63 @@
+From b331cfe1be20e40ef5c827865593773701675b8b Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 15:20:24 +0100
+Subject: [PATCH 83/85] dt-bindings: firmware: Add the ACPM of the Exynos9610
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../firmware/samsung,exynos9610-acpm-ipc.yaml | 43 +++++++++++++++++++
+ 1 file changed, 43 insertions(+)
+ create mode 100644 Documentation/devicetree/bindings/firmware/samsung,exynos9610-acpm-ipc.yaml
+
+diff --git a/Documentation/devicetree/bindings/firmware/samsung,exynos9610-acpm-ipc.yaml b/Documentation/devicetree/bindings/firmware/samsung,exynos9610-acpm-ipc.yaml
+new file mode 100644
+index 0000000..d861940
+--- /dev/null
++++ b/Documentation/devicetree/bindings/firmware/samsung,exynos9610-acpm-ipc.yaml
+@@ -0,0 +1,43 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/firmware/samsung,exynos9610-acpm-ipc.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Samsung Exynos9610 ACPM mailbox protocol
++
++maintainers:
++  - letress <212964567+letress@users.noreply.github.com>
++
++description:
++  ACPM (Alive Clock and Power Manager) is the firmware of the APM (Active
++  Power Management) core of the SoC. The application processor talks to it
++  with messages in a shared memory, announced through a mailbox.
++
++properties:
++  compatible:
++    const: samsung,exynos9610-acpm-ipc
++
++  mboxes:
++    maxItems: 1
++
++  shmem:
++    description:
++      The shared memory with the configuration of the channels and the
++      queues of the messages.
++    maxItems: 1
++
++required:
++  - compatible
++  - mboxes
++  - shmem
++
++additionalProperties: false
++
++examples:
++  - |
++    power-management {
++        compatible = "samsung,exynos9610-acpm-ipc";
++        mboxes = <&apm_mailbox>;
++        shmem = <&apm_sram>;
++    };
+-- 
+2.56.0
+

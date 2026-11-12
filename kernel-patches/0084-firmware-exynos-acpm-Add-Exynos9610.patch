@@ -1,0 +1,75 @@
+From 025467c6afe1224cb42f1a19a71986e6d8f92b27 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 15:20:24 +0100
+Subject: [PATCH 84/85] firmware: exynos-acpm: Add Exynos9610
+
+The ACPM framework of the Exynos9610 lays out the shared memory like
+the one of the GS101: struct acpm_framework and struct ipc_channel of
+the vendor kernel (fw_header/framework.h) line up with struct acpm_shmem
+and struct acpm_chan_shmem. The channel configuration starts at 0x6f00
+(initdata-base of the vendor acpm_ipc node).
+
+No clocks are offered through ACPM yet, so no clocks device is
+registered.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/firmware/samsung/exynos-acpm.c | 16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/firmware/samsung/exynos-acpm.c b/drivers/firmware/samsung/exynos-acpm.c
+index 942a2e9..77d81ba 100644
+--- a/drivers/firmware/samsung/exynos-acpm.c
++++ b/drivers/firmware/samsung/exynos-acpm.c
+@@ -39,6 +39,7 @@
+ #define ACPM_POLL_TIMEOUT_US		(100 * USEC_PER_MSEC)
+ #define ACPM_TX_TIMEOUT_US		500000
+ 
++#define ACPM_EXYNOS9610_INITDATA_BASE	0x6f00
+ #define ACPM_GS101_INITDATA_BASE	0xa000
+ 
+ /**
+@@ -182,7 +183,8 @@ struct acpm_info {
+ /**
+  * struct acpm_match_data - of_device_id data.
+  * @initdata_base:	offset in SRAM where the channels configuration resides.
+- * @acpm_clk_dev_name:	base name for the ACPM clocks device that we're registering.
++ * @acpm_clk_dev_name:	base name for the ACPM clocks device that we're registering,
++ *			NULL if there is none.
+  */
+ struct acpm_match_data {
+ 	loff_t initdata_base;
+@@ -742,6 +744,9 @@ static int acpm_probe(struct platform_device *pdev)
+ 
+ 	platform_set_drvdata(pdev, acpm);
+ 
++	if (!match_data->acpm_clk_dev_name)
++		return devm_of_platform_populate(dev);
++
+ 	acpm_clk_pdev = platform_device_register_data(dev,
+ 						match_data->acpm_clk_dev_name,
+ 						PLATFORM_DEVID_NONE, NULL, 0);
+@@ -881,11 +886,20 @@ static const struct acpm_match_data acpm_gs101 = {
+ 	.acpm_clk_dev_name = "gs101-acpm-clk",
+ };
+ 
++/* No clocks of the Exynos9610 are handed out through ACPM yet. */
++static const struct acpm_match_data acpm_exynos9610 = {
++	.initdata_base = ACPM_EXYNOS9610_INITDATA_BASE,
++};
++
+ static const struct of_device_id acpm_match[] = {
+ 	{
+ 		.compatible = "google,gs101-acpm-ipc",
+ 		.data = &acpm_gs101,
+ 	},
++	{
++		.compatible = "samsung,exynos9610-acpm-ipc",
++		.data = &acpm_exynos9610,
++	},
+ 	{},
+ };
+ MODULE_DEVICE_TABLE(of, acpm_match);
+-- 
+2.56.0
+

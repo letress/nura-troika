@@ -40,6 +40,13 @@ aarch64-linux-gcc -nostdlib -static -o "$tmp/bin/reboot-arg" "$root/test-initram
 # Čtení a zápis registru I2C (test BL): busybox nástroje i2c* nemá.
 aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
 	-o "$tmp/bin/i2c-reg" "$root/test-initramfs/i2c-reg.c"
+# Modul firmwaru ACPM pro změnu frekvencí (test ACPM3): soubor ze zdrojů
+# původního kernelu, který si kernel načte přes request_firmware().
+fvp="$root/refs/downstream-kernel/firmware/exynos9610_acpm_fvp.fw"
+if [ -f "$fvp" ]; then
+	mkdir -p "$tmp/lib/firmware"
+	install -m 644 "$fvp" "$tmp/lib/firmware/"
+fi
 # DHCP server a telnetd z initramfs pmOS (dynamicky linkované proti musl).
 # Bez nich test poběží taky, jen bez DHCP a telnetu.
 bits="$root/dl/pmos-bits"

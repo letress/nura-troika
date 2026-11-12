@@ -1,7 +1,7 @@
 From b67dc569ca93d04d4de2af244c3674da63f004dd Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:52:56 +0100
-Subject: [PATCH 29/81] dt-bindings: clock: exynos9610: Add
+Subject: [PATCH 29/85] dt-bindings: clock: exynos9610: Add
  CLK_GOUT_CMU_SHUB_BUS
 
 CMU_APM has a gate between the SHUB bus mux and divider
