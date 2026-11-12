@@ -1,7 +1,7 @@
 From 317b88fa6f75e84e43f8fc098c867cdc67f56998 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 21:57:45 +0100
-Subject: [PATCH 94/94] arm64: dts: exynos9610: Throttle the GPU when it gets
+Subject: [PATCH 94/95] arm64: dts: exynos9610: Throttle the GPU when it gets
  hot
 
 Let the GPU zone lower the highest allowed rate of the GPU above 88

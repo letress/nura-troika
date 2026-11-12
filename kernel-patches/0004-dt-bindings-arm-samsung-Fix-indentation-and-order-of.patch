@@ -1,7 +1,7 @@
 From cb844f8a5289176c491818a20843a9dcc2102e27 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:36:24 +0100
-Subject: [PATCH 04/94] dt-bindings: arm: samsung: Fix indentation and order of
+Subject: [PATCH 04/95] dt-bindings: arm: samsung: Fix indentation and order of
  gta4xl entry
 
 yamllint rejects the Exynos9610 entry added for gta4xl:

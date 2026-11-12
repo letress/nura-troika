@@ -1,7 +1,7 @@
 From 27ca89697faa27ad88fe79e6b64457e82760132f Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:29 +0100
-Subject: [PATCH 27/94] clk: samsung: exynos9610: Use the OCC register for the
+Subject: [PATCH 27/95] clk: samsung: exynos9610: Use the OCC register for the
  CCI OCC gate
 
 gout_core_cci_occ_clk is registered on CLK_CON_GAT_GOUT_CORE_CCI_CLK

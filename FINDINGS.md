@@ -3361,3 +3361,84 @@ rádia jako další binární soubor výrobce, NetworkManager) a do balíčků,
 `CFG80211` v balíčku je modul, kdežto zkouška běžela se zabudovaným,
 Bluetooth.
 
+### 30.12 Adresa MAC, původ firmwaru rádia a návrh zařazení do systému (23:45)
+
+**Adresa MAC.** Původní systém ji nebere ze souboru: bootloader ji předává
+na příkazové řádce kernelu (`androidboot.wifimacaddr=`, vedle
+`androidboot.btmacaddr=`) a `init.exynos9610.rc` v obrazu `vendor` ji zapíše
+do parametru modulu `scsc_wlan` (`on property:ro.boot.wifimacaddr=*`).
+Na našem kernelu ten parametr na příkazové řádce je také (uniLoader ji
+přebírá od bootloaderu); hodnotu jsem nečetl, jen ověřil, že existuje a má
+tvar dvou adres oddělených čárkou. Přenesený ovladač má parametr
+`/sys/module/scsc_wlan/parameters/mac_addr` a čte ho až při zapnutí rozhraní,
+takže stačí pravidlo udev se skriptem, který po načtení modulu zapíše první
+adresu z příkazové řádky. Do balíčku se tak žádná adresa nedostane.
+
+**Firmware rádia.** Soubory jsou veřejně v
+`TheMuppets/proprietary_vendor_motorola_exynos9610-common` (větev
+`lineage-24.0`, commit `2dcb53b9f337`, `proprietary/vendor/etc/wifi/`):
+`mx140.bin` a konfigurace `leman_s620_troika_dualfem`. Všech šest souborů,
+které používáme, má **stejný součet jako kopie ze zálohy telefonu**.
+Repozitář nemá žádný licenční soubor; jde o binární soubory výrobce,
+v pmaports se z TheMuppets běžně berou s `license="proprietary"`.
+Databáze zemí (`slsi_reg_database.bin`) tam také není.
+
+**Ovladač.** Je součástí zdrojů kernelu, které Samsung zveřejňuje jako
+GPL-2.0, a moduly se hlásí `MODULE_LICENSE("GPL")` (7×) nebo
+`"GPL and additional rights"` (7×). Výslovnou zmínku o licenci mají ale jen
+4 soubory ze všech `.c` a `.h`; 105 ze 121 souborů `.c` má v hlavičce jen
+„Copyright … Samsung … All rights reserved“. Změny portu gta4xl jsou úpravy těchto souborů, jeho nové soubory
+mají značku `GPL-2.0-only`; repozitář portu nemá vlastní licenční soubor.
+Licence tedy plyne z toho, že jde o kód kernelu vydaný výrobcem, ne
+z výslovného prohlášení u každého souboru.
+
+**Návrh zařazení:**
+
+1. `firmware-motorola-troika`: přidat firmware rádia z TheMuppets (s odkazy
+   pro „plochá“ jména konfigurace).
+2. Ovladač sestavit spolu s kernelem v balíčku
+   `linux-motorola-troika-mainline` jako moduly; kernel v balíčku nechává
+   `CFG80211=m`, což modulům nevadí.
+3. Uzly rádia v DT přidat do sady patchů balíčku (bez bindingu, jen pro
+   tento ovladač).
+4. `device-motorola-troika`: načtení modulů při startu, pravidlo udev pro
+   adresu MAC, závislost na firmwaru.
+
+Otevřené rozhodnutí pro krok 2: odkud balíček vezme zdrojáky ovladače.
+Buď stáhne celý kernel tabletu z LineageOS (stovky MB kvůli 272 souborům)
+a patche portu gta4xl, nebo bude upravený ovladač (asi 115 tisíc řádků,
+GPL-2.0) uložený v repozitáři `letress/nura-troika` a balíček si stáhne
+jen ten.
+
+### 30.13 WiFi v balíčcích: příprava (23:55, nesestaveno)
+
+Rozhodnutí uživatele: upravený ovladač uložit do repozitáře. Zjištění při
+tom: repozitáře `letress/nura-troika` i `letress/pmaports-troika` nejsou
+veřejně stažitelné (dotaz bez přihlášení vrací 404), takže balíček si z nich
+při sestavení nic stáhnout nemůže. Proto:
+
+- **`wifi/scsc/`** v hlavním repozitáři: upravená kopie ovladače (275
+  souborů, 5,5 MB) s popisem původu a licence ve `wifi/README.md`.
+  `tools/update-wifi-pkg.sh` ji obnoví ze zdrojů a udělá z ní archiv
+  `scsc-wlbt-troika.tar.gz` (necelý 1 MB), který je **uložený přímo
+  v adresáři balíčku kernelu** v pmaports jako místní zdroj.
+- **Kernel** (`troika-clk` +1, celkem 95): uzly rádia jako poslední commit,
+  označený, že není pro upstream (bez bindingu). `troika-clk-test` má zase
+  8 ladicích commitů.
+- **pmaports** (místní commity, nepushnuto):
+  - `firmware-motorola-troika`: navíc `mx140.bin` a čtyři `.hcf` z TheMuppets
+    na pevném commitu, se součty shodnými se zálohou, a odkazy pro „plochá“
+    jména.
+  - `linux-motorola-troika-mainline` pkgrel 8: 95 patchů, sestavení modulů
+    ovladače proti kernelu balíčku a jejich instalace. Konfigurace kernelu
+    se pro WiFi nemění (`CFG80211=m`). `kconfig check` prošel.
+  - `device-motorola-troika` pkgrel 8: `modules-load.d` (`scsc_wlan`),
+    pravidlo udev a skript, který ovladači předá první adresu
+    z `androidboot.wifimacaddr` (bez konce řádku – parametr má místo přesně
+    na jednu adresu).
+
+**Nesestaveno a nezkoušeno.** Neověřeno hlavně: sestavení modulů v chrootu
+pmbootstrapu a jejich načtení s `cfg80211` jako modulem; že pravidlo udev
+adresu zapíše dřív, než správce sítí rozhraní zapne; chování
+NetworkManageru s tímto ovladačem; databáze zemí stále chybí.
+

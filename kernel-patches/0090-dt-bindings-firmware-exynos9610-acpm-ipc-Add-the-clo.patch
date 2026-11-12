@@ -1,7 +1,7 @@
 From 6cf10b6665052fd33c3d791e7dd5ec58650ce8fc Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 21:25:12 +0100
-Subject: [PATCH 90/94] dt-bindings: firmware: exynos9610-acpm-ipc: Add the
+Subject: [PATCH 90/95] dt-bindings: firmware: exynos9610-acpm-ipc: Add the
  clocks
 
 The firmware changes the rates of the clocks of its DVFS domains

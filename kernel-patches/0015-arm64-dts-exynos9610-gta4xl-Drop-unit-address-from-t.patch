@@ -1,7 +1,7 @@
 From f4ea55996481e18bb807220c6b0fb70a72445cdd Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:37:13 +0100
-Subject: [PATCH 15/94] arm64: dts: exynos9610-gta4xl: Drop unit address from
+Subject: [PATCH 15/95] arm64: dts: exynos9610-gta4xl: Drop unit address from
  the simplefb node
 
 The simple-framebuffer node gets its memory through memory-region and

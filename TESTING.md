@@ -1555,7 +1555,7 @@ fastboot boot ~/nura-troika/out/troika-test-ACPM8.img
 GPU a ruční stav chlazení snižuje frekvenci i napětí; skutečné zahřátí
 neověřeno (FINDINGS.md 28.1).
 
-## 5ae. Test PKG7: vše z balíčků (kernel pkgrel 7, zařízení pkgrel 7, firmware)
+## 5ae. Test PKG8: vše z balíčků (kernel pkgrel 8, zařízení pkgrel 8, firmware) – GPU i WiFi
 
 Cíl: totéž, co prošlo s místními image (teploty, modul FVP, automatické
 škálování GPU, brzdění), ale z balíčků (FINDINGS.md 29). Ladicí soubory
@@ -1587,7 +1587,7 @@ pmbootstrap -p ~/nura-troika/pmaports export
 ```
 
 2. Napiš mi; zkontroluju image (soubor modulu v initramfs, pravidlo pro UFS)
-   a uložím ho jako `out/troika-test-PKG7.img`.
+   a uložím ho jako `out/troika-test-PKG8.img`.
 
 3. `netboot serve --replace`, `fastboot boot`, a po přihlášení přes SSH:
 
@@ -1596,6 +1596,16 @@ sudo sh -c 'dmesg | grep -c "Failed to attach plugin"; cat /sys/class/devfreq/11
 ```
 
    Čekám 0, frekvenci GPU, tři teploty a RO = 1.
+
+4. WiFi: v Phoshi v nastavení má být vidět seznam sítí; připoj se ke své.
+   Kdyby rozhraní chybělo, pošli mi (řádky s adresami to odfiltruje):
+
+```bash
+sudo sh -c 'lsmod | grep scsc; dmesg | grep -i -E "wlbt|scsc" | grep -v -i -E "mac|addr" | tail -n 30'
+```
+
+   Tím, že balíčky nainstaluješ a WiFi zapneš, rádio v plném systému
+   spouštíš sám; je to stejný start a vysílání jako v testech WLAN1 a WLAN2.
 
 ## 5af. Test WLAN1: první start rádia WiFi
 

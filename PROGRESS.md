@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: WiFi funguje v testovacím image od startu rádia po přenos dat – test WLAN2: hledání, připojení WPA2 na 5 GHz, DHCP, internet (FINDINGS.md 30.10, 30.11). Zbývá: adresa MAC ze zálohy, databáze zemí, zařazení do systému a balíčků (moduly, firmware rádia, NetworkManager), Bluetooth. Souběžně: dávka balíčků s GPU (TESTING.md 5ae) čeká na sestavení uživatelem. `troika-clk` 94 commitů nad v7.3.3, `troika-clk-test` +9; hlavní repozitář commitnut a pushnut 2026-11-12 včetně testu WLAN2 (commit „WiFi: hledání sítí, připojení a přenos dat…“); pmaports pushnut do `b651290cc`
+## Stav: Připravena dávka balíčků s GPU i WiFi (FINDINGS.md 29 a 30.13): `firmware-motorola-troika` (modul FVP + firmware rádia), kernel pkgrel 8 (95 patchů + moduly ovladače SCSC), zařízení pkgrel 8 (načtení modulů, adresa MAC) – pmaports pushnut, **sestavení kernelu spustil uživatel 2026-11-13 00:12**; postup TESTING.md 5ae (sestavení spouští uživatel, asi 1,5 h). Ověřeno s místními image: teplota, škálování a brzdění GPU, WiFi od startu rádia po internet. `troika-clk` 95 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-13 včetně `wifi/scsc` (commit „WiFi do balíčků…“); pmaports pushnut do `426d6ea28`
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1962,3 +1962,28 @@ Telefon běží ve WLAN2 připojený k síti uživatele. Necommitnuto: FINDINGS
 Na pokyn uživatele hlavní repozitář commitnut a pushnut. Patche kernelu
 beze změny (94 + 9). pmaports beze změny (`b651290cc`). Telefon běží ve
 WLAN2 připojený k síti uživatele.
+
+### 2026-11-12 23:45 – WiFi: adresa MAC, původ firmwaru, návrh zařazení
+
+FINDINGS.md 30.12. MAC přichází od bootloaderu na příkazové řádce kernelu
+(hodnota nečtena); firmware rádia je veřejně v TheMuppets a shoduje se se
+zálohou (6/6). Návrh čtyř kroků zařazení; čeká na rozhodnutí uživatele,
+odkud brát zdrojáky ovladače pro balíček. Necommitnuto od `f447a14`.
+
+### 2026-11-12 23:55 – WiFi do balíčků (příprava)
+
+Uživatel rozhodl uložit ovladač do repozitáře. `wifi/scsc` (275 souborů),
+`wifi/README.md`, `tools/update-wifi-pkg.sh`; archiv ovladače jako místní
+zdroj balíčku kernelu (repozitáře nejsou veřejně stažitelné). `troika-clk`
++1 (uzly rádia), `troika-clk-test` zpět na 8 ladicích. pmaports: tři nové
+místní commity (firmware rádia, kernel pkgrel 8, zařízení pkgrel 8).
+Necommitnuto v hlavním repozitáři: FINDINGS 30.12 a 30.13, TESTING 5ae,
+PROGRESS, `wifi/`, skripty; export patchů (95 + 8).
+
+### 2026-11-13 00:15 – commit a push (WiFi v balíčcích)
+
+Na pokyn uživatele: patche znovu vyexportovány (95 čistých, 8 ladicích),
+hlavní repozitář commitnut a pushnut (včetně `wifi/scsc`), pmaports pushnut
+(`8055cfd51`, `0d3ed3a57`, `426d6ea28`). Uživatel v 00:12 spustil sestavení
+balíčku kernelu (asi 1,5 h); netboot server z 21:10 ještě běží – před
+`install` ukončit. Telefon běží ve WLAN2.

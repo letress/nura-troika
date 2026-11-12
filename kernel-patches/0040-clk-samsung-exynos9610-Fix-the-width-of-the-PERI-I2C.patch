@@ -1,7 +1,7 @@
 From 0715dcedb6593464dd4252ac8cc848757dbd6918 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:32 +0100
-Subject: [PATCH 40/94] clk: samsung: exynos9610: Fix the width of the PERI I2C
+Subject: [PATCH 40/95] clk: samsung: exynos9610: Fix the width of the PERI I2C
  divider
 
 dout_clk_peri_i2c is registered with an 8 bit ratio. In the vendor

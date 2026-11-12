@@ -1,7 +1,7 @@
 From fcedfbeed8abddb7163e05b6e9a8d76d861dd56c Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 15:06:02 +0100
-Subject: [PATCH 79/94] dt-bindings: display: simple-framebuffer: Add a
+Subject: [PATCH 79/95] dt-bindings: display: simple-framebuffer: Add a
  backlight
 
 A display that the firmware has set up comes with its backlight on.

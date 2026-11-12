@@ -31,7 +31,7 @@ done
 rm -rf "$tmp"
 
 sums="$(cd "$root/dl" && sha512sum linux-7.3.3.tar.xz "uniLoader-$uni_commit.tar.gz")
-$(cd "$pkg" && sha512sum "$cfg" uniloader-*.diff *.patch)"
+$(cd "$pkg" && sha512sum "$cfg" $(ls scsc-wlbt-troika.tar.gz 2>/dev/null) uniloader-*.diff *.patch)"
 patches="$(cd "$pkg" && ls *.patch)"
 python3 -I - "$pkg/APKBUILD" "$sums" "$patches" <<'PY'
 import re, sys

@@ -1,8 +1,14 @@
-From bcf63f449c5b9272aa5c91ed880e176ff831f011 Mon Sep 17 00:00:00 2001
+From 3e753a5cd4800fe6e96a7c36ae975051778548bf Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
-Date: Thu, 12 Nov 2026 22:33:00 +0100
-Subject: [PATCH 9/9] WIP: arm64: dts: exynos9610-troika: WLBT radio for the
- out-of-tree SCSC driver
+Date: Thu, 12 Nov 2026 23:53:09 +0100
+Subject: [PATCH 95/95] arm64: dts: exynos9610-troika: Describe the WLBT radio
+
+Not for upstream: the nodes are what the out-of-tree Samsung SCSC
+driver expects and have no bindings.
+
+The radio, its bus windows and the FEM control pins follow the vendor
+device tree. The vendor kernel has no fixed address for the 16 MiB of
+memory shared with the radio either; the driver needs it below 4 GiB.
 
 Co-Authored-By: Claude <noreply@anthropic.com>
 ---
@@ -10,7 +16,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
  1 file changed, 78 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index 08c185f..375f755 100644
+index 08c185f..426b71e 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 @@ -243,3 +243,81 @@ &usbdrd_phy {
@@ -19,7 +25,7 @@ index 08c185f..375f755 100644
  };
 +
 +/*
-+ * WIP: the WLBT radio for the out-of-tree Samsung SCSC driver. The nodes
++ * The WLBT radio for the out-of-tree Samsung SCSC driver. The nodes
 + * follow the vendor device tree; there are no bindings for them.
 + */
 +/ {

@@ -1,7 +1,7 @@
 From 73aac57f74709e97cb301127e7fa6115da6daba0 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 18:53:54 +0100
-Subject: [PATCH 88/94] arm64: dts: exynos9610: Add the TMU and thermal zones
+Subject: [PATCH 88/95] arm64: dts: exynos9610: Add the TMU and thermal zones
 
 Add the TMU and a thermal zone for each of its probes. The address, the
 interrupt and the assignment of the probes are from the vendor device
