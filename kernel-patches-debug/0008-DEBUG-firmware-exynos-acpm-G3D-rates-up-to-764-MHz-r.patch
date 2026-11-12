@@ -1,0 +1,119 @@
+From 31a605ac2811d4c7d7520ea838602dd2c6a3937e Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 20:34:14 +0100
+Subject: [PATCH 8/8] DEBUG: firmware: exynos-acpm: G3D rates up to 764 MHz,
+ read the BUCK5 voltage
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/firmware/samsung/exynos-acpm.c | 69 +++++++++++++++++++++++---
+ 1 file changed, 63 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/firmware/samsung/exynos-acpm.c b/drivers/firmware/samsung/exynos-acpm.c
+index 72d02f5..37c2bb2 100644
+--- a/drivers/firmware/samsung/exynos-acpm.c
++++ b/drivers/firmware/samsung/exynos-acpm.c
+@@ -998,23 +998,41 @@ static void acpmdbg_dump(struct acpm_info *acpm)
+ }
+ 
+ /*
+- * DEBUG: debugfs file acpmdbg_g3d_khz asks the firmware for one of the two
+- * lowest G3D rates the way exynos_acpm_set_rate() of the vendor kernel does.
+- * Both rates have the same voltage in the fvmap. Any other value is refused,
+- * and nothing is sent unless somebody writes to the file.
++ * DEBUG: debugfs file acpmdbg_g3d_khz asks the firmware for one of the G3D
++ * rates up to 764 MHz the way exynos_acpm_set_rate() of the vendor kernel
++ * does. The rates are those that both the fvmap and the gpu_dvfs_table of
++ * the vendor device tree have. Any other value is refused, and nothing is
++ * sent unless somebody writes to the file.
++ *
++ * Reading acpmdbg_buck5_uv asks the firmware for the output voltage register
++ * of BUCK5 (vdd_g3d) of the S2MPU09 the way exynos_acpm_read_reg() of the
++ * vendor kernel does. Nothing is written to the PMIC.
+  */
+ #define ACPMDBG_DVFS_CHAN	0	/* acpm-ipc-channel of the vendor clock node */
+ #define ACPMDBG_G3D_ID		4	/* g3d_cmu_cal_id 0xb040004 of the vendor mali node */
+ #define ACPMDBG_FREQ_REQ	0
++#define ACPMDBG_PMIC_CHAN	2	/* acpm-ipc-channel of the vendor s2mpu09mfd node */
++#define ACPMDBG_PMIC_ADDR	1	/* I2C_ADDR_PMIC of the vendor s2mpu09-core.c */
++#define ACPMDBG_PMIC_B5OUT	0x21	/* S2MPU09_PMIC_REG_B5OUT */
++#define ACPMDBG_PMIC_FUNC_READ	0
++#define ACPMDBG_BUCK_MIN_UV	300000	/* S2MPU09_BUCK_MIN1 */
++#define ACPMDBG_BUCK_STEP_UV	6250	/* S2MPU09_BUCK_STEP1 */
++
++static const u32 acpmdbg_g3d_rates[] = {
++	260000, 338000, 385000, 455000, 572000, 683000, 764000,
++};
+ 
+ static int acpmdbg_g3d_set(void *data, u64 val)
+ {
+ 	struct acpm_info *acpm = data;
+ 	u32 cmd[4] = { ACPMDBG_G3D_ID, val, ACPMDBG_FREQ_REQ, 0 };
+ 	struct acpm_xfer xfer = { };
+-	int ret;
++	int i, ret;
+ 
+-	if (val != 260000 && val != 338000)
++	for (i = 0; i < ARRAY_SIZE(acpmdbg_g3d_rates); i++)
++		if (val == acpmdbg_g3d_rates[i])
++			break;
++	if (i == ARRAY_SIZE(acpmdbg_g3d_rates))
+ 		return -EINVAL;
+ 
+ 	acpm_set_xfer(&xfer, cmd, ARRAY_SIZE(cmd), ACPMDBG_DVFS_CHAN, true);
+@@ -1026,6 +1044,32 @@ static int acpmdbg_g3d_set(void *data, u64 val)
+ }
+ DEFINE_DEBUGFS_ATTRIBUTE(acpmdbg_g3d_fops, NULL, acpmdbg_g3d_set, "%llu\n");
+ 
++static int acpmdbg_buck5_get(void *data, u64 *val)
++{
++	struct acpm_info *acpm = data;
++	u32 cmd[4] = {
++		ACPMDBG_PMIC_ADDR << 8 | ACPMDBG_PMIC_B5OUT,
++		ACPMDBG_PMIC_FUNC_READ, 0, 0,
++	};
++	struct acpm_xfer xfer = { };
++	int ret;
++
++	acpm_set_xfer(&xfer, cmd, ARRAY_SIZE(cmd), ACPMDBG_PMIC_CHAN, true);
++	ret = acpm_do_xfer(&acpm->handle, &xfer);
++	dev_info(acpm->dev, "ACPMDBG buck5: read ret %d reply %08x %08x %08x %08x\n",
++		 ret, cmd[0], cmd[1], cmd[2], cmd[3]);
++	if (ret)
++		return ret;
++	/* cmd[1]: return code in bits 31:24, register value in bits 15:8 */
++	if (cmd[1] >> 24)
++		return -EIO;
++
++	*val = ACPMDBG_BUCK_MIN_UV + ((cmd[1] >> 8) & 0xff) * ACPMDBG_BUCK_STEP_UV;
++
++	return 0;
++}
++DEFINE_DEBUGFS_ATTRIBUTE(acpmdbg_buck5_fops, acpmdbg_buck5_get, NULL, "%llu\n");
++
+ static void acpmdbg_g3d_init(struct acpm_info *acpm)
+ {
+ 	struct acpm_plugin_shmem __iomem *plugin;
+@@ -1050,6 +1094,19 @@ static void acpmdbg_g3d_init(struct acpm_info *acpm)
+ 	debugfs_create_file("acpmdbg_g3d_khz", 0200, NULL, acpm,
+ 			    &acpmdbg_g3d_fops);
+ 	dev_info(acpm->dev, "ACPMDBG g3d: debugfs file ready, nothing sent\n");
++
++	/* The PMIC channel belongs to plugin 3 and is polled (test ACPM2). */
++	if (acpm->num_chans <= ACPMDBG_PMIC_CHAN ||
++	    readl(&chans[ACPMDBG_PMIC_CHAN].reserved[1]) != BIT(3) ||
++	    !acpm->chans[ACPMDBG_PMIC_CHAN].poll_completion) {
++		dev_info(acpm->dev, "ACPMDBG buck5: channel %d is not the PMIC's, no debugfs file\n",
++			 ACPMDBG_PMIC_CHAN);
++		return;
++	}
++
++	debugfs_create_file("acpmdbg_buck5_uv", 0400, NULL, acpm,
++			    &acpmdbg_buck5_fops);
++	dev_info(acpm->dev, "ACPMDBG buck5: debugfs file ready, nothing sent\n");
+ }
+ 
+ static int acpm_probe(struct platform_device *pdev)
+-- 
+2.56.0
+

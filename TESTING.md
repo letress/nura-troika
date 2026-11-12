@@ -1395,6 +1395,33 @@ to. Po restartu je firmware i frekvence v původním stavu.
 **Výsledek ACPM5 (2026-11-12): prošlo** – se souhlasem uživatele odešly tři
 žádosti, firmware přepnul PLL GPU z 260 na 338 MHz a zpět (FINDINGS.md 24.4).
 
+## 5z. Test ACPM6: vyšší stupně GPU a čtení napětí
+
+Cíl: firmware na žádost projde stupně GPU 260 → 338 → 385 → 455 → 572 → 683
+→ 764 MHz a zpět a napětí větve GPU přitom odpovídá jeho tabulce
+(FINDINGS.md 25). **Zprávy se posílají jen po výslovném souhlasu
+uživatele**; samotné spuštění image firmwaru nic navíc neposílá.
+
+1. Telefon do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ACPM6.img
+```
+
+2. Napiš mi, že běží. Zkontroluju výchozí stav a zeptám se na souhlas.
+3. Po souhlasu přes telnet: nejdřív jedno čtení napětí
+   (`cat /sys/kernel/debug/acpmdbg_buck5_uv`); když projde, po jednom stupni
+   nahoru a zpět zápisem do `/sys/kernel/debug/acpmdbg_g3d_khz`, po každém
+   kroku čtení PLL (`/bin/mem-rd 11430120`), napětí, teplot a logu.
+   Pojistky: FINDINGS.md 25.2.
+
+Kdyby telefon zamrzl nebo se sám restartoval: podrž Power + Vol− a napiš mi
+to. Po restartu je firmware, frekvence i napětí v původním stavu.
+
+**Výsledek ACPM6 (2026-11-12): prošlo** – se souhlasem uživatele prošlo GPU
+stupně 260 až 764 MHz a zpět, napětí větve na každém stupni odpovídá tabulce
+firmwaru (FINDINGS.md 25.5).
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

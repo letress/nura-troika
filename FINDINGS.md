@@ -2705,3 +2705,126 @@ kanálem 0 přepne PLL GPU a zase ho vrátí. **Neověřeno:** co firmware při 
 udělal s napětím (podle tabulky nic), stupně s jiným napětím, GPU pod
 zátěží, ostatní domény (procesor, paměť).
 
+
+## 25. Vyšší stupně GPU a čtení napětí (2026-11-12)
+
+### 25.1 Co je nového proti prvnímu kroku
+
+V kroku z kapitoly 24 se napětí podle tabulky neměnilo a nešlo změřit. Tady
+už firmware napětí větve GPU zvedá, proto návrh přidává jeho **čtení**.
+
+- Větev GPU je `BUCK5` (`vdd_g3d`) čipu S2MPU09; původní DT jí povoluje 0,5
+  až 1,2 V (`regulator-min/max-microvolt` uzlu `BUCK5` v `live.dts`).
+- Napětí je v registru `B5OUT` = `0x21` na adrese PMIC 1
+  (`S2MPU09_PMIC_REG_B5OUT`, `I2C_ADDR_PMIC`), přepočet
+  `300000 + kód × 6250` µV (`S2MPU09_BUCK_MIN1`, `S2MPU09_BUCK_STEP1`,
+  popis `BUCK5` v `s2mpu09-regulator.c`).
+- Původní kernel registry PMIC čte přes firmware: `exynos_acpm_read_reg()`
+  (`acpm/acpm_mfd.c`) pošle `{adresa << 8 | registr, FUNC_READ = 0, 0, 0}`
+  kanálem 2 (`acpm-ipc-channel` uzlu `s2mpu09mfd`) a hodnotu dostane
+  v bitech 15:8 druhého slova, návratový kód v bitech 31:24. Mainline má
+  stejný formát v `exynos-acpm-pmic.c`. Kanál 2 patří modulu 3 a je
+  dotazovaný (ACPM2).
+- Do PMIC se nic nezapisuje; je to čtení jednoho registru.
+
+### 25.2 Navržené stupně
+
+Stupně, které má tabulka firmwaru i tabulka GPU v původním DT telefonu
+(`gpu_dvfs_table`), do 764 MHz:
+
+| Frekvence | Napětí podle tabulky firmwaru | Kód `B5OUT` | Sběrnice paměti podle původního DT aspoň |
+|---|---|---|---|
+| 260 MHz (výchozí) | 581,25 mV | `0x2d` | 419 MHz |
+| 338 MHz | 581,25 mV | `0x2d` | 419 MHz |
+| 385 MHz | 587,5 mV | `0x2e` | 546 MHz |
+| 455 MHz | 612,5 mV | `0x32` | 676 MHz |
+| 572 MHz | 656,25 mV | `0x39` | 1539 MHz |
+| 683 MHz | 700 mV | `0x40` | 1539 MHz |
+| 764 MHz | 743,75 mV | `0x47` | 1794 MHz |
+
+Proč jen do 764 MHz:
+
+- Je to frekvence, na kterou původní systém skáče při zátěži
+  (`interactive_info = <764000 75 0>`) a nejvyšší stupeň jeho teplotního
+  brzdění (`gpu_temp_throttling`).
+- Vyšší stupně (839, 949, 1053 MHz) chce původní tabulka se sběrnicí paměti
+  na 2093 MHz. Ta podle tabulky firmwaru startuje na 1794 MHz (výchozí
+  stupeň 2; **neměřil jsem to**) a měnit ji neumíme.
+- Mez GPU v DT telefonu je 1053 MHz (`gpu_max_clock`). Wiki pro 9609 uvádí
+  nižší maximum; do 764 MHz se to netýká.
+
+Požadavek na sběrnici paměti je v původním systému výkonový (QoS), ne
+napájecí; přesto ho dodržím.
+
+Postup: nahoru po jednom stupni 260 → 338 → 385 → 455 → 572 → 683 → 764 MHz
+a stejnou cestou zpět. Před začátkem a po každém kroku čtení PLL
+(`mem-rd 11430120`), napětí (`acpmdbg_buck5_uv`), teplot a logu. To je
+12 žádostí o frekvenci a 13 čtení napětí.
+
+Zastavím a vrátím se na 260 MHz (pokud to půjde), když:
+
+- firmware vrátí chybu nebo neodpoví,
+- PLL neodpovídá požadované frekvenci,
+- napětí je vyšší než 800 mV (moje pojistka: nad hodnotou tabulky pro
+  764 MHz, hluboko pod 950 mV pro nejvyšší stupeň a pod 1,2 V z DT),
+- čtení napětí selže hned napoprvé – pak frekvenci vůbec neměním.
+
+Napětí nad tabulkou samo o sobě důvod k zastavení není: port gta4xl
+popisuje, že firmware u nejnižších stupňů drží napětí nad tabulkou.
+
+### 25.3 Rizika a co nevím
+
+- **Firmware poprvé na naši žádost mění napětí.** Hodnoty jsou z jeho
+  vlastní tabulky kalibrované pro tento kus a původní systém je používá
+  běžně; tentokrát je uvidím.
+- **GPU nic nekreslí**, takže test neřekne, jestli je GPU na vyšší frekvenci
+  stabilní pod zátěží. To ukáže až Phosh.
+- **Čtení PMIC je nový druh zprávy.** Když ho firmware odmítne, nic se
+  nestane; když se zasekne, pomůže Power + Vol−.
+- Modul TMU není připojený (jako dosud), změny nepřežijí restart.
+
+### 25.4 Jak je to připravené
+
+Ladicí commit na `troika-clk-test` (osmý): `acpmdbg_g3d_khz` přijme jen
+sedm frekvencí z tabulky výše, `acpmdbg_buck5_uv` jen čte. Image
+`out/troika-test-ACPM6.img`; samotné spuštění firmwaru nic navíc neposílá.
+
+### 25.5 Test ACPM6: stupně do 764 MHz, napětí sedí s tabulkou (2026-11-12 20:40)
+
+Souhlas uživatele: odpověď „Ano, celý postup“ na otázku, zda posílat čtení
+napětí větve GPU a žádosti o frekvenci po stupních 260 až 764 MHz a zpět
+(telefon běžel v ACPM6, výchozí stav zkontrolován). Výpis:
+`device-info/acpm-ACPM6.txt`.
+
+Čtení napětí funguje: odpověď `00010000 00002d00`, tedy kód `0x2d` =
+581,25 mV na 260 MHz.
+
+| Žádost | PLL `0x11430120` | Skutečná frekvence | Napětí `BUCK5` | Tabulka firmwaru |
+|---|---|---|---|---|
+| 260 MHz (výchozí) | `0xa0a00412` | 260,0 MHz | 581,25 mV | 581,25 mV |
+| 338 MHz | `0xa0680411` | 338,0 MHz | 581,25 mV | 581,25 mV |
+| 385 MHz | `0xa0940511` | 384,8 MHz | 587,5 mV | 587,5 mV |
+| 455 MHz | `0xa08c0411` | 455,0 MHz | 612,5 mV | 612,5 mV |
+| 572 MHz | `0xa0b00411` | 572,0 MHz | 656,25 mV | 656,25 mV |
+| 683 MHz | `0xa0690410` | 682,5 MHz | 700 mV | 700 mV |
+| 764 MHz | `0xa0930510` | 764,4 MHz | 743,75 mV | 743,75 mV |
+
+Cestou zpět byly hodnoty u každého stupně stejné a telefon skončil ve
+výchozím stavu (260 MHz, 581,25 mV). Celkem 12 žádostí o frekvenci a 13
+čtení napětí, všechny bez chyby.
+
+- **Napětí přesně odpovídá tabulce firmwaru** na každém stupni, nahoru
+  i dolů. Firmware tedy napětí větve GPU opravdu řídí podle ní.
+- Tři stupně mají skutečnou frekvenci mírně jinou než jmenovitou (384,8,
+  682,5 a 764,4 MHz) – tabulka je zaokrouhlená na celé MHz.
+- Moje kontrola PLL chtěla nejdřív přesnou shodu a zastavila postup na
+  385 MHz (384,8 MHz). Nebyla to odchylka firmwaru, ale příliš přísná
+  kontrola; pokračoval jsem s tolerancí 1 MHz. Mezitím GPU zůstalo na
+  385 MHz a 587,5 mV.
+- Teploty 43 až 45 °C beze změny (GPU nic nekreslí), UFS jen pro čtení,
+  v logu nic nového.
+
+Závěr: firmware umí na žádost nastavit všech sedm stupňů GPU do 764 MHz
+včetně napětí. **Neověřeno:** stabilita GPU pod zátěží na vyšší frekvenci,
+stupně nad 764 MHz, procesor a paměť.
+

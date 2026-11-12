@@ -1,7 +1,7 @@
 From 6cf8b0383da376ca62c9476c55351567177946e9 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 20:44:08 +0100
-Subject: [PATCH 3/7] DEBUG: ufs: exynos: dump the state left by the bootloader
+Subject: [PATCH 3/8] DEBUG: ufs: exynos: dump the state left by the bootloader
  and after init
 
 Not for upstream. Prints the vendor HCI registers, the FSYS sysreg word,

@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: Změna frekvence přes firmware funguje – test ACPM5: GPU 260 → 338 → 260 MHz, se souhlasem uživatele (FINDINGS.md 24.4). Souhlas platil jen pro tyto tři žádosti; další frekvence, stupně s jiným napětím a jiné domény vyžadují nový souhlas. Hotovo a ověřeno také: modul FVP nahrává čistý ovladač (23.3), teplota (22.5). `troika-clk` 89 commitů nad v7.3.3, `troika-clk-test` +7; hlavní repozitář commitnut a pushnut 2026-11-12 včetně testu ACPM5 (commit „ACPM: modul FVP v čistém ovladači, první změna frekvence GPU…“); pmaports beze změny (`6a3faa4df`)
+## Stav: Firmware umí nastavit stupně GPU 260 až 764 MHz včetně napětí – test ACPM6, se souhlasem uživatele; napětí `BUCK5` na každém stupni sedí s tabulkou (FINDINGS.md 25.5). Souhlas platil jen pro tento postup; stupně nad 764 MHz, procesor, paměť a zápisy do PMIC vyžadují nový. Neověřeno: GPU pod zátěží na vyšší frekvenci. `troika-clk` 89 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-12 včetně testu ACPM6 (commit „GPU: stupně do 764 MHz přes firmware…“); pmaports beze změny (`6a3faa4df`)
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1741,3 +1741,39 @@ beze změny: balíček kernelu pkgrel 6 je stále nesestavený a chybí mu commi
 ACPM a TMU, volby `EXYNOS_MBOX=y`, `EXYNOS_ACPM_PROTOCOL=y`,
 `EXYNOS9610_THERMAL=y` a soubor modulu FVP v initramfs (FINDINGS.md 23.2).
 Telefon běží v ACPM5, GPU na 260 MHz.
+
+### 2026-11-12 20:37 – návrh vyšších stupňů GPU, image ACPM6
+
+- Průzkum (jen čtení): větev GPU je `BUCK5` (`vdd_g3d`, DT 0,5 až 1,2 V),
+  napětí v registru `0x21` PMIC (adresa 1), `300000 + kód × 6250` µV;
+  původní kernel ho čte přes firmware kanálem 2. Tabulka GPU v DT telefonu
+  chce pro stupně nad 764 MHz sběrnici paměti na 2093 MHz, proto návrh
+  končí na 764 MHz.
+- `troika-clk-test` +1 (celkem 8 ladicích): `acpmdbg_g3d_khz` přijme sedm
+  frekvencí (260 až 764 MHz), nový `acpmdbg_buck5_uv` jen čte.
+- Sestaven `out/troika-test-ACPM6.img` (sha256 začíná `598aaa49`), postup
+  TESTING.md 5z. Souhlas zatím není.
+- Necommitnuto: FINDINGS kap. 25, TESTING 5z, PROGRESS;
+  `kernel-patches-debug/` čeká na export (8).
+
+### 2026-11-12 20:40 – test ACPM6 prošel: stupně GPU do 764 MHz, napětí
+
+Telefon restartován do fastbootu (na pokyn uživatele), uživatel spustil
+ACPM6. Souhlas přes AskUserQuestion („Ano, celý postup“). Čtení napětí
+funguje; 12 žádostí o frekvenci nahoru a zpět, napětí na každém stupni
+přesně podle tabulky firmwaru (581,25 až 743,75 mV). Postup se jednou
+zastavil na mé příliš přísné kontrole PLL (384,8 vs. 385 MHz), pak
+pokračoval s tolerancí 1 MHz. Telefon běží v ACPM6 na 260 MHz.
+Necommitnuto: FINDINGS kap. 25, TESTING 5z, PROGRESS; export ladicích
+patchů (8).
+
+Další možné kroky: (1) Phosh s GPU na vyšší pevné frekvenci – skutečná
+zátěž (místní kernel + soubor modulu v initramfs pmOS; nový souhlas);
+(2) čistý ovladač hodin přes ACPM a škálování GPU v panfrostu (OPP tabulka);
+(3) procesor. Před balíčkem vyřešit soubor modulu v initramfs (23.2).
+
+### 2026-11-12 20:41 – commit a push (ACPM6)
+
+Na pokyn uživatele: patche znovu vyexportovány (89 čistých, 8 ladicích),
+hlavní repozitář commitnut a pushnut. pmaports beze změny. Telefon běží
+v ACPM6, GPU na 260 MHz.
