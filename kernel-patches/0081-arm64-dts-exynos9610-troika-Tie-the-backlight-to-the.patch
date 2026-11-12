@@ -1,7 +1,7 @@
 From 42335286f1e30e8357d51bc4e65fb08fcd401e3e Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 15:06:03 +0100
-Subject: [PATCH 81/89] arm64: dts: exynos9610-troika: Tie the backlight to the
+Subject: [PATCH 81/93] arm64: dts: exynos9610-troika: Tie the backlight to the
  framebuffer
 
 Co-Authored-By: Claude <noreply@anthropic.com>

@@ -1,0 +1,94 @@
+From 7a4645d224d0d7caec16ae4e0850f9f121e8e586 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 21:25:13 +0100
+Subject: [PATCH 93/93] arm64: dts: exynos9610: Scale the GPU through the
+ firmware
+
+Take the clock of the GPU from the ACPM firmware and add the operating
+points up to 764 MHz. These are the rates that both the table of the
+firmware and the GPU table of the vendor device tree have. The firmware
+sets the voltage of each of them, so the table has no voltages.
+
+The vendor kernel wants the memory bus at its highest rate for the
+three rates above 764 MHz, which is not possible yet.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 44 +++++++++++++++++++++-
+ 1 file changed, 43 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 2c8401c..2f9d30d 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -5,6 +5,7 @@
+  * Copyright (c) 2025, Alexandru Chimac <alexchimac@protonmail.com>
+  */
+ 
++#include <dt-bindings/clock/samsung,exynos9610-acpm.h>
+ #include <dt-bindings/clock/samsung,exynos9610-cmu.h>
+ #include <dt-bindings/interrupt-controller/arm-gic.h>
+ #include <dt-bindings/soc/samsung,exynos-usi.h>
+@@ -129,6 +130,45 @@ acpm: power-management {
+ 			compatible = "samsung,exynos9610-acpm-ipc";
+ 			mboxes = <&apm_mailbox>;
+ 			shmem = <&apm_sram>;
++			#clock-cells = <1>;
++			clocks = <&cmu_g3d CLK_GOUT_CLK_G3D_G3D_CLK>;
++			clock-names = "g3d";
++		};
++	};
++
++	/*
++	 * The firmware sets the voltage of the GPU together with the rate.
++	 * The rates above 764 MHz need the memory bus at its highest rate.
++	 */
++	gpu_opp_table: opp-table-gpu {
++		compatible = "operating-points-v2";
++
++		opp-260000000 {
++			opp-hz = /bits/ 64 <260000000>;
++		};
++
++		opp-338000000 {
++			opp-hz = /bits/ 64 <338000000>;
++		};
++
++		opp-385000000 {
++			opp-hz = /bits/ 64 <385000000>;
++		};
++
++		opp-455000000 {
++			opp-hz = /bits/ 64 <455000000>;
++		};
++
++		opp-572000000 {
++			opp-hz = /bits/ 64 <572000000>;
++		};
++
++		opp-683000000 {
++			opp-hz = /bits/ 64 <683000000>;
++		};
++
++		opp-764000000 {
++			opp-hz = /bits/ 64 <764000000>;
+ 		};
+ 	};
+ 
+@@ -255,10 +295,12 @@ gpu: gpu@11500000 {
+ 				     <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>,
+ 				     <GIC_SPI 65 IRQ_TYPE_LEVEL_HIGH>;
+ 			interrupt-names = "job", "mmu", "gpu";
+-			clocks = <&cmu_g3d CLK_GOUT_CLK_G3D_G3D_CLK>,
++			clocks = <&acpm EXYNOS9610_CLK_ACPM_DVFS_G3D>,
+ 				 <&cmu_g3d CLK_GOUT_G3D_BUSP_CLK>,
+ 				 <&cmu_g3d CLK_GOUT_G3D_BUSD_CLK>;
+ 			clock-names = "gpu", "bus", "bus_ace";
++			operating-points-v2 = <&gpu_opp_table>;
++			#cooling-cells = <2>;
+ 			status = "disabled";
+ 		};
+ 
+-- 
+2.56.0
+

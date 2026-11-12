@@ -1,7 +1,7 @@
 From a4f534419ec612a60f7785c811e19eee377f06c7 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:39:07 +0100
-Subject: [PATCH 16/89] dt-bindings: arm: samsung: Document Motorola One Action
+Subject: [PATCH 16/93] dt-bindings: arm: samsung: Document Motorola One Action
  (troika)
 
 Motorola One Action (XT2013, codename troika) is a phone based on the

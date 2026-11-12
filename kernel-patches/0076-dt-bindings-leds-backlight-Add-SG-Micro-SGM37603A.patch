@@ -1,7 +1,7 @@
 From fc4a09ea0e5bf05be4c905bd101a91a31c6d85ec Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 14:08:39 +0100
-Subject: [PATCH 76/89] dt-bindings: leds: backlight: Add SG Micro SGM37603A
+Subject: [PATCH 76/93] dt-bindings: leds: backlight: Add SG Micro SGM37603A
 
 The SGM37603A is a white LED driver for three strings with a 12-bit
 brightness code set over I2C.

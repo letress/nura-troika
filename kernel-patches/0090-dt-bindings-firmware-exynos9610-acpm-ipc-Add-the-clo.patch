@@ -1,0 +1,86 @@
+From 6cf10b6665052fd33c3d791e7dd5ec58650ce8fc Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 21:25:12 +0100
+Subject: [PATCH 90/93] dt-bindings: firmware: exynos9610-acpm-ipc: Add the
+ clocks
+
+The firmware changes the rates of the clocks of its DVFS domains
+together with their voltages. Let the node provide these clocks and
+add the IDs of the domains. Each provided clock needs the clock of the
+CMU that the firmware reprograms, only the GPU for now.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ .../firmware/samsung,exynos9610-acpm-ipc.yaml | 22 +++++++++++++++++++
+ .../clock/samsung,exynos9610-acpm.h           | 17 ++++++++++++++
+ 2 files changed, 39 insertions(+)
+ create mode 100644 include/dt-bindings/clock/samsung,exynos9610-acpm.h
+
+diff --git a/Documentation/devicetree/bindings/firmware/samsung,exynos9610-acpm-ipc.yaml b/Documentation/devicetree/bindings/firmware/samsung,exynos9610-acpm-ipc.yaml
+index d861940..5591ed6 100644
+--- a/Documentation/devicetree/bindings/firmware/samsung,exynos9610-acpm-ipc.yaml
++++ b/Documentation/devicetree/bindings/firmware/samsung,exynos9610-acpm-ipc.yaml
+@@ -27,6 +27,23 @@ properties:
+       queues of the messages.
+     maxItems: 1
+ 
++  "#clock-cells":
++    const: 1
++    description:
++      Clocks that the firmware controls. See
++      include/dt-bindings/clock/samsung,exynos9610-acpm.h for the IDs.
++
++  clocks:
++    description:
++      The clock in the CMU that the firmware changes the rate of, for each
++      clock that this node provides.
++    items:
++      - description: GPU clock in CMU_G3D
++
++  clock-names:
++    items:
++      - const: g3d
++
+ required:
+   - compatible
+   - mboxes
+@@ -36,8 +53,13 @@ additionalProperties: false
+ 
+ examples:
+   - |
++    #include <dt-bindings/clock/samsung,exynos9610-cmu.h>
++
+     power-management {
+         compatible = "samsung,exynos9610-acpm-ipc";
+         mboxes = <&apm_mailbox>;
+         shmem = <&apm_sram>;
++        #clock-cells = <1>;
++        clocks = <&cmu_g3d CLK_GOUT_CLK_G3D_G3D_CLK>;
++        clock-names = "g3d";
+     };
+diff --git a/include/dt-bindings/clock/samsung,exynos9610-acpm.h b/include/dt-bindings/clock/samsung,exynos9610-acpm.h
+new file mode 100644
+index 0000000..24a652e
+--- /dev/null
++++ b/include/dt-bindings/clock/samsung,exynos9610-acpm.h
+@@ -0,0 +1,17 @@
++/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
++/*
++ * Device Tree binding constants for the clocks that the ACPM firmware of the
++ * Exynos9610 controls. The values are the IDs of the DVFS domains in the
++ * firmware.
++ */
++
++#ifndef _DT_BINDINGS_CLOCK_SAMSUNG_EXYNOS9610_ACPM_H
++#define _DT_BINDINGS_CLOCK_SAMSUNG_EXYNOS9610_ACPM_H
++
++#define EXYNOS9610_CLK_ACPM_DVFS_MIF		0
++#define EXYNOS9610_CLK_ACPM_DVFS_INT		1
++#define EXYNOS9610_CLK_ACPM_DVFS_CPUCL0		2
++#define EXYNOS9610_CLK_ACPM_DVFS_CPUCL1		3
++#define EXYNOS9610_CLK_ACPM_DVFS_G3D		4
++
++#endif /* _DT_BINDINGS_CLOCK_SAMSUNG_EXYNOS9610_ACPM_H */
+-- 
+2.56.0
+

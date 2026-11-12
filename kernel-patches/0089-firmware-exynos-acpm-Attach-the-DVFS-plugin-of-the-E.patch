@@ -1,7 +1,7 @@
 From 954ed3207817aca328d3edee49f491abe7177a6f Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 19:47:58 +0100
-Subject: [PATCH 89/89] firmware: exynos-acpm: Attach the DVFS plugin of the
+Subject: [PATCH 89/93] firmware: exynos-acpm: Attach the DVFS plugin of the
  Exynos9610
 
 The ACPM firmware of the Exynos9610 is a framework with plugins. The

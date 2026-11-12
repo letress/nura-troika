@@ -1,7 +1,7 @@
 From ca94daba8ca54ea49979688a235b65bfa8e5957d Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 22:51:41 +0100
-Subject: [PATCH 67/89] arm64: dts: exynos9610-troika: Add reboot modes
+Subject: [PATCH 67/93] arm64: dts: exynos9610-troika: Add reboot modes
 
 The vendor kernel leaves the reason for a restart in SYSIP_DAT3 of the
 PMU for the bootloader: 0x77665501 for a plain restart, 0x77665500 for

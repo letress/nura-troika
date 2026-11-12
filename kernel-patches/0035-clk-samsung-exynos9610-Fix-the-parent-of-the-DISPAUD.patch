@@ -1,7 +1,7 @@
 From 6d5e6a607a1e0e3d41eb7e98310e646729efd18a Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:31 +0100
-Subject: [PATCH 35/89] clk: samsung: exynos9610: Fix the parent of the DISPAUD
+Subject: [PATCH 35/93] clk: samsung: exynos9610: Fix the parent of the DISPAUD
  LHM_AXI_P gate
 
 gout_dispaud_lhm_axi_p_dispaud_clk is parented to the audio bus mux. In

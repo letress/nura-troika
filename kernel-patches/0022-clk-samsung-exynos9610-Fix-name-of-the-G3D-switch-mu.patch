@@ -1,7 +1,7 @@
 From d8489976ab959cf903e1879e3b8dfc104026607f Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:27 +0100
-Subject: [PATCH 22/89] clk: samsung: exynos9610: Fix name of the G3D switch
+Subject: [PATCH 22/93] clk: samsung: exynos9610: Fix name of the G3D switch
  mux
 
 The mux is registered as "mout_cmu_g3d_SWITCH" while its only consumer,

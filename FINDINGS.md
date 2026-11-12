@@ -2900,3 +2900,79 @@ zátěž na 764 MHz a kontrola logu na chyby GPU.
 
 Doplnění (21:20): uživatel potvrdil, že prostředí je na 764 MHz znatelně
 plynulejší než na 260 MHz. Delší zátěž a kontrola logu dál chybí.
+
+## 27. Automatické škálování GPU přes firmware (2026-11-12)
+
+### 27.1 Návrh a změny (větev `troika-clk`, +4, celkem 93 nad v7.3.3)
+
+Panfrost umí frekvenci řídit sám (devfreq, regulátor `simple_ondemand`),
+když má GPU v DT tabulku stupňů a hodiny, kterým jde nastavit frekvence.
+Hodiny GPU proto nově poskytuje firmware:
+
+1. `dt-bindings: firmware: exynos9610-acpm-ipc: Add the clocks` – uzel ACPM
+   je poskytovatel hodin (`#clock-cells = <1>`), čísla domén v
+   `samsung,exynos9610-acpm.h` (MIF 0, INT 1, CPUCL0 2, CPUCL1 3, G3D 4 –
+   pořadí tabulky firmwaru, `cal-id` v původním DT; ověřená je jen G3D).
+2. `firmware: exynos-acpm: Add the DVFS requests of the Exynos9610` – žádost
+   ve tvaru ověřeném v ACPM5/6 (`{doména, kHz, 0, 0}` s odpovědí; mainline
+   pro GS101 posílá navíc čas a nečeká na odpověď). Bez připojeného modulu
+   FVP žádosti odmítá.
+3. `clk: samsung: acpm: Add the GPU clock of the Exynos9610` – hodiny
+   `acpm_g3d` jako potomek hodin GPU v CMU_G3D (ty dál řeší zapínání).
+   Firmware frekvenci nehlásí, proto platí frekvence rodiče do první žádosti
+   a pak poslední vyžádaná. Bez modulu FVP zůstane frekvence z bootloaderu
+   a GPU funguje jako dosud.
+4. `arm64: dts: exynos9610: Scale the GPU through the firmware` – GPU bere
+   hodiny z ACPM, tabulka sedmi stupňů 260 až 764 MHz (ty ověřené v ACPM6),
+   bez napětí (řídí ho firmware), `#cooling-cells` pro pozdější chlazení.
+
+Známá omezení: hodiny PLL v mainline si dál pamatují 260 MHz (jen údaj
+v `clk_summary`); teplotní brzdění GPU zatím není (jen vypnutí při 105 °C
+a ochrana čipu při 115 °C); stupně nad 764 MHz nejsou.
+
+Sestaveno bez varování, `dt_binding_check` a `CHECK_DTBS` bez nových nálezů.
+Místní konfigurace: `EXYNOS_ACPM_CLK=y` (balíček má `=m`, bude potřeba `=y`).
+**Na telefonu zatím neběželo.**
+
+### 27.2 Test ACPM7
+
+Image `out/troika-test-ACPM7.img` (testovací initramfs). Rozdíl proti dřívějším
+testům: **žádosti o frekvenci posílá kernel sám** podle zátěže GPU, ne já
+ručně; už samotné spuštění image je tedy může poslat. V testovacím image GPU
+nic nekreslí, takže regulátor má zůstat na 260 MHz; stupně projdu přes
+`/sys/class/devfreq/11500000.gpu/min_freq` a u každého přečtu PLL, napětí
+(`acpmdbg_buck5_uv`) a teploty.
+
+### 27.3 Výsledek ACPM7: devfreq řídí GPU přes firmware (21:40)
+
+Souhlas uživatele: „Ano, souhlasím“ na otázku, zda smí kernel v tomto testu
+sám přepínat GPU mezi sedmi ověřenými stupni a zda smím číst napětí. Výpis:
+`device-info/acpm-ACPM7.txt`.
+
+- Panfrost se navázal s hodinami z ACPM (`clock rate = 260000000`), vznikl
+  `/sys/class/devfreq/11500000.gpu` s regulátorem `simple_ondemand`, sedmi
+  frekvencemi 260 až 764 MHz a chladicím zařízením `cooling_device0`.
+- Strom hodin: `fout_g3d_pll` → `gout_clk_g3d_g3d_clk` → `acpm_g3d`.
+- Po startu zůstalo GPU na 260 MHz (nic nekreslí), PLL beze změny.
+- Stupně vynucené přes `min_freq`, nahoru i dolů: u každého sedí `cur_freq`,
+  hodiny `acpm_g3d`, PLL (s tolerancí 1 MHz) i napětí `BUCK5` s tabulkou
+  firmwaru – stejné hodnoty jako v ACPM6 (581,25 až 743,75 mV). Skončilo na
+  260 MHz a 581,25 mV.
+- Teploty 42 až 44 °C, v logu žádná nová chyba.
+
+Závěr: cesta devfreq → OPP → hodiny ACPM → firmware funguje. **Neověřeno:**
+chování regulátoru pod skutečnou zátěží (Phosh), uspání GPU při přepnuté
+frekvenci, teplotní brzdění (mapy chlazení zatím nejsou).
+
+### 27.4 Zkouška GPU4: Phosh s automatickým škálováním (21:55)
+
+Souhlas uživatele: „Ano, souhlasím“ (automatické řízení frekvence GPU 260 až
+764 MHz v Phoshi). Image `out/troika-test-GPU4.img`, systém z netbootu.
+
+Hodnocení uživatele: plynulost je dobrá; teploty při opakovaném posouvání
+a podobné práci nepřesáhly 49 °C; víc zátěže se v Phoshi udělat nedalo.
+
+**Chybí:** jaké frekvence regulátor skutečně volil (`cur_freq` uživatel
+neuvedl), výpis `dmesg` (chyby GPU, devfreq), delší nebo těžší zátěž GPU.
+Teplotní brzdění GPU dál neexistuje.
+

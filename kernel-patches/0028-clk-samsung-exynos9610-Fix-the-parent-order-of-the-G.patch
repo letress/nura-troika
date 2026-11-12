@@ -1,7 +1,7 @@
 From e70468c4a3cfcc4e2c5d86d44f6c93961b1f9175 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:29 +0100
-Subject: [PATCH 28/89] clk: samsung: exynos9610: Fix the parent order of the
+Subject: [PATCH 28/93] clk: samsung: exynos9610: Fix the parent order of the
  GIC mux
 
 In the vendor kernel's clock tables

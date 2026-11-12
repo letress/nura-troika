@@ -1,0 +1,213 @@
+From a9e75574c34b6b66c678c5e32a935faeea60796f Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 21:25:12 +0100
+Subject: [PATCH 91/93] firmware: exynos-acpm: Add the DVFS requests of the
+ Exynos9610
+
+The firmware of the Exynos9610 takes the same DVFS request as the one
+of the GS101, but without a timestamp, and it answers every request
+(exynos_acpm_set_rate() of the vendor kernel). It does not report the
+rate: a FREQ_GET request returns zero. Give the Exynos9610 its own
+protocol operations with such a set_rate and no get_rate, and register
+the device of the ACPM clock driver.
+
+The DVFS channel is served by the plugin that the kernel attaches, so
+refuse the requests when it could not be attached, and tell the clock
+driver.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ drivers/firmware/samsung/exynos-acpm-dvfs.c | 25 ++++++++++
+ drivers/firmware/samsung/exynos-acpm-dvfs.h |  3 ++
+ drivers/firmware/samsung/exynos-acpm.c      | 54 +++++++++++++++++++--
+ 3 files changed, 78 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/firmware/samsung/exynos-acpm-dvfs.c b/drivers/firmware/samsung/exynos-acpm-dvfs.c
+index 7266312..e409057 100644
+--- a/drivers/firmware/samsung/exynos-acpm-dvfs.c
++++ b/drivers/firmware/samsung/exynos-acpm-dvfs.c
+@@ -43,6 +43,31 @@ int acpm_dvfs_set_rate(struct acpm_handle *handle,
+ 	return acpm_do_xfer(handle, &xfer);
+ }
+ 
++/**
++ * acpm_dvfs_set_rate_resp() - set the rate with a firmware that answers the
++ * request and takes no timestamp, as the one of the Exynos9610 does.
++ * @handle:		pointer to the ACPM handle.
++ * @acpm_chan_id:	ID of the DVFS channel.
++ * @clk_id:		ID of the DVFS domain.
++ * @rate:		rate in Hz.
++ *
++ * Return: 0 on success, -errno otherwise.
++ */
++int acpm_dvfs_set_rate_resp(struct acpm_handle *handle,
++			    unsigned int acpm_chan_id, unsigned int clk_id,
++			    unsigned long rate)
++{
++	struct acpm_xfer xfer = {0};
++	u32 cmd[4] = {0};
++
++	cmd[0] = FIELD_PREP(ACPM_DVFS_ID, clk_id);
++	cmd[1] = rate / HZ_PER_KHZ;
++	cmd[2] = FIELD_PREP(ACPM_DVFS_REQ_TYPE, ACPM_DVFS_FREQ_REQ);
++	acpm_set_xfer(&xfer, cmd, ARRAY_SIZE(cmd), acpm_chan_id, true);
++
++	return acpm_do_xfer(handle, &xfer);
++}
++
+ static void acpm_dvfs_init_get_rate_cmd(u32 cmd[4], unsigned int clk_id)
+ {
+ 	cmd[0] = FIELD_PREP(ACPM_DVFS_ID, clk_id);
+diff --git a/drivers/firmware/samsung/exynos-acpm-dvfs.h b/drivers/firmware/samsung/exynos-acpm-dvfs.h
+index b37b154..c233611 100644
+--- a/drivers/firmware/samsung/exynos-acpm-dvfs.h
++++ b/drivers/firmware/samsung/exynos-acpm-dvfs.h
+@@ -14,6 +14,9 @@ struct acpm_handle;
+ int acpm_dvfs_set_rate(struct acpm_handle *handle,
+ 		       unsigned int acpm_chan_id, unsigned int id,
+ 		       unsigned long rate);
++int acpm_dvfs_set_rate_resp(struct acpm_handle *handle,
++			    unsigned int acpm_chan_id, unsigned int id,
++			    unsigned long rate);
+ unsigned long acpm_dvfs_get_rate(struct acpm_handle *handle,
+ 				 unsigned int acpm_chan_id,
+ 				 unsigned int clk_id);
+diff --git a/drivers/firmware/samsung/exynos-acpm.c b/drivers/firmware/samsung/exynos-acpm.c
+index bb0ce55..e62336f 100644
+--- a/drivers/firmware/samsung/exynos-acpm.c
++++ b/drivers/firmware/samsung/exynos-acpm.c
+@@ -207,6 +207,8 @@ struct acpm_chan {
+  * @dev:	pointer to the exynos-acpm device.
+  * @handle:	instance of acpm_handle to send to clients.
+  * @num_chans:	number of channels available for this controller.
++ * @plugins_attached: true when all the firmware plugins that the kernel has
++ *		to attach are attached.
+  */
+ struct acpm_info {
+ 	struct acpm_shmem __iomem *shmem;
+@@ -216,6 +218,7 @@ struct acpm_info {
+ 	struct device *dev;
+ 	struct acpm_handle handle;
+ 	u32 num_chans;
++	bool plugins_attached;
+ };
+ 
+ /**
+@@ -227,12 +230,14 @@ struct acpm_info {
+  *			firmware plugins.
+  * @plugins:		NULL-terminated names of the images of the firmware
+  *			plugins to load and attach, NULL if there are none.
++ * @ops:		ACPM protocol operations.
+  */
+ struct acpm_match_data {
+ 	loff_t initdata_base;
+ 	const char *acpm_clk_dev_name;
+ 	unsigned int plugin_chan_id;
+ 	const char * const *plugins;
++	const struct acpm_ops *ops;
+ };
+ 
+ #define client_to_acpm_chan(c) container_of(c, struct acpm_chan, cl)
+@@ -744,6 +749,38 @@ static const struct acpm_ops exynos_acpm_driver_ops = {
+ 	},
+ };
+ 
++/*
++ * The firmware of the Exynos9610 answers the DVFS requests and cannot tell
++ * the rate, the clock driver has to track it. The plugin that serves the
++ * DVFS channel is attached by the kernel.
++ */
++static int acpm_exynos9610_dvfs_set_rate(struct acpm_handle *handle,
++					 unsigned int acpm_chan_id,
++					 unsigned int clk_id,
++					 unsigned long rate)
++{
++	struct acpm_info *acpm = handle_to_acpm_info(handle);
++
++	if (!acpm->plugins_attached)
++		return -ENODEV;
++
++	return acpm_dvfs_set_rate_resp(handle, acpm_chan_id, clk_id, rate);
++}
++
++static const struct acpm_ops exynos9610_acpm_driver_ops = {
++	.dvfs = {
++		.set_rate = acpm_exynos9610_dvfs_set_rate,
++	},
++
++	.pmic = {
++		.read_reg = acpm_pmic_read_reg,
++		.bulk_read = acpm_pmic_bulk_read,
++		.write_reg = acpm_pmic_write_reg,
++		.bulk_write = acpm_pmic_bulk_write,
++		.update_reg = acpm_pmic_update_reg,
++	},
++};
++
+ /**
+  * acpm_plugin_find() - find a firmware plugin by the name of its image.
+  * @acpm:	pointer to driver private data.
+@@ -869,12 +906,16 @@ static void acpm_plugins_attach(struct acpm_info *acpm,
+ 	const char * const *name;
+ 	int ret;
+ 
++	acpm->plugins_attached = true;
++
+ 	for (name = match_data->plugins; name && *name; name++) {
+ 		ret = acpm_plugin_attach(acpm, match_data->plugin_chan_id,
+ 					 *name);
+-		if (ret)
++		if (ret) {
+ 			dev_warn(acpm->dev, "Failed to attach plugin %s: %d\n",
+ 				 *name, ret);
++			acpm->plugins_attached = false;
++		}
+ 	}
+ }
+ 
+@@ -919,7 +960,7 @@ static int acpm_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return ret;
+ 
+-	acpm->handle.ops = &exynos_acpm_driver_ops;
++	acpm->handle.ops = match_data->ops;
+ 
+ 	acpm_plugins_attach(acpm, match_data);
+ 
+@@ -928,9 +969,12 @@ static int acpm_probe(struct platform_device *pdev)
+ 	if (!match_data->acpm_clk_dev_name)
+ 		return devm_of_platform_populate(dev);
+ 
++	/* The clock driver must not change rates without the plugins. */
+ 	acpm_clk_pdev = platform_device_register_data(dev,
+ 						match_data->acpm_clk_dev_name,
+-						PLATFORM_DEVID_NONE, NULL, 0);
++						PLATFORM_DEVID_NONE,
++						&acpm->plugins_attached,
++						sizeof(acpm->plugins_attached));
+ 	if (IS_ERR(acpm_clk_pdev))
+ 		return dev_err_probe(dev, PTR_ERR(acpm_clk_pdev),
+ 				     "Failed to register ACPM clocks device.\n");
+@@ -1065,6 +1109,7 @@ EXPORT_SYMBOL_GPL(devm_acpm_get_by_phandle);
+ static const struct acpm_match_data acpm_gs101 = {
+ 	.initdata_base = ACPM_GS101_INITDATA_BASE,
+ 	.acpm_clk_dev_name = "gs101-acpm-clk",
++	.ops = &exynos_acpm_driver_ops,
+ };
+ 
+ /*
+@@ -1077,9 +1122,10 @@ static const char * const acpm_exynos9610_plugins[] = {
+ 	NULL
+ };
+ 
+-/* No clocks of the Exynos9610 are handed out through ACPM yet. */
+ static const struct acpm_match_data acpm_exynos9610 = {
+ 	.initdata_base = ACPM_EXYNOS9610_INITDATA_BASE,
++	.acpm_clk_dev_name = "exynos9610-acpm-clk",
++	.ops = &exynos9610_acpm_driver_ops,
+ 	.plugin_chan_id = ACPM_EXYNOS9610_PLUGIN_CHAN_ID,
+ 	.plugins = acpm_exynos9610_plugins,
+ };
+-- 
+2.56.0
+

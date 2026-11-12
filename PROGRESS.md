@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: Zkouška GPU3 – v běžícím Phoshi prošlo přepnutí GPU na 455, 764 a zpět na 260 MHz bez chyby (FINDINGS.md 26.2); chybí dojem uživatele z plynulosti a delší zátěž. Soubor modulu FVP jde připojit za initramfs balíčku (zarovnání na 4 bajty, 26.1). `troika-clk` 89 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-12 včetně zkoušky GPU3 (commit „GPU3: Phosh s GPU na vyšší frekvenci…“); pmaports beze změny (`6a3faa4df`)
+## Stav: Automatické škálování GPU funguje i v Phoshi – zkouška GPU4: plynulost dobrá, teploty do 49 °C (FINDINGS.md 27.4); log a zvolené frekvence z plného systému nemám. Chybí teplotní brzdění GPU, stupně nad 764 MHz a zařazení do balíčku (commity ACPM/TMU/hodiny, `EXYNOS_MBOX=y`, `EXYNOS_ACPM_PROTOCOL=y`, `EXYNOS_ACPM_CLK=y`, `EXYNOS9610_THERMAL=y`, soubor modulu FVP v initramfs – o jeho zdroji rozhodne uživatel). `troika-clk` 93 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-12 včetně zkoušky GPU4 (commit „GPU: automatické škálování přes firmware…“); pmaports beze změny (`6a3faa4df`)
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1815,3 +1815,31 @@ teplotní zóny. Necommitnuto od `7a10399`.
 
 Na pokyn uživatele hlavní repozitář commitnut a pushnut. Patche kernelu se
 od `7a10399` neměnily (89 + 8). pmaports beze změny.
+
+### 2026-11-12 21:30 – automatické škálování GPU: kód a image ACPM7
+
+`troika-clk` +4 (binding hodin ACPM, žádost DVFS pro 9610, hodiny GPU
+v `clk-acpm`, DT: GPU z hodin ACPM + tabulka OPP). `troika-clk-test`
+přeskládána. `build/linux/.config`: `EXYNOS_ACPM_CLK=y`. Sestaveno bez
+varování; `out/troika-test-ACPM7.img`. Telefon běží v GPU3 (Phosh).
+Necommitnuto: FINDINGS kap. 27, TESTING 5ab, PROGRESS; export patchů 93 + 8.
+
+### 2026-11-12 21:40 – test ACPM7 prošel, připraven GPU4
+
+Souhlas přes AskUserQuestion („Ano, souhlasím“, jen pro ACPM7). Devfreq
+navázán, sedm stupňů přes `min_freq` nahoru i dolů, PLL i napětí sedí.
+Sestaven `out/troika-test-GPU4.img` (plný systém, stejný kernel). Telefon
+běží v ACPM7 na 260 MHz. Necommitnuto: FINDINGS kap. 27, TESTING 5ab a 5ac,
+PROGRESS; export patchů 93 + 8.
+
+### 2026-11-12 21:55 – zkouška GPU4 v Phoshi
+
+Uživatel spustil GPU4 a výslovně souhlasil s automatickým škálováním.
+Hodnocení: plynulost dobrá, teploty do 49 °C. Necommitnuto: FINDINGS
+kap. 27, TESTING 5ab a 5ac, PROGRESS; export patchů 93 + 8.
+
+### 2026-11-12 21:56 – commit a push (ACPM7, GPU4)
+
+Na pokyn uživatele: patche znovu vyexportovány (93 čistých, 8 ladicích),
+hlavní repozitář commitnut a pushnut. pmaports beze změny. Telefon běží
+v GPU4 (Phosh, netboot).

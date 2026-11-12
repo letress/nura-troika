@@ -1,4 +1,4 @@
-From d148d770ea3fbf53fa417d876248a4ee277faac5 Mon Sep 17 00:00:00 2001
+From 546a8f2137d7033aee9817bf9808025623a4c11b Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 20:16:00 +0100
 Subject: [PATCH 7/8] DEBUG: firmware: exynos-acpm: debugfs file to request the
@@ -10,7 +10,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
  1 file changed, 59 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/firmware/samsung/exynos-acpm.c b/drivers/firmware/samsung/exynos-acpm.c
-index 596535b..72d02f5 100644
+index 95bb0c0..609ecfd 100644
 --- a/drivers/firmware/samsung/exynos-acpm.c
 +++ b/drivers/firmware/samsung/exynos-acpm.c
 @@ -10,6 +10,7 @@
@@ -21,7 +21,7 @@ index 596535b..72d02f5 100644
  #include <linux/delay.h>
  #include <linux/device.h>
  #include <linux/find.h>
-@@ -996,6 +997,61 @@ static void acpmdbg_dump(struct acpm_info *acpm)
+@@ -1037,6 +1038,61 @@ static void acpmdbg_dump(struct acpm_info *acpm)
  	}
  }
  
@@ -83,8 +83,8 @@ index 596535b..72d02f5 100644
  static int acpm_probe(struct platform_device *pdev)
  {
  	const struct acpm_match_data *match_data;
-@@ -1040,8 +1096,10 @@ static int acpm_probe(struct platform_device *pdev)
- 	acpm->handle.ops = &exynos_acpm_driver_ops;
+@@ -1081,8 +1137,10 @@ static int acpm_probe(struct platform_device *pdev)
+ 	acpm->handle.ops = match_data->ops;
  
  	acpm_plugins_attach(acpm, match_data);
 -	if (match_data->plugins)

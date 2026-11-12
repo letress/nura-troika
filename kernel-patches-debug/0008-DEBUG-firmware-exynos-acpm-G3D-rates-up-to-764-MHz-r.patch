@@ -1,4 +1,4 @@
-From 31a605ac2811d4c7d7520ea838602dd2c6a3937e Mon Sep 17 00:00:00 2001
+From 801a39393b0abc4cfdeaf6a39042a18347f9f489 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 20:34:14 +0100
 Subject: [PATCH 8/8] DEBUG: firmware: exynos-acpm: G3D rates up to 764 MHz,
@@ -10,10 +10,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>
  1 file changed, 63 insertions(+), 6 deletions(-)
 
 diff --git a/drivers/firmware/samsung/exynos-acpm.c b/drivers/firmware/samsung/exynos-acpm.c
-index 72d02f5..37c2bb2 100644
+index 609ecfd..329e8ea 100644
 --- a/drivers/firmware/samsung/exynos-acpm.c
 +++ b/drivers/firmware/samsung/exynos-acpm.c
-@@ -998,23 +998,41 @@ static void acpmdbg_dump(struct acpm_info *acpm)
+@@ -1039,23 +1039,41 @@ static void acpmdbg_dump(struct acpm_info *acpm)
  }
  
  /*
@@ -61,7 +61,7 @@ index 72d02f5..37c2bb2 100644
  		return -EINVAL;
  
  	acpm_set_xfer(&xfer, cmd, ARRAY_SIZE(cmd), ACPMDBG_DVFS_CHAN, true);
-@@ -1026,6 +1044,32 @@ static int acpmdbg_g3d_set(void *data, u64 val)
+@@ -1067,6 +1085,32 @@ static int acpmdbg_g3d_set(void *data, u64 val)
  }
  DEFINE_DEBUGFS_ATTRIBUTE(acpmdbg_g3d_fops, NULL, acpmdbg_g3d_set, "%llu\n");
  
@@ -94,7 +94,7 @@ index 72d02f5..37c2bb2 100644
  static void acpmdbg_g3d_init(struct acpm_info *acpm)
  {
  	struct acpm_plugin_shmem __iomem *plugin;
-@@ -1050,6 +1094,19 @@ static void acpmdbg_g3d_init(struct acpm_info *acpm)
+@@ -1091,6 +1135,19 @@ static void acpmdbg_g3d_init(struct acpm_info *acpm)
  	debugfs_create_file("acpmdbg_g3d_khz", 0200, NULL, acpm,
  			    &acpmdbg_g3d_fops);
  	dev_info(acpm->dev, "ACPMDBG g3d: debugfs file ready, nothing sent\n");

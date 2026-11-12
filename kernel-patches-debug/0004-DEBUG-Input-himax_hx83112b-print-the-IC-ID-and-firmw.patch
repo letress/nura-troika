@@ -1,4 +1,4 @@
-From 5e283d08111736df68eb0bbee027c2fafbfc757d Mon Sep 17 00:00:00 2001
+From 6265c1b5c32c11476a9595a7d9f93a0dfcd3c529 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 21:02:11 +0100
 Subject: [PATCH 4/8] DEBUG: Input: himax_hx83112b - print the IC ID and

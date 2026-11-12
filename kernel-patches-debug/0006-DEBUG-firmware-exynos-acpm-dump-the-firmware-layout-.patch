@@ -1,4 +1,4 @@
-From e1ec2b1ecc98aace64c5dd60954fe5da4bfc049f Mon Sep 17 00:00:00 2001
+From f6c827d19136c3ae752af7594218efa1783d5495 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 19:48:24 +0100
 Subject: [PATCH 6/8] DEBUG: firmware: exynos-acpm: dump the firmware layout
@@ -10,10 +10,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>
  1 file changed, 120 insertions(+)
 
 diff --git a/drivers/firmware/samsung/exynos-acpm.c b/drivers/firmware/samsung/exynos-acpm.c
-index bb0ce55..596535b 100644
+index e62336f..95bb0c0 100644
 --- a/drivers/firmware/samsung/exynos-acpm.c
 +++ b/drivers/firmware/samsung/exynos-acpm.c
-@@ -878,6 +878,124 @@ static void acpm_plugins_attach(struct acpm_info *acpm,
+@@ -919,6 +919,124 @@ static void acpm_plugins_attach(struct acpm_info *acpm,
  	}
  }
  
@@ -138,8 +138,8 @@ index bb0ce55..596535b 100644
  static int acpm_probe(struct platform_device *pdev)
  {
  	const struct acpm_match_data *match_data;
-@@ -922,6 +1040,8 @@ static int acpm_probe(struct platform_device *pdev)
- 	acpm->handle.ops = &exynos_acpm_driver_ops;
+@@ -963,6 +1081,8 @@ static int acpm_probe(struct platform_device *pdev)
+ 	acpm->handle.ops = match_data->ops;
  
  	acpm_plugins_attach(acpm, match_data);
 +	if (match_data->plugins)

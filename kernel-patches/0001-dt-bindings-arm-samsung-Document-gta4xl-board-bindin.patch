@@ -1,7 +1,7 @@
 From 3fff2ed3edcd2fadf022126e69bdeccae78d67ca Mon Sep 17 00:00:00 2001
 From: Alexandru Chimac <alex@chimac.ro>
 Date: Sun, 14 Sep 2025 20:43:56 +0000
-Subject: [PATCH 01/89] dt-bindings: arm: samsung: Document gta4xl board
+Subject: [PATCH 01/93] dt-bindings: arm: samsung: Document gta4xl board
  binding
 
 Add binding for the Samsung Galaxy Tab S6 Lite (SM-P610/SM-P615)

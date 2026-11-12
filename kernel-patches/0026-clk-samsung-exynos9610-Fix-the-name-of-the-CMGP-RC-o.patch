@@ -1,7 +1,7 @@
 From adc2221ca213f35e49e30b77e9af51c083229ea5 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:28 +0100
-Subject: [PATCH 26/89] clk: samsung: exynos9610: Fix the name of the CMGP RC
+Subject: [PATCH 26/93] clk: samsung: exynos9610: Fix the name of the CMGP RC
  oscillator parent
 
 CMU_TOP registers the 30 MHz RC oscillator of the CMGP block as

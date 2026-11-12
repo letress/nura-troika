@@ -1,7 +1,7 @@
 From 70ba88af2b334367dea0f00ede7457416bc4b7e3 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 22:51:41 +0100
-Subject: [PATCH 66/89] arm64: dts: exynos9610: Add reboot and poweroff
+Subject: [PATCH 66/93] arm64: dts: exynos9610: Add reboot and poweroff
 
 Restart through SWRESET and power off by releasing PS_HOLD, as the
 vendor kernel does (drivers/soc/samsung/exynos-reboot.c: SWRESET at

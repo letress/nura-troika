@@ -1486,6 +1486,56 @@ po restartu je vše v původním stavu.
 a přepnutí na 455, 764 a zpět na 260 MHz v běžícím Phoshi prošlo bez chyby
 (FINDINGS.md 26.2). Chybí hodnocení plynulosti a delší zátěž.
 
+## 5ab. Test ACPM7: automatické škálování GPU
+
+Cíl: panfrost řídí frekvenci GPU přes firmware sám (FINDINGS.md 27). Od
+spuštění image může kernel posílat firmwaru žádosti o frekvenci GPU mezi
+sedmi ověřenými stupni 260 až 764 MHz – proto je souhlas potřeba už před
+spuštěním.
+
+1. Z Phoshe do fastbootu (`sudo reboot bootloader`), pak:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ACPM7.img
+```
+
+2. Napiš mi, že běží. Přes telnet zkontroluju devfreq, projdu stupně přes
+   `min_freq` a u každého přečtu PLL, napětí a teploty.
+
+Kdyby telefon zamrzl nebo se sám restartoval: podrž Power + Vol− a napiš mi
+to.
+
+**Výsledek ACPM7 (2026-11-12): prošlo** – devfreq v panfrostu přepíná GPU
+přes firmware, všech sedm stupňů sedí včetně napětí (FINDINGS.md 27.3).
+
+## 5ac. Test GPU4: Phosh s automatickým škálováním GPU
+
+Cíl: v plném systému si kernel frekvenci GPU řídí sám podle zátěže. Image
+`out/troika-test-GPU4.img` (místní kernel + initramfs z BL3 + soubor modulu).
+
+1. Netboot server musí běžet (`pmbootstrap -p ~/nura-troika/pmaports netboot
+   serve`). Telefon do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-GPU4.img
+```
+
+2. Po přihlášení používej Phosh pár minut. Přes SSH můžeš sledovat frekvenci
+   a teploty (bez `sudo`):
+
+```bash
+cat /sys/class/devfreq/11500000.gpu/cur_freq /sys/class/thermal/thermal_zone*/temp
+```
+
+3. Napiš mi dojem z plynulosti, jaké frekvence a teploty jsi viděl, a pošli
+   `sudo dmesg | grep -i -E "panfrost|devfreq|acpm" | grep -v -i "command line" | tail -n 20`.
+
+Když některá teplota přesáhne 85 000, přestaň telefon zatěžovat. Kdyby
+prostředí zamrzlo: Power + Vol−.
+
+**Výsledek GPU4 (2026-11-12): prošlo podle uživatele** – plynulost dobrá,
+teploty do 49 °C; log a zvolené frekvence nedodány (FINDINGS.md 27.4).
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

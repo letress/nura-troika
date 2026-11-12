@@ -1,7 +1,7 @@
 From ba71a678efe945e9f3f5f6d054b9f8d4d3aa0862 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Tue, 10 Nov 2026 15:36:25 +0100
-Subject: [PATCH 06/89] arm64: dts: exynos9610: Use two interrupt cells for the
+Subject: [PATCH 06/93] arm64: dts: exynos9610: Use two interrupt cells for the
  gpa wakeup banks
 
 The gpa0, gpa1 and gpa2 banks declare #interrupt-cells = <3>. The
