@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: GPU funguje – Phosh z netbootu vykresluje přes panfrost na Mali-G72, 260 MHz (test GPU2, místní kernel). `kernel-patches/` má 70 patchů, vše commitnuto a pushnuto; balíček kernelu je stále r5 bez GPU (sestaví se jednou, až bude hotové i podsvícení a případně frekvence GPU)
+## Stav: GPU funguje (Phosh přes panfrost, 260 MHz), vše pushnuto. Uživatel chce dál podsvícení, frekvenci GPU přes firmware a WiFi; průzkum a plán jsou ve FINDINGS.md kap. 20. Další krok: podsvícení – popsat sběrnici `hsi2c_3` v DT a místním image čip SGM37603A jen přečíst. Balíček kernelu je stále r5 (sestaví se jednou po dávce změn)
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1441,4 +1441,17 @@ hlavního repozitáře: FINDINGS kap. 19, TESTING 5n a 5o, PROGRESS,
 Další přání uživatele: podsvícení displeje a změna frekvence GPU přes
 firmware, s co nejméně sestaveními kernelu → zkoušet místními image,
 balíček sestavit jednou na konci.
+
+### 2026-11-12 ~13:45–14:20 – průzkum podsvícení, ACPM a WiFi
+
+Uživatel: Phosh je s GPU mnohem plynulejší; chce zkusit ztmavování displeje,
+změnu frekvence GPU přes firmware a WiFi, s co nejméně sestaveními kernelu.
+
+Průzkum (FINDINGS.md kap. 20): podsvícení je SGM37603A na I2C 0x36
+(`hsi2c_3`, 0x11D10000); frekvence GPU potřebuje celý řetěz ACPM a souhlas
+se změnou napětí přes firmware; WiFi je SCSC Maxwell s ovladačem mimo strom.
+Doporučené pořadí: podsvícení → ACPM/GPU → WiFi. Vše zkoušet místními image,
+balíček sestavit jednou po dávce.
+
+Rozpracováno: nic v kernelu (jen průzkum).
 

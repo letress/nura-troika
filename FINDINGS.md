@@ -1868,3 +1868,87 @@ frekvence a napětí. **Neověřeno:** jak moc je rozhraní plynulejší (čeká
 na dojem uživatele), delší zátěž, teplota, uspání GPU za běhu pod zátěží,
 jaký řetězec vykreslovače hlásí Mesa.
 
+## 20. Další kroky: podsvícení, frekvence GPU, WiFi – průzkum a plán (2026-11-12)
+
+Přání uživatele: ztmavování displeje, změna frekvence a napětí GPU přes
+firmware, WiFi; kernel v balíčku sestavovat co nejméně.
+
+### 20.1 Jak se vyhnout sestavování balíčku
+
+- Změny kernelu se zkoušejí místně: přírůstkové sestavení trvá asi 2 minuty,
+  `tools/make-local-pmos-bootimg.sh` z něj udělá image pro Phosh z netbootu
+  (místní kernel potřebuje konfiguraci balíčku, jméno `7.3.3-troika`
+  a `MODULE_ALLOW_BTF_MISMATCH=y`; 19.7, 19.8).
+- Ovladače, které mohou být moduly (WiFi), se sestaví proti místnímu kernelu
+  a do běžícího systému zkopírují přes `scp`; kvůli nim se image nemění.
+- Balíček (kernel pkgrel 6) se sestaví **jednou**, až bude ověřená celá
+  dávka: GPU, rozměr panelu, podsvícení a co dalšího bude hotové.
+
+### 20.2 Podsvícení
+
+| Co | Hodnota | Zdroj |
+|---|---|---|
+| čip | SG Micro SGM37603A, adresa I2C 0x36 | původní `drivers/video/backlight/sgm37603a.c`, `exynos9610-display-lcd.dtsi` (`backlight_i2c@36` na `hsi2c_3`) |
+| sběrnice | `hsi2c_3` na 0x11D10000, SPI 273, 400 kHz | původní `exynos9610.dtsi:983`, `exynos9610-display-lcd.dtsi` |
+| piny | `gpm2-0` (SCL), `gpm3-0` (SDA), funkce 3 | `exynos9610-pinctrl.dtsi:367` (`hsi2c3_bus`) |
+| přepínač USI | `usi_0_cmgp_i2c` na 0x11C12004 (SYSREG_CMGP) | původní `exynos9610.dtsi:771` |
+| hodiny | `CMGP_I2C`, `GATE_I2C_CMGP00_QCH` | původní uzel `hsi2c_3` |
+| registry čipu | 0x10 zapnutí, 0x11 režim jasu, 0x19 jas MSB, 0x1A jas LSB (4 bity), 0x1B max. proud, 0x1F příznaky chyb, 0x01 reset | `sgm37603a.h` |
+| jas | běžný režim 0xCCC (0x19 = 0xCC, 0x1A = 0x0C), zvýšený 0xFFF | `sgm37603a.h` (`sgm_nr_data`, `sgm_hl_data`) |
+
+Původní ovladač čipu nastavuje jen strop (běžný/zvýšený režim); běžné
+stmívání dělal původní systém nejspíš příkazem panelu přes DSI (PWM z řadiče
+displeje), což bez ovladače displeje neumíme. **Neověřeno**, jestli zápis
+nižší hodnoty do 0x19/0x1A displej ztlumí – to má ukázat první pokus.
+
+Časování sběrnice v původním ovladači (`FSCL = IPCLK / ((DIV + 1) * 16)`)
+odpovídá variantě `samsung,exynosautov9-hsi2c` mainline ovladače
+`i2c-exynos5.c`; přepínač USI obsluhuje mainline `exynos-usi`. Mainline
+ovladač pro SGM37603A není (hledáno v `drivers/` a `Documentation/`), byl by
+potřeba malý nový.
+
+Postup: (a) popsat sběrnici v DT a v testovacím image čip jen **přečíst**
+(`i2cdump`), (b) zkusit zápis jasu v rozsahu 0–0xCCC, (c) napsat ovladač
+podsvícení. Zvýšený režim 0xFFF nepoužívat.
+
+### 20.3 Frekvence a napětí GPU přes firmware (ACPM)
+
+Původní kernel mění frekvenci GPU voláním firmwaru ACPM (běží v řídicím
+procesoru APM); ten přeprogramuje PLL i napětí větve. V mainline pro 9610
+chybí celý řetěz: schránka zpráv (mailbox), protokol ACPM, hodiny řízené
+přes ACPM a napojení na panfrost. Port gta4xl ho má ve třech patchích
+(`0095` ACPM a regulátory pro SD, `0160` frekvence CPU a teplotní čidlo,
+`0170` GPU; dohromady asi 2000 řádků) – podklad, který je potřeba ověřit
+proti našemu původnímu kernelu a firmwaru.
+
+Podmínky: (1) výslovný souhlas uživatele, protože firmware při tom mění
+napětí větve GPU (dnešní pravidlo regulátory zakazuje); (2) teplotní ochrana
+– mainline pro 9610 neumí číst teplotní čidlo, bez něj by vyšší frekvence
+běžela bez dohledu; (3) horní mez pro 9609 (nižší než u 9610) doložit ze
+zařízení, ne z cizího portu. Rozsah: dny práce, několik místních zkoušek.
+
+### 20.4 WiFi
+
+Rádio je Samsung SCSC „Maxwell“ uvnitř čipu, ne samostatný modul. Mainline
+ovladač nemá. Port gta4xl používá původní ovladač Samsungu (275 souborů)
+přenesený na 7.3 jako moduly mimo strom (`patches/upstream-wifi`), k tomu
+uzly DT (schránka 0x119c0000, okna BAAW, 16 MiB sdílené paměti), zápisy do
+PMU pro zapnutí rádia, volání zabezpečeného monitoru, firmware z oddílu
+vendor a adresu MAC z EFS (`docs/WIFI.md`). Náš původní kernel má ovladač
+SCSC také, ale v jiné verzi (10.x proti jejich 11.19), takže jejich patch
+nepůjde použít přímo.
+
+Podmínky: souhlas se zápisy do PMU pro rádio (konkrétní registry doložím
+předem), čtení firmwaru z kopie oddílu vendor v záloze (jen čtení).
+Rozsah: největší ze tří, dny až týdny; nejistý výsledek.
+
+### 20.5 Doporučené pořadí
+
+1. Podsvícení – nejmenší, samostatné, nic riskantního; dva až tři místní
+   image.
+2. ACPM a frekvence GPU – základ ACPM se hodí i pro frekvenci CPU a SD kartu.
+3. WiFi – samostatný velký projekt.
+
+Balíček kernelu sestavit po kroku 1 (GPU + rozměr panelu + podsvícení),
+další až po kroku 2 nebo 3.
+
