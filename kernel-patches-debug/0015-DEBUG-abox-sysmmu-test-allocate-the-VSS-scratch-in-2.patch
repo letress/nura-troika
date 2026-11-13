@@ -1,0 +1,51 @@
+From f613653882be7a51c8ea2e214ad03d9481b45ab6 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 14:21:16 +0100
+Subject: [PATCH 15/15] DEBUG: abox-sysmmu-test: allocate the VSS scratch in 2
+ MiB pieces
+
+An 8 MiB allocation is above the largest page order and failed silently.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/iommu/abox-sysmmu-test.c | 22 +++++++++++++++-------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/iommu/abox-sysmmu-test.c b/drivers/iommu/abox-sysmmu-test.c
+index 4902974..033bc71 100644
+--- a/drivers/iommu/abox-sysmmu-test.c
++++ b/drivers/iommu/abox-sysmmu-test.c
+@@ -293,15 +293,23 @@ static int abox_test_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return ret;
+ 
+-	vss = alloc_pages_exact(ABOX_VSS_SCRATCH_SIZE, GFP_KERNEL | __GFP_ZERO);
+-	if (vss) {
+-		ret = iommu_map(domain, ABOX_IOVA_VSS_FIRMWARE, virt_to_phys(vss),
+-				ABOX_VSS_SCRATCH_SIZE, IOMMU_READ | IOMMU_WRITE,
++	/* One allocation of 8 MiB exceeds the largest page order, so use 2 MiB pieces */
++	for (i = 0; i < ABOX_VSS_SCRATCH_SIZE / SZ_2M; i++) {
++		vss = alloc_pages_exact(SZ_2M, GFP_KERNEL | __GFP_ZERO);
++		if (!vss) {
++			dev_info(dev, "ABOXTEST: no memory for the VSS scratch, piece %u\n", i);
++			return -ENOMEM;
++		}
++		ret = iommu_map(domain, ABOX_IOVA_VSS_FIRMWARE + (unsigned long)i * SZ_2M,
++				virt_to_phys(vss), SZ_2M, IOMMU_READ | IOMMU_WRITE,
+ 				GFP_KERNEL);
+-		dev_info(dev, "ABOXTEST: map IOVA %#lx -> scratch %pa (%#x bytes): %d\n",
+-			 ABOX_IOVA_VSS_FIRMWARE, &(phys_addr_t){ virt_to_phys(vss) },
+-			 ABOX_VSS_SCRATCH_SIZE, ret);
++		if (ret) {
++			dev_info(dev, "ABOXTEST: VSS scratch map failed: %d\n", ret);
++			return ret;
++		}
+ 	}
++	dev_info(dev, "ABOXTEST: VSS scratch mapped at %#lx, %#x bytes\n",
++		 ABOX_IOVA_VSS_FIRMWARE, ABOX_VSS_SCRATCH_SIZE);
+ 
+ 	/* A ramp, so a read of the buffer would be recognisable */
+ 	if (buf)
+-- 
+2.56.0
+
