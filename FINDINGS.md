@@ -4553,3 +4553,17 @@ GIC ABOXu: `GICD_CTRL` `0x14AF1000` = 1 (nastavil firmware), `GICC_CTRL`
 `0x14AF2000` = 0, `SOFTINT` `0x14AF1F00` čte 0 (čteno za běhu, bez potíží).
 Další: obsah log bufferu firmwaru (debugfs `log`, jen čtení paměti), potom
 případně první zpráva hostitele přes SOFTINT.
+
+### 33.17 Log firmwaru: start dokončen, BOOT_DONE se ztratil (ABOX13)
+
+Debugfs `log` (čtení log bufferu z DRAM, IOVA `0x80b00000`) ukázal, co
+firmware dělá: inicializuje OEM komponenty, PCM vlákna, ERAP a VSS
+(„Now it's ready to get IPC message“), verze „r9I-0“, „Main init
+completed! Go processing!“ a registruje 24 PCM dump bufferů. Každou zprávu
+hostiteli posílá s opakováním po ~8 ms; nepotvrdí-li hostitel (nulou v ack
+`0x225FC`), po 102 pokusech (~0,8 s) to vzdá: „Critical IPC failed: 3, 102
+times“ je ztracený BOOT_DONE (msgtype 3), také zpráva 4. Moje potvrzení
+přišlo o několik sekund později, proto BOOT_DONE nikdy nedorazil. Firmware
+tedy spoléhá jen na rychlé potvrzení, žádnou zprávu od hostitele k
+startu nepotřebuje. ABOX14: `ack N` hlídá a potvrzuje N sekund, `load` jde
+znovu po zastavení.

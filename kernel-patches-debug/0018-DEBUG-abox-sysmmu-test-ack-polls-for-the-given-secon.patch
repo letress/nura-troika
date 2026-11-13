@@ -1,0 +1,74 @@
+From f996b00bfa32e2bb03685d511e46f04b5bd5dfe3 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 15:12:49 +0100
+Subject: [PATCH 18/18] DEBUG: abox-sysmmu-test: ack polls for the given
+ seconds, load allowed again after stop
+
+The firmware retries a message to the host only for about 0.8 s and
+gives up on BOOT_DONE if the host does not clear the ack in time.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/iommu/abox-sysmmu-test.c | 32 +++++++++++++++-----------------
+ 1 file changed, 15 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/iommu/abox-sysmmu-test.c b/drivers/iommu/abox-sysmmu-test.c
+index aa9a441..8a245f7 100644
+--- a/drivers/iommu/abox-sysmmu-test.c
++++ b/drivers/iommu/abox-sysmmu-test.c
+@@ -174,7 +174,7 @@ static int abox_fw_load_set(void *data, u64 val)
+ 	struct device *dev = abox_fw.dev;
+ 	int ret;
+ 
+-	if (val != 1 || abox_fw.loaded)
++	if (val != 1 || abox_fw.started)
+ 		return -EINVAL;
+ 
+ 	ret = request_firmware(&fw_sram, "calliope_sram.bin", dev);
+@@ -263,29 +263,27 @@ DEFINE_DEBUGFS_ATTRIBUTE(abox_fw_stop_fops, NULL, abox_fw_stop_set, "%llu\n");
+  */
+ static int abox_fw_ack_set(void *data, u64 val)
+ {
+-	unsigned int round, i, w[8];
++	unsigned int i, n = 0, w[8];
++	unsigned long end = jiffies + msecs_to_jiffies(val * 1000);
+ 
+-	if (val != 1 || !abox_fw.started)
++	if (!val || val > 60 || !abox_fw.started)
+ 		return -EINVAL;
+ 
+-	for (round = 0; round < 16; round++) {
++	/* Poll for VAL seconds; the firmware retries its message only for ~0.8 s */
++	while (time_before(jiffies, end)) {
++		if (!readl(abox_fw.sram + ABOX_IPC_RX_ACK_OFFSET)) {
++			usleep_range(200, 400);
++			continue;
++		}
+ 		for (i = 0; i < 8; i++)
+ 			w[i] = readl(abox_fw.sram + ABOX_IPC_RX_OFFSET + 4 * i);
+-		dev_info(abox_fw.dev,
+-			 "ABOXFW: rx ack %u msg %08x %08x %08x %08x %08x %08x %08x %08x\n",
+-			 readl(abox_fw.sram + ABOX_IPC_RX_ACK_OFFSET),
+-			 w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]);
+-		if (!readl(abox_fw.sram + ABOX_IPC_RX_ACK_OFFSET))
+-			break;
++		if (n++ < 64)
++			dev_info(abox_fw.dev,
++				 "ABOXFW: rx msg %08x %08x %08x %08x %08x %08x %08x %08x\n",
++				 w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]);
+ 		writel(0, abox_fw.sram + ABOX_IPC_RX_ACK_OFFSET);
+-		for (i = 0; i < 50 && !readl(abox_fw.sram + ABOX_IPC_RX_ACK_OFFSET); i++)
+-			msleep(10);
+-		if (!readl(abox_fw.sram + ABOX_IPC_RX_ACK_OFFSET)) {
+-			dev_info(abox_fw.dev, "ABOXFW: no further message after %u\n",
+-				 round + 1);
+-			break;
+-		}
+ 	}
++	dev_info(abox_fw.dev, "ABOXFW: %u messages taken\n", n);
+ 
+ 	return 0;
+ }
+-- 
+2.56.0
+
