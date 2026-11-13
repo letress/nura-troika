@@ -1,0 +1,60 @@
+From bf5c0be71b1d1dd7ed3b05734c7a235af06afa12 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 15:05:28 +0100
+Subject: [PATCH 17/17] DEBUG: abox-sysmmu-test: debugfs log shows the firmware
+ log buffer
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/iommu/abox-sysmmu-test.c | 28 ++++++++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/drivers/iommu/abox-sysmmu-test.c b/drivers/iommu/abox-sysmmu-test.c
+index 9503fd0..aa9a441 100644
+--- a/drivers/iommu/abox-sysmmu-test.c
++++ b/drivers/iommu/abox-sysmmu-test.c
+@@ -291,6 +291,33 @@ static int abox_fw_ack_set(void *data, u64 val)
+ }
+ DEFINE_DEBUGFS_ATTRIBUTE(abox_fw_ack_fops, NULL, abox_fw_ack_set, "%llu\n");
+ 
++/*
++ * The log buffer the firmware announced (REPORT_LOG, IOVA 0x80b00000), read
++ * from the DRAM image: struct ABOX_LOG_BUFFER { writer, reader, size, data[] }.
++ */
++#define ABOX_LOG_BUFFER_OFFSET	0xb00000
++static int abox_fw_log_show(struct seq_file *m, void *unused)
++{
++	u32 *hdr;
++	char *data;
++	u32 writer, size, i;
++
++	if (!abox_fw.dram)
++		return -ENODEV;
++	hdr = abox_fw.dram + ABOX_LOG_BUFFER_OFFSET;
++	writer = hdr[0];
++	size = hdr[2];
++	seq_printf(m, "writer %u reader %u size %u\n", writer, hdr[1], size);
++	if (!size || size > SZ_1M || writer > size)
++		return 0;
++	data = (char *)(hdr + 3);
++	for (i = 0; i < writer; i++)
++		seq_putc(m, data[i] >= 32 || data[i] == '\n' ? data[i] : '.');
++	seq_putc(m, '\n');
++	return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(abox_fw_log);
++
+ static int abox_test_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+@@ -375,6 +402,7 @@ static int abox_test_probe(struct platform_device *pdev)
+ 		debugfs_create_file("status", 0400, dir, NULL, &abox_fw_status_fops);
+ 		debugfs_create_file("load", 0200, dir, NULL, &abox_fw_load_fops);
+ 		debugfs_create_file("start", 0200, dir, NULL, &abox_fw_start_fops);
++		debugfs_create_file("log", 0400, dir, NULL, &abox_fw_log_fops);
+ 		debugfs_create_file("ack", 0200, dir, NULL, &abox_fw_ack_fops);
+ 		debugfs_create_file("stop", 0200, dir, NULL, &abox_fw_stop_fops);
+ 		dev_info(dev, "ABOXFW: debugfs files ready, nothing done\n");
+-- 
+2.56.0
+

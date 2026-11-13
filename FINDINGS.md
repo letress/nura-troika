@@ -4539,3 +4539,17 @@ Firmware pak buď pošle další zprávu (třeba BOOT_DONE), nebo čeká na
 odpověď přes `0x22000`; to se pozná bez dalšího zásahu. Až potom případně
 zápisy do GIC. Čtení `0x14AF1000` jen s výslovným souhlasem (zásada: neznámé
 MMIO nečíst naslepo).
+
+### 33.16 Zprávy firmwaru po potvrzení (ABOX12, 2026-11-13)
+
+`ack` (jen SRAM) bere zprávy po jedné; firmware při každém potvrzení pošle
+další, dokud nemá co hlásit. Pořadí: REPORT_LOG (buffer 0, IOVA
+`0x80b00000`), pak 15× REPORT_DUMP (buffery 0 až `0xe`, IOVA `0x808c0000`
+po `0x4000`, od `0xd` `0x80900000` po `0x40000`, názvy „rd0“..„wr…“, „dec“,
+„src“) a REPORT_DUMP 0x18 „epd“. Po několika sekundách přijde jedna zpráva
+`msgtype` 4 (`0xc`, `0xb00d`), po potvrzení už nic. Firmware tedy není
+zablokovaný potvrzením, ale na něco čeká od hostitele (BOOT_DONE nepřišel).
+GIC ABOXu: `GICD_CTRL` `0x14AF1000` = 1 (nastavil firmware), `GICC_CTRL`
+`0x14AF2000` = 0, `SOFTINT` `0x14AF1F00` čte 0 (čteno za běhu, bez potíží).
+Další: obsah log bufferu firmwaru (debugfs `log`, jen čtení paměti), potom
+případně první zpráva hostitele přes SOFTINT.

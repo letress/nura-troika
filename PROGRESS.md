@@ -2224,3 +2224,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-13: rozbor IPC (33.14): firmware čeká na ack v SRAM 0x225FC po START_L2C_CONTROL. Další: A3, nejdřív rozbor abox_gic ze zdrojů.
 - 2026-11-13: rozbor abox_gic (33.15). Navržen krok: vynulovat ack SRAM 0x225FC (debugfs), bez GIC.
 - 2026-11-13: ABOX12 (ec5858cc): debugfs ack (bere zprávy firmwaru po jedné, jen SRAM). Uživatel dovolil postupovat bez ptaní po krocích, ptát se jen při významném riziku.
+- 2026-11-13: ABOX12: firmware posílá REPORT_LOG, 16x REPORT_DUMP, msgtype 4, BOOT_DONE nepřišel (33.16). ABOX13 (5fd40447) přidává debugfs log.
