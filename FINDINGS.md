@@ -4517,3 +4517,25 @@ Další krok (A3, vše vyžaduje souhlas): hostitel musí (1) zapsat nulu do
 ack v SRAM `0x225FC` (paměť ABOXu), (2) posílat zprávy do `0x22000` a
 vyvolat přerušení v `abox_gic`; ten blok registrů zatím neznám a nesmí se
 číst naslepo. Nejdřív rozbor registrů `abox_gic` ze zdrojů.
+
+### 33.15 Přerušení ABOXu: `abox_gic` (rozbor zdrojů, 2026-11-13)
+
+`abox_gic` je malý vnitřní řadič přerušení jednotky (DT původního kernelu:
+`gicd` `0x14AF1000`, `gicc` `0x14AF2000`, přerušení hostitele SPI 198).
+Z `abox_gic.c`:
+
+- **Hostitel → firmware:** zpráva se zapíše do SRAM `0x22000`, ack `0x222FC`
+  = 1 a potom jeden zápis `(1 << 16) | irq` do `GICD + 0xf00` (SOFTINT);
+  `irq` je `ipcid` zprávy (1 = IPC_SYSTEM). Vendor čeká, až firmware ack
+  vynuluje.
+- **Firmware → hostitel:** firmware zapíše zprávu na `0x22300`, ack
+  `0x225FC` = 1 a vyvolá SPI 198; hostitel zprávu přečte a ack vynuluje.
+- **Inicializace GIC hostitelem** (`abox_gic_init_gic`): `GICC_PMR` = 0xff,
+  `GICD_CTRL` = 3, priority 40 slov = `0x10101010`, `GICC_CTRL` = 3. Tyto
+  zápisy v mainline nemám povolené a registry jsem ještě nečetl.
+
+Nejmenší krok bez GIC: vynulovat ack `0x225FC` (obyčejná paměť SRAM).
+Firmware pak buď pošle další zprávu (třeba BOOT_DONE), nebo čeká na
+odpověď přes `0x22000`; to se pozná bez dalšího zásahu. Až potom případně
+zápisy do GIC. Čtení `0x14AF1000` jen s výslovným souhlasem (zásada: neznámé
+MMIO nečíst naslepo).

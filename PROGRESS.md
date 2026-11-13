@@ -2222,3 +2222,4 @@ automaticky podle oprávnění uživatele.
   CPU zvuku běží a píše zprávy do `ipc rx`. Telefon běží dál s firmwarem;
   `stop` čeká na souhlas. Další: A3, dekódování IPC.
 - 2026-11-13: rozbor IPC (33.14): firmware čeká na ack v SRAM 0x225FC po START_L2C_CONTROL. Další: A3, nejdřív rozbor abox_gic ze zdrojů.
+- 2026-11-13: rozbor abox_gic (33.15). Navržen krok: vynulovat ack SRAM 0x225FC (debugfs), bez GIC.
