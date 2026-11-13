@@ -4582,3 +4582,30 @@ Zbývá: zpráva od hostitele (SRAM `0x22000`, ack `0x222FC`, SOFTINT
 `0x14AF1F00`), nastavení PCM přehrávání (RDMA, buffery, UAIF0 a piny), a
 hlavně cesta ke sluchátku/reproduktoru: z logu firmwaru je vidět NXP
 zesilovač („OEM:NXP“); jaký čip a na jaké sběrnici je, ještě není doloženo.
+
+### 33.19 Reproduktor: Cirrus CS35L41 (rozbor živého DTS, 2026-11-13)
+
+Zdroj: `device-info/live.dts` (živý DT originálu), `device-info` je mimo git.
+Reproduktor pohání zesilovač **Cirrus CS35L41** (`cirrus,cs35l41@0`):
+
+| Údaj | Hodnota | Řádek `live.dts` |
+|---|---|---|
+| sběrnice | SPI6 `0x13900000`, CS `gpp2-3`, signály `gpp2-0..2`, max 9,6 MHz | 5600–5640 |
+| reset | `gpg3-3` (`pa-reset`) | 2220, 5640 |
+| přerušení | `gpa0`, pin 2 | 5638 |
+| VA | LDO42 `vdd_ldo42`, `always-on`, max 1,95 V | 4768 |
+| VP | pevný regulátor `V_SYS`, 4,2 V, `boot-on` | 7130 |
+| boost | špička 4500 mA, indukčnost 1000 nH, kapacita 15 µF | 5642–5645 |
+| zvuk | ABOX UAIF0 → „SPEAKER / Left SPK“ (karta `samsung,routing`) | 10178 |
+
+Obě napájení jsou zapnutá už po startu (LDO42 `always-on`, V_SYS
+`boot-on`), mainline je pro ovladač nemusí řídit: chybějící regulátory
+nahradí atrapy. Do regulátorů tedy nesahám.
+
+**Ochrana reproduktoru:** zesilovač má DSP, které chrání membránu a cívku
+(`cs35l41-dsp1-prot.wmfw` + ladicí `*.bin`). Soubory jsou ve vendor oddílu
+zálohy (`/firmware`, 10 souborů). Bez nich by zesilovač hrál bez ochrany
+a mohl by reproduktor poškodit. Ladění je dvojí podle výrobce reproduktoru
+(`qisheng` = `gain-media-speaker0`, `aac` = `gain-media-speaker1` v
+`mixer_paths.xml`), který z dokladů zatím nepoznám. Zesílení při přehrávání
+v původním systému: `SPK AMP PCM Gain` 17.
