@@ -1,0 +1,26 @@
+From 988121aa38dfc8c222ee5c6d1d454f18a0605da7 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 15:59:38 +0100
+Subject: [PATCH 098/100] dt-bindings: spi: samsung: Add the Exynos9610 SPI
+ controller
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ Documentation/devicetree/bindings/spi/samsung,spi.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/spi/samsung,spi.yaml b/Documentation/devicetree/bindings/spi/samsung,spi.yaml
+index 1ce8b27..d9f128b 100644
+--- a/Documentation/devicetree/bindings/spi/samsung,spi.yaml
++++ b/Documentation/devicetree/bindings/spi/samsung,spi.yaml
+@@ -23,6 +23,7 @@ properties:
+           - samsung,exynos4210-spi
+           - samsung,exynos5433-spi
+           - samsung,exynos850-spi
++          - samsung,exynos9610-spi
+           - samsung,exynosautov9-spi
+           - tesla,fsd-spi
+       - items:
+-- 
+2.56.0
+

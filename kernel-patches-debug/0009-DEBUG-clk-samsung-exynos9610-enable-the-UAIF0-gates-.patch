@@ -1,7 +1,7 @@
-From 3919f75737663ce5f4f917d4802f24f049bcdcb3 Mon Sep 17 00:00:00 2001
+From 43dcdca82eea12ff2eb716841d4c394e9a9d539f Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 02:44:43 +0100
-Subject: [PATCH 09/18] DEBUG: clk: samsung: exynos9610: enable the UAIF0 gates
+Subject: [PATCH 09/19] DEBUG: clk: samsung: exynos9610: enable the UAIF0 gates
  for the abox3 test
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

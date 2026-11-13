@@ -2228,3 +2228,9 @@ automaticky podle oprávnění uživatele.
 - 2026-11-13: ABOX13 log firmwaru (33.17): start dokončen, BOOT_DONE se ztratil kvůli pozdnímu ack. ABOX14 (dfff20c1): ack N hlídá N s.
 - 2026-11-13: ABOX14 OK: BOOT_DONE (verze r9I0) přijat, 33 zpráv bez faultů (33.18). Další: hostitel→firmware zpráva a cesta k reproduktoru (zesilovač NXP, nedoloženo).
 - 2026-11-13: reproduktor je Qisheng (SPK ID 0, FINDINGS 33.20); ctl-rd.c pro čtení ALSA prvků. Další: CS35L41 v mainline (SPI6, pinctrl, firmware).
+
+- 2026-11-13: zvuk, CS35L41: troika-clk +3 (binding, port ovladače SPI
+  `samsung,exynos9610-spi`, uzel `spi_6`, patche 0098–0100); testovací větev
+  +1 (uzel CS35L41 na SPI6, DEBUG). Testovací jádro má zvukový podsystém a
+  CS35L41 zabudovaně (jen sestavení, ne v balíčku). ABOX15 (`0962327f`):
+  čtení ID čipu při probe, bez zápisu do zesilovače. Čeká na boot.

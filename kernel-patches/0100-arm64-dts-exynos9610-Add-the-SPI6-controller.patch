@@ -1,0 +1,49 @@
+From cd5caf73da2000534e2efe5def62fac4b404993c Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 15:59:39 +0100
+Subject: [PATCH 100/100] arm64: dts: exynos9610: Add the SPI6 controller
+
+The clocks follow the vendor tree: spi_6 uses the gate and the divided
+clock of the first SPI block of the PERI unit. The node is disabled.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 83e96c6..67c9646 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -25,6 +25,7 @@ aliases {
+ 		pinctrl3 = &pinctrl_fsys;
+ 		pinctrl4 = &pinctrl_top;
+ 		pinctrl5 = &pinctrl_shub;
++		spi6 = &spi_6;
+ 	};
+ 
+ 	cpus {
+@@ -571,6 +572,20 @@ i2c_4: i2c@13870000 {
+ 			status = "disabled";
+ 		};
+ 
++		spi_6: spi@13900000 {
++			compatible = "samsung,exynos9610-spi";
++			reg = <0x13900000 0x100>;
++			interrupts = <GIC_SPI 254 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&cmu_peri CLK_GOUT_PERI_SPI_0_PCLK>,
++				 <&cmu_peri CLK_GOUT_PERI_SPI_0_IPCLK>;
++			clock-names = "spi", "spi_busclk0";
++			pinctrl-names = "default";
++			pinctrl-0 = <&spi6_bus>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			status = "disabled";
++		};
++
+ 		pinctrl_top: pinctrl@139b0000 {
+ 			compatible = "samsung,exynos9610-pinctrl";
+ 			reg = <0x139b0000 0x1000>;
+-- 
+2.56.0
+

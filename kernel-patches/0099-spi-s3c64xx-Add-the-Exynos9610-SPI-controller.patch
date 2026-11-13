@@ -1,0 +1,50 @@
+From 339aedc567f1a0304eaf697f9df34ca31636ce07 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 15:59:39 +0100
+Subject: [PATCH 099/100] spi: s3c64xx: Add the Exynos9610 SPI controller
+
+The controller has the status layout of the older Exynos SPI blocks:
+receive level in bits 21:15 and transmit level in bits 12:6, with a
+64 byte FIFO (the vendor tree gives samsung,spi-fifosize = 64 and the
+older port configuration offset 15). Chip select is manual in the vendor
+tree, so the automatic mode quirk is not set.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/spi/spi-s3c64xx.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/drivers/spi/spi-s3c64xx.c b/drivers/spi/spi-s3c64xx.c
+index 8d4120c..eb206d9 100644
+--- a/drivers/spi/spi-s3c64xx.c
++++ b/drivers/spi/spi-s3c64xx.c
+@@ -1566,6 +1566,17 @@ static const struct s3c64xx_spi_port_config exynos850_spi_port_config = {
+ 	.quirks		= S3C64XX_SPI_QUIRK_CS_AUTO,
+ };
+ 
++static const struct s3c64xx_spi_port_config exynos9610_spi_port_config = {
++	.fifo_depth	= 64,
++	/* Receive level in bits 21:15, transmit level in bits 12:6 */
++	.rx_fifomask	= GENMASK(21, 15),
++	.tx_fifomask	= GENMASK(12, 6),
++	.tx_st_done	= 25,
++	.clk_div	= 2,
++	.high_speed	= true,
++	.clk_from_cmu	= true,
++};
++
+ static const struct s3c64xx_spi_port_config exynosautov9_spi_port_config = {
+ 	/* fifo_lvl_mask is deprecated. Use {rx, tx}_fifomask instead. */
+ 	.fifo_lvl_mask	= { 0x1ff, 0x1ff, 0x7f, 0x7f, 0x7f, 0x7f, 0x1ff, 0x7f,
+@@ -1635,6 +1646,8 @@ static const struct of_device_id s3c64xx_spi_dt_match[] = {
+ 	{ .compatible = "samsung,exynos5433-spi",
+ 			.data = &exynos5433_spi_port_config,
+ 	},
++	{ .compatible = "samsung,exynos9610-spi",
++			.data = &exynos9610_spi_port_config },
+ 	{ .compatible = "samsung,exynos850-spi",
+ 			.data = &exynos850_spi_port_config,
+ 	},
+-- 
+2.56.0
+

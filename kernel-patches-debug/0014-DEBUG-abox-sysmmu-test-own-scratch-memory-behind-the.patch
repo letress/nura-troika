@@ -1,7 +1,7 @@
-From 51bbcf6eb468468d1cbd424eac8abe64decba684 Mon Sep 17 00:00:00 2001
+From 438f7df23b565d742f937ea289e70947237cc1bb Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 05:10:07 +0100
-Subject: [PATCH 14/18] DEBUG: abox-sysmmu-test: own scratch memory behind the
+Subject: [PATCH 14/19] DEBUG: abox-sysmmu-test: own scratch memory behind the
  VSS addresses, short fault log
 
 The firmware faulted in a loop on 0xa0670000, which the unit does not map,

@@ -1,0 +1,45 @@
+From b0b1f90789905c8109b9f9460d3c4978831bd901 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 16:03:33 +0100
+Subject: [PATCH 19/19] DEBUG: troika: CS35L41 speaker amplifier on SPI6 for
+ the first read
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/exynos/exynos9610-troika.dts     | 23 +++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 10ce0c8..b513687 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -374,3 +374,26 @@ abox_test: abox-test {
+ 		memory-region = <&abox_fw_reserved>, <&abox_buf_reserved>;
+ 	};
+ };
++
++/*
++ * Speaker amplifier on SPI6, values from the live device tree of the stock
++ * system. Its supplies (LDO42 and V_SYS) are on from boot and not described.
++ */
++&spi_6 {
++	pinctrl-0 = <&spi6_bus &spi6_cs_func>;
++	status = "okay";
++
++	speaker_amp: amplifier@0 {
++		compatible = "cirrus,cs35l41";
++		reg = <0>;
++		spi-max-frequency = <9600000>;
++		interrupt-parent = <&gpa0>;
++		interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
++		reset-gpios = <&gpg3 3 GPIO_ACTIVE_HIGH>;
++		#sound-dai-cells = <1>;
++		cirrus,boost-type = <0>;
++		cirrus,boost-peak-milliamp = <4500>;
++		cirrus,boost-ind-nanohenry = <1000>;
++		cirrus,boost-cap-microfarad = <15>;
++	};
++};
+-- 
+2.56.0
+
