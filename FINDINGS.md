@@ -4609,3 +4609,15 @@ a mohl by reproduktor poškodit. Ladění je dvojí podle výrobce reproduktoru
 (`qisheng` = `gain-media-speaker0`, `aac` = `gain-media-speaker1` v
 `mixer_paths.xml`), který z dokladů zatím nepoznám. Zesílení při přehrávání
 v původním systému: `SPK AMP PCM Gain` 17.
+
+### 33.20 Typ reproduktoru: Qisheng (Lineage, 2026-11-13)
+
+Čtecí nástroj `test-initramfs/ctl-rd.c` (jen ioctl čtení ovládacích prvků ALSA,
+Android nemá tinymix) ukázal v Lineage za hraní hudby přes reproduktor:
+`SPK DSP1 Firmware` = `protectionsp_music_qisheng`, `SPK AMP PCM Gain` = 17,
+`SPK DSP Booted` = 1, `SPK ID` = 0 (před přehráváním `protectionsp_default`,
+`SPK AMP PCM Gain` 7, `SPK DSP Booted` 0). V tomto telefonu je tedy
+reproduktor **Qisheng** (`SPK ID` 0 ↔ `gain-media-speaker0`); ID se čte z GPIO
+`gpm25` při startu karty. Pro ochranu platí soubory
+`cs35l41-dsp1-prot.wmfw` a `cs35l41-dsp1-spk-prot-*-qisheng.bin` z vendor
+oddílu zálohy. Výsledek platí jen pro tento kus telefonu.

@@ -2227,3 +2227,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-13: ABOX12: firmware posílá REPORT_LOG, 16x REPORT_DUMP, msgtype 4, BOOT_DONE nepřišel (33.16). ABOX13 (5fd40447) přidává debugfs log.
 - 2026-11-13: ABOX13 log firmwaru (33.17): start dokončen, BOOT_DONE se ztratil kvůli pozdnímu ack. ABOX14 (dfff20c1): ack N hlídá N s.
 - 2026-11-13: ABOX14 OK: BOOT_DONE (verze r9I0) přijat, 33 zpráv bez faultů (33.18). Další: hostitel→firmware zpráva a cesta k reproduktoru (zesilovač NXP, nedoloženo).
+- 2026-11-13: reproduktor je Qisheng (SPK ID 0, FINDINGS 33.20); ctl-rd.c pro čtení ALSA prvků. Další: CS35L41 v mainline (SPI6, pinctrl, firmware).
