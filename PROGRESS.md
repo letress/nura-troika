@@ -2221,3 +2221,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-13: zvuk A2 hotovo: ABOX11 (`f1f2ade3`) `load`+`start` bez faultů,
   CPU zvuku běží a píše zprávy do `ipc rx`. Telefon běží dál s firmwarem;
   `stop` čeká na souhlas. Další: A3, dekódování IPC.
+- 2026-11-13: rozbor IPC (33.14): firmware čeká na ack v SRAM 0x225FC po START_L2C_CONTROL. Další: A3, nejdřív rozbor abox_gic ze zdrojů.

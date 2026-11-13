@@ -4489,3 +4489,31 @@ zprávy firmwaru, za 3 s se měnila dál (`00000001 … 80b00000`, pak
 komunikuje. Význam zpráv zatím nedekódován (A3, podle `abox_ipc`
 ovladače výrobce). Hostitelská strana (`ipc tx`) nic neposlala.
 `stop` zatím nebyl použit (potřebuje souhlas).
+
+### 33.14 Rozbor IPC zpráv firmwaru (2026-11-13)
+
+Rozložení podle `include/sound/samsung/abox_ipc.h` a `abox.c` ovladače
+výrobce: zpráva `ABOX_IPC_MSG` = `ipcid`, `task_id`, `msgtype`, `param1..3`,
+svazek (740 B). Firmware ji zapíše do `ipc_rx_offset` `0x22300`, nastaví
+`ipc_rx_ack_offset` `0x225FC` na 1 a vyvolá přerušení; hostitel zprávu
+přečte a zapíše do ack nulu. Opačný směr: `ipc_tx_offset` `0x22000`, ack
+`0x222FC`, hostitel vyvolá přerušení přes `abox_gic`. Offsety jsou z
+`exynos9610.dtsi` původního kernelu.
+
+Pozorované zprávy (vše `ipcid` 1 = IPC_SYSTEM, `task_id` 0):
+
+| `msgtype` | význam | parametry |
+|---|---|---|
+| `0x10` | ABOX_REPORT_LOG | buffer 0, IOVA `0x80b00000` |
+| `0x20` | ABOX_REPORT_DUMP | buffer `0x18`, IOVA `0x80820000`, velikost `0x4000`, název „epd“ |
+| `0x04` | ABOX_START_L2C_CONTROL | `0xc`, `0xb00d` |
+
+Ack `0x225FC` zůstává 1: firmware poslal zprávu a čeká, až ji hostitel
+potvrdí a odpoví (po START_L2C_CONTROL čeká zřejmě END_L2C_CONTROL, pak
+přijde BOOT_DONE). Bez hostitele se tedy zastaví v zavádění. Adresy IOVA
+leží v oblasti DRAM firmwaru (`0x80000000`+12 MiB), jsou tedy namapované.
+
+Další krok (A3, vše vyžaduje souhlas): hostitel musí (1) zapsat nulu do
+ack v SRAM `0x225FC` (paměť ABOXu), (2) posílat zprávy do `0x22000` a
+vyvolat přerušení v `abox_gic`; ten blok registrů zatím neznám a nesmí se
+číst naslepo. Nejdřív rozbor registrů `abox_gic` ze zdrojů.
