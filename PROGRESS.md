@@ -2192,3 +2192,11 @@ vyexportovány. Image `ABOX*` v `out/` jsou ze starší báze a panel nemají;
 Image kernelu v `build/linux` není přeložen znovu (jen DTB). Do pmaports
 přibude 0096 při příští dávce balíčků.
 
+### 2026-11-13 04:39 – zvuk A2: příprava ABOX8
+
+PMU ukázalo, že procesor ABOXu je napájen a stačí bit 15 v `0x11862528`.
+`troika-clk-test` +1 (debugfs `abox-fw/{status,load,start,stop}`),
+`tools/extract-abox-fw.sh`, firmware v image, `out/troika-test-ABOX8.img`
+(`3975f433`). Čeká na restart a souhlas po krocích (33.11). Uloženo
+automaticky podle oprávnění uživatele.
+

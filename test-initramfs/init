@@ -255,7 +255,7 @@ fi
 # zarizeni, ktere mapuje paměť, a pripadne chyby prekladu. Nic se nemeni.
 if [ "${test_tag#abox}" != "$test_tag" ]; then
 	echo "--- ABOX / IOMMU ---"
-	dmesg | grep -i -E "ABOXTEST|sysmmu|exynos-iommu|iommu" | grep -v -i "command line" | cut -c1-130 | tail -n 14
+	dmesg | grep -i -E "ABOXTEST|ABOXFW|sysmmu|exynos-iommu|iommu" | grep -v -i "command line" | cut -c1-130 | tail -n 14
 	echo
 fi
 

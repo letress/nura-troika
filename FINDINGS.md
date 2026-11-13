@@ -4404,3 +4404,51 @@ jeho přístupy do paměti jdou přes naši doménu (jiné adresy než
 `0x80000000` a `0x81…` skončí chybou překladu, ne zápisem do kernelu);
 zámek procesoru ABOXu při chybě se projeví zaseknutím zvuku, ne jádra.
 
+### 33.11 Etapa A2: příprava spuštění firmwaru (kód a image ABOX8, nic nespuštěno) (04:39)
+
+**Objev při čtení PMU (jen čtení, `device-info/abox-A2-pmu.txt`):**
+`ABOX_CPU_CONFIGURATION` (`0x11862520`) = `0x00000001` – napájení procesoru
+zvukové jednotky **už zapnul bootloader**; `ABOX_CPU_STATUS` (`0x11862524`)
+= `0x10010000` (bit 0 nulový = neběží); `ABOX_CPU_OPTION` (`0x11862528`) =
+0 (bit 15 „povolit procesor“ nulový). Spuštění procesoru jako v původním
+ovladači (`abox_cpu_enable(true)`) je tedy **jediný zápis: bit 15 v
+`0x11862528`** (čtení `0x11862524` do bitu 0 na čekání). Zápis do `0x2520`
+(napájení, už 1) a obnova okruhu pinů (`PAD_RETENTION_ABOX_OPTION`)
+v A2 vynechávám; zabezpečené inicializace řadiče přerušení ABOXu přes
+`SMC_CMD_REG` (obecné zapisování registrů v zabezpečeném světě) také ne –
+firmware si GIC, jak se zdá z adres v `calliope_sram.bin`, nastavuje sám.
+
+**Ladicí kód** (`troika-clk-test`, `drivers/iommu/abox-sysmmu-test.c`),
+nic nedělá samo; po startu vzniká `/sys/kernel/debug/abox-fw/` se soubory:
+
+| Soubor | Co dělá |
+|---|---|
+| `status` (čtení) | PMU `0x2520/24/28`, příznaky, 8 slov z oblastí zpráv v SRAM |
+| `load` (zápis 1) | zapne hodiny `CCLK_ASB`, `CCLK_CA7`, nahraje `calliope_sram.bin` (28 420 bajtů) do SRAM `0x14b00000` (zbytek 212 KiB nuly) a `calliope_dram.bin` (1 758 792 bajtů) do 12 MiB paměti na IOVA `0x80000000` (zbytek nuly) – jako `abox_download_firmware()` |
+| `start` (zápis 1) | jen po `load`: bit 15 v `0x11862528`, čeká až 1 s na bit 0 v `0x11862524`, vypíše stav |
+| `stop` (zápis 1) | bit 15 v `0x11862528` zpět na 0 (`cpu_enable(false)`) |
+
+Hodnoty: SRAM `0x14b00000`/`0x35000`, oblasti zpráv `0x22000`/`0x22300`,
+velikost bloku 12 MiB – z původního DT a z `abox.h`; registry PMU a bity z
+`abox.c`. Firmware je v image jako `/lib/firmware/calliope_*.bin`
+(`tools/extract-abox-fw.sh` ho vytáhne ze zálohy, jen čtení; součet DRAM
+části `776d7b49…` shodný s dřívější kopií). Obě paměti pro firmware se
+mapují jako `WC` (nekešované), aby je jednotka viděla bez vyprázdnění cache.
+Image `out/troika-test-ABOX8.img` (sha256 začíná `3975f433`).
+
+**Postup po spuštění a po samostatném souhlasu pro každý krok:**
+1. jen čtení: `status`, log (`ABOXFW: debugfs files ready, nothing done`);
+2. `load` – zápisy do SRAM a paměti pro firmware (hodiny, kopie 1,7 MB);
+3. `start` – zápis bitu 15; hned potom `status` několikrát za 3 s, log,
+   chyby překladu (`ABOXTEST: FAULT`), teploty;
+4. `stop` bez ohledu na výsledek, ověřit `0x11862528` = 0.
+
+Rizika: firmware je vendorský kód, který na naší jednotce nikdy neběžel;
+jeho přístupy do paměti jdou přes naši doménu (neznámé IOVA skončí
+`FAULT` v logu, ne zápisem do paměti kernelu); procesor může sahat na
+registry ABOXu (nastavení, která tam firmware čeká od ovladače), případně
+se zaseknout či restartovat jednotku – nic z toho by nemělo sahat mimo
+zvukovou jednotku. Pokud by se zasekla sběrnice a telefon zamrzl,
+restartuje se do bootloaderu (jak jsem zažil jednou). `stop` procesor
+zastaví.
+

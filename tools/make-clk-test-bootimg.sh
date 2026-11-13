@@ -64,6 +64,12 @@ if ls "$root"/build/scsc/*.ko > /dev/null 2>&1 && [ -d "$root/dl/wifi-fw/motorol
 	done
 	cp -r "$root/dl/wifi-fw/motorola" "$tmp/lib/firmware/"
 fi
+# Firmware zvukové jednotky (test ABOX, tools/extract-abox-fw.sh). Nahraje se
+# až zápisem do /sys/kernel/debug/abox-fw/load, samo se nic neděje.
+if [ -f "$root/dl/abox-fw/calliope_sram.bin" ] && [ -f "$root/dl/abox-fw/calliope_dram.bin" ]; then
+	mkdir -p "$tmp/lib/firmware"
+	install -m 644 "$root"/dl/abox-fw/calliope_*.bin "$tmp/lib/firmware/"
+fi
 # DHCP server a telnetd z initramfs pmOS (dynamicky linkované proti musl).
 # Bez nich test poběží taky, jen bez DHCP a telnetu.
 bits="$root/dl/pmos-bits"

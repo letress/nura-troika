@@ -1763,6 +1763,17 @@ Pak zkontroluju stav a zeptám se na souhlas s kontrolami.
 RDMA1 se bez firmwaru z paměti nenačítá; kladná kontrola nespuštěna
 (FINDINGS.md 33.10). Image ABOX6 má chybu (obsluha chyby se nenastavila).
 
+## 5am. Test ABOX8: spuštění firmwaru zvukové jednotky (čeká na souhlas)
+
+Postup, rizika a hodnoty: FINDINGS.md 33.11. Telefon z ABOX7 do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ABOX8.img
+```
+
+Po startu jen čtení; každý ze tří kroků (`load`, `start`, `stop`) dělám až
+po výslovném souhlasu.
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):
