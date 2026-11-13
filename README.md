@@ -126,9 +126,18 @@ kernelem).
 
 ## Licence
 
-Patche kernelu jsou pod licencí GPL-2.0 jako Linux. Ovladač v `wifi/scsc/` je
-kód Samsungu z kernelu Galaxy Tab S6 Lite (GPL-2.0, viz `wifi/scsc/COPYING`
-a [`wifi/README.md`](wifi/README.md)). Skripty a dokumentace nemají zatím
-vlastní licenční soubor. Firmware výrobce (rádio WiFi, modul ACPM) v
+Vlastní skripty, nástroje, testovací initramfs a dokumentace tohoto repozitáře
+jsou pod licencí **GNU GPL verze 2** (`GPL-2.0-only`, viz [`LICENSE`](LICENSE)),
+stejně jako Linux. Výjimky:
+
+- Patche kernelu mají licenci souborů, které upravují (Linux: GPL-2.0-only;
+  vazby zařízení často `GPL-2.0-only OR BSD-2-Clause`).
+- Ovladač v `wifi/scsc/` je kód Samsungu z kernelu Galaxy Tab S6 Lite
+  (GPL-2.0, viz `wifi/scsc/COPYING` a [`wifi/README.md`](wifi/README.md)) a
+  zůstává pod svými původními hlavičkami.
+- Soubory v `patches-src/` jsou cizí patche z mailing listů a mají licenci
+  svých autorů.
+
+Firmware výrobce (rádio WiFi, modul ACPM) v
 repozitáři **není**; balíček `firmware-motorola-troika` ho stahuje z veřejných
 zdrojů a značí ho jako proprietární.
