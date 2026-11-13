@@ -1,0 +1,48 @@
+From cbeffdf104be56d4af684e89e215f6154bf10fe5 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 04:30:54 +0100
+Subject: [PATCH 96/96] arm64: dts: exynos9610-troika: Give simpledrm the
+ physical size of the panel
+
+The framebuffer left by the bootloader carries no physical size, so
+simpledrm assumes 96 dpi and reports a display of about 29 by 67 cm for
+a phone that is 64 by 148 mm. Software that sizes its elements in
+millimetres, such as the on-screen keyboard, gets the units wrong.
+
+The size is that of both panels in the vendor device tree
+(size = <64 148>).
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 426b71e..1503b2f 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -33,9 +33,21 @@ framebuffer0: framebuffer@ed000000 {
+ 			stride = <(1080 * 4)>;
+ 			format = "a8r8g8b8";
+ 			backlight = <&backlight>;
++			panel = <&panel>;
+ 		};
+ 	};
+ 
++	/*
++	 * The panel has no driver yet. This node only carries its physical
++	 * size for simpledrm, which would otherwise assume 96 dpi and report
++	 * a display of about 29 x 67 cm. Both panels of the vendor device
++	 * tree (hix83112a, nov36672a) have size = <64 148>.
++	 */
++	panel: panel {
++		width-mm = <64>;
++		height-mm = <148>;
++	};
++
+ 	gpio-keys {
+ 		compatible = "gpio-keys";
+ 
+-- 
+2.56.0
+

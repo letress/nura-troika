@@ -1,7 +1,7 @@
 From 48a0766fe1a68ae96f32abc606c6489acd228e6d Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:32 +0100
-Subject: [PATCH 42/95] clk: samsung: exynos9610: Rename the MFC divider IDs
+Subject: [PATCH 42/96] clk: samsung: exynos9610: Rename the MFC divider IDs
 
 CLK_DOUT_CMU_MFD_MFC and CLK_DOUT_CMU_MFD_WFD belong to the MFC block,
 like the matching mux and gate IDs. "MFD" is a typo.

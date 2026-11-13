@@ -1,0 +1,81 @@
+From eaf2930683842a1912334f7d0224a829187f1d58 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 04:15:15 +0100
+Subject: [PATCH 11/12] DEBUG: abox tests: keep exynos-iommu from panicking,
+ enable the UAIF0 gates for abox*
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c |  6 +++---
+ drivers/iommu/abox-sysmmu-test.c     | 17 ++++++++++++++++-
+ 2 files changed, 19 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index aacbb52..42b69ed 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -3774,8 +3774,8 @@ static int __init exynos9610_pd_status_debug(void)
+ late_initcall(exynos9610_pd_status_debug);
+ 
+ /*
+- * DEBUG: test "abox3" turns on the clock gates of the first audio interface
+- * (UAIF0) so that its bit clock runs. Only with pmos_test=abox3 on the
++ * DEBUG: the abox tests (pmos_test=abox*) turn on the clock gates of the first audio interface
++ * (UAIF0) so that its bit clock runs. Only with pmos_test=abox* on the
+  * command line; the gates go through the clock framework, no CMU register
+  * is written directly.
+  */
+@@ -3789,7 +3789,7 @@ static int __init exynos9610_abox3_debug(void)
+ 	struct device_node *np;
+ 	unsigned int i;
+ 
+-	if (!strstr(saved_command_line, "pmos_test=abox3"))
++	if (!strstr(saved_command_line, "pmos_test=abox"))
+ 		return 0;
+ 
+ 	np = of_find_compatible_node(NULL, NULL, "samsung,exynos9610-cmu-dispaud");
+diff --git a/drivers/iommu/abox-sysmmu-test.c b/drivers/iommu/abox-sysmmu-test.c
+index 8d920d1..28da7e7 100644
+--- a/drivers/iommu/abox-sysmmu-test.c
++++ b/drivers/iommu/abox-sysmmu-test.c
+@@ -51,6 +51,20 @@ static int abox_test_map(struct device *dev, int idx, unsigned long iova,
+ 	return 0;
+ }
+ 
++/*
++ * Without a handler exynos-iommu panics on a translation fault. Report the
++ * fault and say it is handled, so a wrong address of the audio unit only
++ * leaves a line in the log.
++ */
++static int abox_test_fault(struct iommu_domain *domain, struct device *dev,
++			   unsigned long iova, int flags, void *token)
++{
++	dev_info(dev, "ABOXTEST: FAULT at IOVA %#lx (%s)\n", iova,
++		 flags & IOMMU_FAULT_WRITE ? "write" : "read");
++
++	return 0;
++}
++
+ static int abox_test_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+@@ -60,7 +74,7 @@ static int abox_test_probe(struct platform_device *pdev)
+ 	unsigned int i;
+ 	int ret;
+ 
+-	if (!strstr(saved_command_line, "pmos_test=abox5"))
++	if (!strstr(saved_command_line, "pmos_test=abox"))
+ 		return -ENODEV;
+ 
+ 	pm_runtime_enable(dev);
+@@ -74,6 +88,7 @@ static int abox_test_probe(struct platform_device *pdev)
+ 		return -ENODEV;
+ 	}
+ 	dev_info(dev, "ABOXTEST: domain type %u\n", domain->type);
++	iommu_set_fault_handler(domain, abox_test_fault, NULL);
+ 
+ 	ret = abox_test_map(dev, 0, ABOX_IOVA_DRAM_FIRMWARE, domain, &fw);
+ 	if (ret)
+-- 
+2.56.0
+

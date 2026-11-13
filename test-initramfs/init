@@ -251,6 +251,14 @@ if [ "${test_tag#acpm}" != "$test_tag" ]; then
 	echo
 fi
 
+# ABOX: preklad adres zvukove jednotky (System MMU, test abox5): hlasky
+# zarizeni, ktere mapuje paměť, a pripadne chyby prekladu. Nic se nemeni.
+if [ "${test_tag#abox}" != "$test_tag" ]; then
+	echo "--- ABOX / IOMMU ---"
+	dmesg | grep -i -E "ABOXTEST|sysmmu|exynos-iommu|iommu" | grep -v -i "command line" | cut -c1-130 | tail -n 14
+	echo
+fi
+
 # TMU: teploty ze tri cidel cipu (GPU, mala a velka jadra). Ovladac jen cte,
 # nastaveni cidla z bootloaderu nemeni.
 if [ "${test_tag#tmu}" != "$test_tag" ]; then

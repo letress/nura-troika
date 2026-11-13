@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: Zvuk – cesta bez firmwaru (ABOX1–ABOX4) ani levné ověření B2 (řadič přerušení ABOXu i překlad adres vypnuté, FINDINGS.md 31.19) pozici přehrávání nerozhýbaly; zbývá (A) rozběhnout firmware Calliope, nebo (C) zvuk odložit – rozhodnutí uživatele. Balíčky PKG8 (GPU + WiFi) fungují (32.1). Telefon běží v ABOX3, registry ABOXu ve výchozím stavu. `troika-clk` 95 commitů nad v7.3.3, `troika-clk-test` +9; hlavní repozitář commitnut a pushnut 2026-11-13 včetně pokusů se zvukem (commit „Zvuk: pokusy ABOX1 až ABOX4…“); pmaports pushnut do `fef101563`
+## Stav: Zvuk, cesta A – překlad adres ABOXu hotový (vlastní doména, mapování firmwaru a vyrovnávací paměti, obsluha chyby) a záporná kontrola ukázala, že kanál RDMA bez firmwaru z paměti nečte (FINDINGS.md 33.10). Další: etapa A2 – nahrát firmware a zapnout procesor ABOXu (3 registry PMU, nový souhlas) nebo zvuk odložit. Balíčky PKG8 (GPU + WiFi) fungují (32.1). Telefon běží v ABOX7, registry ABOXu ve výchozím stavu. Uživatel 2026-11-13 povolil commit a push bez ptaní (viz paměť). `troika-clk` 95 commitů nad v7.3.3, `troika-clk-test` +11
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -2132,3 +2132,54 @@ chybou sběrnice (bez následků). Další zápisy by byly odhady. Necommitnuto 
 Na pokyn uživatele hlavní repozitář commitnut a pushnut: ladicí patche
 znovu vyexportovány (9), patche kernelu beze změny (95). pmaports beze
 změny. Telefon běží v ABOX3, registry zvukové jednotky ve výchozím stavu.
+
+### 2026-11-13 03:07 – zvuk, krok A: rozbor a plán (jen čtení)
+
+FINDINGS.md kap. 33. Postup startu firmwaru z původního ovladače; hlavní
+překážka je překlad adres `sysmmu_abox` (v7, mainline neumí; obejití je
+nebezpečné, adresa firmwaru kolidovala s pamětí kernelu). Etapy A0–A3.
+Commit `f1e3ca9` pushnut. Necommitnuto: FINDINGS kap. 33, PROGRESS.
+
+### 2026-11-13 03:11 – zvuk, A0 hotovo; telefon se zasekl moje chyba
+
+FINDINGS.md 33.4: mainline `exynos-iommu` v7 **umí** tuto jednotku (oprava
+mého dřívějšího tvrzení). Při ověřování verze jsem četl `0x14920034` s
+vypnutou bránou `aclk`; telefon se zasekl a restartoval do fastbootu (bez
+následků). Telefon je teď ve fastbootu. Další: A1 (kód: `EXYNOS_IOMMU`,
+uzel `sysmmu_abox`, zařízení abox, ladicí mapování). Necommitnuto: FINDINGS
+kap. 33, PROGRESS.
+
+### 2026-11-13 03:17 – zvuk, A1: příprava ABOX5
+
+`troika-clk-test` +1 (DEBUG: stand-in master + uzel `sysmmu_abox` +
+vyhrazené paměti), `EXYNOS_IOMMU=y` jen v místní konfiguraci, sestaven
+`out/troika-test-ABOX5.img` (`cdc51d9d`). Telefon je ve fastbootu. Čeká na
+souhlas se startem (zápisy ovladače do jednotky překladu). Necommitnuto:
+FINDINGS 33.4–33.5, TESTING 5ak, PROGRESS, `test-initramfs/init`.
+
+### 2026-11-13 04:12 – ABOX5: první start, chyba v DT opravena
+
+Ovladač `exynos-sysmmu` odmítl uzel (`Failed to get device clock(s)`), do
+jednotky se nezapsalo. Hodiny přejmenovány na `sysmmu`, ABOX5 sestaven znovu
+(`6afc3a5b`). Telefon běží ve starém ABOX5. Necommitnuto od `f1e3ca9`.
+
+### 2026-11-13 04:18 – zvuk A1: překlad adres běží, příprava ABOX6
+
+Opravený ABOX5 běží (uživatel spustil sám): `sysmmu_abox` navázán, mapování
+firmware a vyrovnávací paměti prošla. Zjištěno, že mainline při chybě
+překladu paniká – přidána obsluha chyby; sestaven `out/troika-test-ABOX6.img`
+(`d0d4736d`). Čeká na restart a souhlas s kontrolami (33.8). Necommitnuto od
+`f1e3ca9`.
+
+### 2026-11-13 04:29 – ABOX6 odhalil chybu v obsluze chyb, ABOX7 opraven
+
+Obsluha chyby překladu se v ABOX6 nenastavila (výchozí doména to nedovolí) –
+ověřeno z výstupu, kontrola nezačala. ABOX7 (`b2e4f857`) používá vlastní
+doménu. Telefon běží v ABOX6, v registrech ABOXu nic. Necommitnuto od
+`f1e3ca9`.
+
+### 2026-11-13 04:32 – ABOX7: záporná kontrola, commit a push
+
+Záporná kontrola bez chyby překladu; vše vráceno. Kladná nespuštěna.
+Uživatel povolil automatický commit a push; tento commit je první takový.
+

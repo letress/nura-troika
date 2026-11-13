@@ -1,8 +1,8 @@
 From 1d9ad05fd0dee7b9b936610da687801c5279410c Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 20:44:08 +0100
-Subject: [PATCH 3/9] DEBUG: ufs: exynos: dump the state left by the bootloader
- and after init
+Subject: [PATCH 03/12] DEBUG: ufs: exynos: dump the state left by the
+ bootloader and after init
 
 Not for upstream. Prints the vendor HCI registers, the FSYS sysreg word,
 a set of UniPro attributes and the PMA registers the Exynos9610 tables

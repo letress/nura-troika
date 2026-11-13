@@ -1735,6 +1735,34 @@ když řekneš), pak:
 fastboot boot ~/nura-troika/out/troika-test-ABOX3.img
 ```
 
+## 5ak. Test ABOX5: překlad adres zvukové jednotky
+
+Postup a rizika: FINDINGS.md 33.5. Telefon je ve fastbootu.
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ABOX5.img
+```
+
+Při startu mainline ovladač zapíše do jednotky překladu adres (řízení,
+tabulky). Napiš mi, že běží (nebo že se restartoval do bootloaderu).
+
+**Výsledek ABOX5 (2026-11-13): prošlo** – po opravě názvu hodin se ovladač
+navázal, obě mapování prošla (FINDINGS.md 33.6, 33.7).
+
+## 5al. Test ABOX7: kontroly toku dat z paměti
+
+Postup: FINDINGS.md 33.8. Telefon z ABOX5 do fastbootu a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ABOX6.img
+```
+
+Pak zkontroluju stav a zeptám se na souhlas s kontrolami.
+
+**Výsledek ABOX7 (2026-11-13): záporná kontrola bez chyby překladu** – kanál
+RDMA1 se bez firmwaru z paměti nenačítá; kladná kontrola nespuštěna
+(FINDINGS.md 33.10). Image ABOX6 má chybu (obsluha chyby se nenastavila).
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

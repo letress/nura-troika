@@ -1,7 +1,7 @@
 From 75a326d57c1d538bbef50ac2c2c9583dbb82b82e Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 13:50:15 +0100
-Subject: [PATCH 74/95] arm64: dts: exynos9610: Add the CMGP sysreg and HSI2C_3
+Subject: [PATCH 74/96] arm64: dts: exynos9610: Add the CMGP sysreg and HSI2C_3
 
 HSI2C_3 at 0x11d10000 is the I2C half of the first USI pair of the CMGP
 block. Its mode register is at offset 0x2004 of the CMGP sysreg

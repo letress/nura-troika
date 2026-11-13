@@ -1,0 +1,200 @@
+From 57e7c6855b822d8c7d2a67aaef930721eeda0b87 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 03:16:34 +0100
+Subject: [PATCH 10/12] DEBUG: iommu: abox: System MMU of the ABOX audio unit
+ and a stand-in master
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/exynos/exynos9610-troika.dts     |  35 ++++++
+ drivers/iommu/Makefile                        |   2 +-
+ drivers/iommu/abox-sysmmu-test.c              | 114 ++++++++++++++++++
+ 3 files changed, 150 insertions(+), 1 deletion(-)
+ create mode 100644 drivers/iommu/abox-sysmmu-test.c
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 426b71e..d030230 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -251,6 +251,21 @@ &usi_cmgp0_i2c {
+ / {
+ 	reserved-memory {
+ 		/* The vendor kernel has no fixed address for it either. */
++		/* DEBUG (abox5): memory the ABOX firmware expects behind its IOMMU */
++		abox_fw_reserved: abox-fw {
++			size = <0x00c00000>;
++			alignment = <0x0 0x00100000>;
++			alloc-ranges = <0x0 0x80000000 0x3c800000>;
++			no-map;
++		};
++
++		abox_buf_reserved: abox-buf {
++			size = <0x00100000>;
++			alignment = <0x0 0x00100000>;
++			alloc-ranges = <0x0 0x80000000 0x3c800000>;
++			no-map;
++		};
++
+ 		wlbt_reserved: wifi {
+ 			size = <0x1000000>;
+ 			alignment = <0x0 0x1000000>;
+@@ -321,3 +336,23 @@ wifi: wifi@119c0000 {
+ 		samsung,boot_cfg-syscon-phandle = <&wlbt_boot>;
+ 	};
+ };
++
++/* DEBUG (abox5): the System MMU of the ABOX audio unit and a stand-in master */
++&soc {
++	sysmmu_abox: sysmmu@14920000 {
++		compatible = "samsung,exynos-sysmmu";
++		reg = <0x14920000 0x9000>;
++		interrupts = <GIC_SPI 216 IRQ_TYPE_LEVEL_HIGH>;
++		clocks = <&cmu_dispaud CLK_GOUT_DISPAUD_ABOX_ACLK>;
++		clock-names = "sysmmu";
++		#iommu-cells = <0>;
++	};
++};
++
++/ {
++	abox_test: abox-test {
++		compatible = "samsung,exynos9610-abox-sysmmu-test";
++		iommus = <&sysmmu_abox>;
++		memory-region = <&abox_fw_reserved>, <&abox_buf_reserved>;
++	};
++};
+diff --git a/drivers/iommu/Makefile b/drivers/iommu/Makefile
+index 2f05725..7df6728 100644
+--- a/drivers/iommu/Makefile
++++ b/drivers/iommu/Makefile
+@@ -28,7 +28,7 @@ obj-$(CONFIG_OMAP_IOMMU_DEBUG) += omap-iommu-debug.o
+ obj-$(CONFIG_ROCKCHIP_IOMMU) += rockchip-iommu.o
+ obj-$(CONFIG_SUN50I_IOMMU) += sun50i-iommu.o
+ obj-$(CONFIG_TEGRA_IOMMU_SMMU) += tegra-smmu.o
+-obj-$(CONFIG_EXYNOS_IOMMU) += exynos-iommu.o
++obj-$(CONFIG_EXYNOS_IOMMU) += exynos-iommu.o abox-sysmmu-test.o
+ obj-$(CONFIG_FSL_PAMU) += fsl_pamu.o fsl_pamu_domain.o
+ obj-$(CONFIG_S390_IOMMU) += s390-iommu.o
+ obj-$(CONFIG_VIRTIO_IOMMU) += virtio-iommu.o
+diff --git a/drivers/iommu/abox-sysmmu-test.c b/drivers/iommu/abox-sysmmu-test.c
+new file mode 100644
+index 0000000..8d920d1
+--- /dev/null
++++ b/drivers/iommu/abox-sysmmu-test.c
+@@ -0,0 +1,114 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * DEBUG: stand-in master of the System MMU in front of the ABOX audio unit
++ * of the Exynos9610 (FINDINGS.md chapter 33). With pmos_test=abox5 on the
++ * command line it maps the memory the ABOX firmware expects at the IOVAs of
++ * the vendor driver and fills a test buffer. Nothing else is touched: the
++ * System MMU is programmed by exynos-iommu itself through the IOMMU API.
++ */
++
++#include <linux/io.h>
++#include <linux/iommu.h>
++#include <linux/init.h>
++#include <linux/mod_devicetable.h>
++#include <linux/of.h>
++#include <linux/of_reserved_mem.h>
++#include <linux/platform_device.h>
++#include <linux/pm_runtime.h>
++#include <linux/sizes.h>
++#include <linux/string.h>
++
++#define ABOX_IOVA_DRAM_FIRMWARE		0x80000000UL	/* IOVA_DRAM_FIRMWARE */
++#define ABOX_IOVA_RDMA_BUFFER(x)	(0x81000000UL + SZ_1M * (x))
++#define ABOX_RDMA_TEST_CHANNEL		1
++#define ABOX_TEST_PATTERN_BYTES		0x3c00		/* 3840 frames * 4 bytes */
++
++static int abox_test_map(struct device *dev, int idx, unsigned long iova,
++			 struct iommu_domain *domain, void **virt)
++{
++	struct reserved_mem *rmem;
++	struct device_node *np;
++	int ret;
++
++	np = of_parse_phandle(dev->of_node, "memory-region", idx);
++	if (!np)
++		return -ENODEV;
++	rmem = of_reserved_mem_lookup(np);
++	of_node_put(np);
++	if (!rmem)
++		return -ENODEV;
++
++	ret = iommu_map(domain, iova, rmem->base, rmem->size,
++			IOMMU_READ | IOMMU_WRITE, GFP_KERNEL);
++	dev_info(dev, "ABOXTEST: map IOVA %#lx -> %pa (%pa bytes): %d\n",
++		 iova, &rmem->base, &rmem->size, ret);
++	if (ret)
++		return ret;
++
++	if (virt)
++		*virt = memremap(rmem->base, rmem->size, MEMREMAP_WB);
++
++	return 0;
++}
++
++static int abox_test_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct iommu_domain *domain;
++	unsigned char *buf = NULL;
++	void *fw = NULL;
++	unsigned int i;
++	int ret;
++
++	if (!strstr(saved_command_line, "pmos_test=abox5"))
++		return -ENODEV;
++
++	pm_runtime_enable(dev);
++	ret = pm_runtime_resume_and_get(dev);
++	if (ret)
++		return ret;
++
++	domain = iommu_get_domain_for_dev(dev);
++	if (!domain) {
++		dev_info(dev, "ABOXTEST: no IOMMU domain on the device\n");
++		return -ENODEV;
++	}
++	dev_info(dev, "ABOXTEST: domain type %u\n", domain->type);
++
++	ret = abox_test_map(dev, 0, ABOX_IOVA_DRAM_FIRMWARE, domain, &fw);
++	if (ret)
++		return ret;
++	ret = abox_test_map(dev, 1, ABOX_IOVA_RDMA_BUFFER(ABOX_RDMA_TEST_CHANNEL),
++			    domain, (void **)&buf);
++	if (ret)
++		return ret;
++
++	/* A ramp, so a read of the buffer would be recognisable */
++	if (buf)
++		for (i = 0; i < ABOX_TEST_PATTERN_BYTES; i++)
++			buf[i] = i & 0xff;
++
++	/* Tell the user which physical addresses stand behind the IOVAs */
++	dev_info(dev, "ABOXTEST: iova_to_phys(%#lx) = %pa, (%#lx) = %pa\n",
++		 ABOX_IOVA_DRAM_FIRMWARE,
++		 &(phys_addr_t){ iommu_iova_to_phys(domain, ABOX_IOVA_DRAM_FIRMWARE) },
++		 ABOX_IOVA_RDMA_BUFFER(ABOX_RDMA_TEST_CHANNEL),
++		 &(phys_addr_t){ iommu_iova_to_phys(domain,
++				ABOX_IOVA_RDMA_BUFFER(ABOX_RDMA_TEST_CHANNEL)) });
++
++	return 0;
++}
++
++static const struct of_device_id abox_test_of_match[] = {
++	{ .compatible = "samsung,exynos9610-abox-sysmmu-test" },
++	{ }
++};
++
++static struct platform_driver abox_test_driver = {
++	.probe = abox_test_probe,
++	.driver = {
++		.name = "abox-sysmmu-test",
++		.of_match_table = abox_test_of_match,
++	},
++};
++builtin_platform_driver(abox_test_driver);
+-- 
+2.56.0
+

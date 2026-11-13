@@ -1,7 +1,7 @@
 From acb931b162679a602c95f741a190a7a37116cd9a Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:31 +0100
-Subject: [PATCH 36/95] clk: samsung: exynos9610: Give the UAIF2 mux its own
+Subject: [PATCH 36/96] clk: samsung: exynos9610: Give the UAIF2 mux its own
  external clock
 
 mout_clk_aud_uaif2 uses "ioclk_audiocdclk0", the external bit clock of

@@ -1,7 +1,7 @@
 From 3e753a5cd4800fe6e96a7c36ae975051778548bf Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 23:53:09 +0100
-Subject: [PATCH 95/95] arm64: dts: exynos9610-troika: Describe the WLBT radio
+Subject: [PATCH 95/96] arm64: dts: exynos9610-troika: Describe the WLBT radio
 
 Not for upstream: the nodes are what the out-of-tree Samsung SCSC
 driver expects and have no bindings.

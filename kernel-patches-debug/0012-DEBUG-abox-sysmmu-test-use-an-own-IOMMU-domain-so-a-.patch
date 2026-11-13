@@ -1,0 +1,51 @@
+From 22277516cc3e01c996e5fb2604a936a9224bcfae Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 04:26:31 +0100
+Subject: [PATCH 12/12] DEBUG: abox-sysmmu-test: use an own IOMMU domain so a
+ fault handler can be set
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/iommu/abox-sysmmu-test.c | 18 +++++++++++++-----
+ 1 file changed, 13 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/iommu/abox-sysmmu-test.c b/drivers/iommu/abox-sysmmu-test.c
+index 28da7e7..a4292e2 100644
+--- a/drivers/iommu/abox-sysmmu-test.c
++++ b/drivers/iommu/abox-sysmmu-test.c
+@@ -82,13 +82,20 @@ static int abox_test_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return ret;
+ 
+-	domain = iommu_get_domain_for_dev(dev);
+-	if (!domain) {
+-		dev_info(dev, "ABOXTEST: no IOMMU domain on the device\n");
+-		return -ENODEV;
++	/*
++	 * The default domain belongs to the DMA layer and takes no fault
++	 * handler. This driver manages its own domain instead.
++	 */
++	domain = iommu_paging_domain_alloc(dev);
++	if (IS_ERR(domain)) {
++		dev_info(dev, "ABOXTEST: no IOMMU domain (%ld)\n", PTR_ERR(domain));
++		return PTR_ERR(domain);
+ 	}
+-	dev_info(dev, "ABOXTEST: domain type %u\n", domain->type);
+ 	iommu_set_fault_handler(domain, abox_test_fault, NULL);
++	ret = iommu_attach_device(domain, dev);
++	dev_info(dev, "ABOXTEST: own domain attached: %d\n", ret);
++	if (ret)
++		return ret;
+ 
+ 	ret = abox_test_map(dev, 0, ABOX_IOVA_DRAM_FIRMWARE, domain, &fw);
+ 	if (ret)
+@@ -125,5 +132,6 @@ static struct platform_driver abox_test_driver = {
+ 		.name = "abox-sysmmu-test",
+ 		.of_match_table = abox_test_of_match,
+ 	},
++	.driver_managed_dma = true,
+ };
+ builtin_platform_driver(abox_test_driver);
+-- 
+2.56.0
+

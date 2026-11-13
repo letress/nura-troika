@@ -4095,3 +4095,312 @@ další zápisy bych dělal naslepo, což jsem u hardwarových hodnot odmítl.
 Zbývá (A) rozběhnout původní firmware, nebo (C) zvuk odložit. Cesta B bez
 firmwaru zůstává otevřená jen s podstatně hlubším rozborem firmwaru.
 
+## 33. Zvuk, krok A: rozběhnout firmware Calliope – rozbor a plán (03:07, jen čtení)
+
+Rozhodnutí uživatele: pokračovat krokem A. Z původního ovladače
+(`abox.c`, `abox_gic.c`, `abox_util.c`) a z telefonu (jen čtení):
+
+### 33.1 Co původní ovladač dělá při zapnutí (`abox_enable`)
+
+1. Povolí přerušení ABOXu u AP (`abox_gic_enable_irq`), PLL zvuku nastaví
+   na hodnotu pro 48 kHz (na telefonu už běží, 1179,648 MHz), zapne hodiny
+   procesoru a `audif`.
+2. Pokud `is_secure_gic()` (čte `0x10000000` == `0xE8895000` a
+   `0x10000010` == 0), udělá zabezpečené volání `0x82000501`. **Na naší
+   jednotce je `0x10000000` = `0xe9610000`, takže tato větev neplatí.**
+3. Obnoví registry, inicializuje řadič přerušení ABOXu (`abox_gic_init_gic`:
+   priority a `CTRL` = 3 přímo zápisem, zabezpečená volání jen v cestě
+   `is_secure_gic()`).
+4. **Nahraje firmware:** `calliope_sram.bin` (28 KiB) do SRAM ABOXu
+   `0x14b00000` (zbytek vynuluje, 212 KiB celkem) a `calliope_dram.bin`
+   (1,7 MB) do bloku 12 MiB (`DRAM_FIRMWARE_SIZE`) přidělené paměti.
+5. Zapne procesor ABOXu zápisy do řídicí jednotky napájení (`0x11860000`):
+   `0x2520` bit 0 (`ABOX_CPU_CONFIGURATION`, napájení), potom `0x2528`
+   bit 15 (`ABOX_CPU_OPTION`, spuštění), čeká na `0x2524` bit 0
+   (`ABOX_CPU_STATUS`). Nic z toho zatím nemám povolené (souhlas se týká jen
+   pěti jiných registrů PMU).
+6. Čeká na zprávu o startu od firmwaru (sdílená oblast v SRAM,
+   `ipc_tx_offset` `0x22000`, `ipc_rx_offset` `0x22300`), potom ABOX
+   dostane zprávy pro přehrávání.
+
+### 33.2 Hlavní překážka: překlad adres
+
+Procesor ABOXu vidí paměť přes jednotku překladu adres `sysmmu_abox`
+(`0x14920000`). Firmware je spojený na adresy `0x80000000` (DRAM firmwaru),
+`0x81000000+` (vyrovnávací paměti RDMA), `0xa0000000+` (VSS) a
+`0x10000000`; původní kernel k tomu vytváří překladové tabulky
+(`iommu_map`). Dva důsledky:
+
+- **Obejít překlad není bezpečné:** adresa `0x80000000` je zároveň začátek
+  fyzické paměti RAM (`memory@80000000` v našem DT), kde leží kernel
+  a běžná paměť. Firmware spuštěný bez překladu by zapisoval do paměti
+  kernelu. Proto jsem tento nápad zavrhl.
+- **Mainline tuto verzi jednotky neumí:** `exynos-iommu.c` čte verzi z
+  `0x34` (na naší jednotce čtení skončí chybou sběrnice) a zná formáty
+  tabulek do v5; původní kernel má pro tuto jednotku verzi „v7“ (registry
+  `CAPA` na `0x870`/`0x874`). Je tedy potřeba ovladač (nebo ladicí kód)
+  pro `sysmmu_abox` v7.
+
+### 33.3 Navržené etapy
+
+- **A0 (jen čtení, bez zápisů do telefonu):** rozebrat ovladač v7 v
+  původním kernelu (`drivers/iommu/exynos-iommu.*`), formát tabulek
+  a pořadí programování; napsat návrh. Čas: hodiny.
+- **A1:** minimální obsluha překladu pro ABOX (jedna doména, čtyři
+  mapování z 33.2), ověřit na telefonu, že se tabulky použijí (zápisy do
+  `sysmmu_abox` – nový souhlas).
+- **A2:** nahrát firmware, zapnout procesor (tři registry PMU – nový
+  souhlas), počkat na zprávu o startu; kontrolovat čítač instrukcí
+  (`ABOX_CPU_PC` `0x2c3c`). Cíl: firmware ohlásí verzi.
+- **A3:** zprávy kernel ↔ firmware a přehrávání (jako původní
+  `abox_rdma.c`), potom kodek, zesilovač a jejich napájení (výjimka
+  uživatele platí jen pro ně).
+
+Rozsah: dny až týdny, výsledek zatím nejistý (zejména A1).
+Zkontrolováno čtením: `0x11860814` (`ABOX_MAGIC`) viz
+`device-info/abox-B2.txt`.
+
+### 33.4 Etapa A0: překlad adres ABOXu – výsledek rozboru (03:11)
+
+**Oprava 33.2:** tvrdil jsem, že mainline tuto verzi jednotky neumí. Není
+to pravda. `drivers/iommu/exynos-iommu.c` v 7.3.3 má variantu v7
+(`sysmmu_v7_variant`: `pt_base` `0x0c`, `flush_*` `0x10`–`0x24`,
+`int_status` `0x60`, `fault_va` `0x70` – stejná rozložení registrů jako
+v původním kernelu) a rozpoznává ji z registrů `CAPA0/CAPA1` na `0x870`
+a `0x874`. Náš `sysmmu_abox` hlásí `CAPA0` = `0x20823800` (bit 11: `CAPA1`
+existuje) a `CAPA1` = `0x00000011` (bit 14, „VCR“, nenastavený) – tedy
+v7 bez virtuálních strojů, přesně varianta, kterou mainline obsluhuje.
+Formát tabulek je shodný s původním (dvě úrovně, oddíly 1 MiB, stránky
+4 KiB, posun položky 4 – `mk_lv1ent_sect` atd.). Mainline má navíc
+rozumnou obsluhu chyb. Vše potřebné tedy v principu **už existuje**; chybí
+jen zapnout a popsat.
+
+Co k tomu patří:
+
+- `CONFIG_EXYNOS_IOMMU` je v naší konfiguraci vypnuté.
+- Uzel `sysmmu@14920000` v DT: `reg` `0x14920000` + `0x9000`, přerušení
+  SPI 216 (`0xd8` v původním DT), hodiny `aclk` (původní DT:
+  `0x02 0x106` = brána `CLK_GOUT_CLK_DISPAUD_ABOX_ACLK`), `#iommu-cells` = 0
+  a odkaz `iommus` na zařízení, které bude překlad používat.
+- Zařízení „ABOX“ s `iommus = <&sysmmu_abox>` a s mapováním podle 33.2
+  přes obecné rozhraní IOMMU (`iommu_domain_alloc`, `iommu_map`).
+- Při čtení verze mainline zapíná hodiny (`__sysmmu_enable_clocks`)
+  dřív než čte registry.
+
+**Incident při tomto rozboru (moje chyba):** abych ověřil `REG_MMU_VERSION`
+(`0x14920034`), přečetl jsem ho nástrojem `mem-rd` na běžícím telefonu,
+**bez zapnuté brány `aclk`** (podle `clk_summary` je vypnutá). Čtení se
+nedokončilo, telefon se zasekl a po chvíli se sám restartoval do
+bootloaderu (fastboot, nic se nepoškodilo; registry zvukové jednotky byly
+před tím ve výchozím stavu). Dřívější čtení `0x30` a `0x1c` téže jednotky
+skončila jen chybou sběrnice; `0x34` ji zřejmě zablokovala. Poučení:
+**neznámé registry jednotky s vypnutou bránou hodin nečíst**; nejdřív
+zapnout hodiny (např. ladicím kódem), pak teprve číst.
+
+Příští krok A1 (kód, nic se nespouští): zapnout `CONFIG_EXYNOS_IOMMU`,
+přidat do DT uzel `sysmmu_abox` s hodinami a zařízení „abox“, a ladicí kód,
+který zařízení připojí k doméně a namapuje čtyři oblasti z 33.2 (paměť
+pro firmware 12 MiB a vyrovnávací paměť přehrávání). Zápisy do jednotky
+bude dělat až ten ovladač po tvém souhlasu.
+
+### 33.5 Etapa A1: příprava (kód a image ABOX5, nic nespuštěno) (03:17)
+
+Ladicí commit na `troika-clk-test` (nic z toho není v čisté větvi ani
+v balíčku):
+
+- `drivers/iommu/abox-sysmmu-test.c`: zástupný „master“ překladu adres.
+  Jen s `pmos_test=abox5` na příkazové řádce vezme výchozí doménu IOMMU,
+  namapuje **12 MiB** vyhrazené paměti na IOVA `0x80000000` (firmware
+  Calliope, `IOVA_DRAM_FIRMWARE`) a **1 MiB** na IOVA `0x81100000`
+  (vyrovnávací paměť RDMA1 podle `IOVA_RDMA_BUFFER(1)` původního ovladače),
+  do prvních 15 360 bajtů testovací paměti zapíše rostoucí řadu bajtů
+  a vypíše řádky `ABOXTEST:` (včetně `iommu_iova_to_phys`).
+- DT (`exynos9610-troika.dts`): uzel `sysmmu@14920000` (adresa `0x9000`,
+  SPI 216, hodiny `aclk` = `CLK_GOUT_DISPAUD_ABOX_ACLK`, `#iommu-cells` 0),
+  dvě vyhrazené paměti bez mapování v prvním bloku RAM (dynamické adresy,
+  ovladač je vypíše) a zařízení `abox-test` s `iommus` a `memory-region`.
+- Konfigurace místního kernelu: `IOMMU_SUPPORT=y`, `EXYNOS_IOMMU=y`
+  (v balíčku zůstává vypnuté). Sestaveno bez chyb. Kontrola DT hlásí
+  jen očekávané výtky (uzly bez bindingů, `aclk` bez `pclk`).
+- Testovací `init` vypisuje oddíl `--- ABOX / IOMMU ---`.
+- Image `out/troika-test-ABOX5.img` (sha256 začíná `cdc51d9d`).
+
+**Co se stane už při startu ABOX5** (to je ten zásah, na který se ptám):
+ovladač `exynos-iommu` z mainline najde `sysmmu_abox`, přečte verzi
+(zapnutými hodinami `aclk`), a protože zařízení `abox-test` má `iommus`,
+jádro mu připojí výchozí doménu a ovladač **zapíše do jednotky**: řízení
+a konfiguraci, základ tabulek stránek, smazání TLB. Tabulky jsou zpočátku
+prázdné. Procesor ABOXu je vypnutý a kanály RDMA nic nečtou, takže nic
+nemá tabulky použít. Všechny zápisy dělá mainline kód, žádný můj.
+
+Rizika: čtení verze (`0x34`) je místo, kde se telefon minule zasekl – tehdy
+s vypnutými hodinami, teď je hodiny zapne ovladač; kdyby se i tak zasekl
+při startu, restartuje se sám do bootloaderu a nic se nepoškodí (proběhlo
+už jednou). Když ovladač jednotku zavrhne, ABOXTEST vypíše chybu.
+
+Zkouška po startu (pro každý zápis do ABOXu zvlášť souhlas; nástroje už
+v image jsou):
+
+1. Jen čtení: řádky `ABOXTEST`, hlášky `exynos-sysmmu`, v logu žádné chyby.
+2. **Záporná kontrola:** RDMA1 s adresou `0x83000000` (nenamapováno) +
+   sekvence z 31.17 → pokud RDMA sahá do paměti, ovladač ohlásí `PAGE FAULT`
+   na této adrese. To by byla první přímá odpověď na to, jestli kanál data
+   vůbec čte.
+3. **Kladná kontrola:** RDMA1 s `0x81100000` (namapováno, vzor v paměti) →
+   hlášky o chybě nepřijdou a pozice se buď pohne, nebo ne.
+4. Návrat registrů; hlášky sysmmu zůstanou v logu.
+
+### 33.6 První start ABOX5: ovladač překladu adres odmítl uzel kvůli hodinám (04:12)
+
+Souhlas uživatele: „Ano, spouštím“ (start ABOX5 s ovladačem `exynos-iommu`).
+Výpis: `device-info/abox-ABOX5.txt`.
+
+- Telefon nabootoval normálně (žádné zaseknutí).
+- `exynos-sysmmu 14920000.sysmmu: Failed to get device clock(s)!`, chyba
+  −38: mainline ovladač vyžaduje buď hodiny `sysmmu`, nebo dvojici `aclk`
+  a `pclk`; já jsem dal jen `aclk` (jako původní DT). **Ovladač skončil
+  dřív, než se jednotky dotkl**, takže se do ní nic nezapsalo.
+- Důsledek: zařízení `abox-test` nemělo IOMMU (`deferred probe timeout`,
+  `no IOMMU domain on the device`), ABOXTEST se nic nenamapoval.
+
+Oprava (moje chyba v DT): hodiny pojmenovány `sysmmu`. Nový
+`out/troika-test-ABOX5.img` (sha256 začíná `6afc3a5b`). Stav a rizika jako
+v 33.5; čeká na nové spuštění.
+
+### 33.7 ABOX5 (opravený): překlad adres běží, mapování prošlo (04:18)
+
+Uživatel spustil opravený image sám („už je image nabootovaná“). Výpis:
+`device-info/abox-ABOX5.txt`; telefon bez zaseknutí, teploty 43 až 44 °C.
+
+- `exynos-sysmmu 14920000.sysmmu` se tentokrát navázal (žádná chyba o
+  hodinách), `/sys/class/iommu/14920000.sysmmu` existuje.
+- Zařízení `abox-test` je ve skupině IOMMU 0 (typ DMA), doména typu 3.
+- Mapování: `0x80000000` → `0xbbc00000` (12 MiB) a `0x81100000` →
+  `0xbbb00000` (1 MiB), obojí návrat 0; `iommu_iova_to_phys` vrací tytéž
+  fyzické adresy.
+- Jádro vypsalo varování `late IOMMU probe at driver bind, something
+  fishy here!` se zásobníkem: můj zkušební ovladač se navázal dřív, než se
+  zaregistroval ovladač překladu adres, a IOMMU se zařízení přiřadilo až
+  při navázání. Nic nezlobí (skupina i doména fungují), je to jen pořadí
+  inicializace ladicího ovladače.
+- Co přesně ovladač do jednotky zapsal, nevím (nečtu registry, viz 33.4),
+  ale doména je připojená a ovladač ji obsluhuje.
+
+**Chyba, které jsem se včas vyhnul:** mainline `exynos-iommu` při chybě
+překladu bez obsluhy v doméně volá `panic("Unrecoverable System MMU Fault!")`.
+Záporná kontrola (adresa bez mapování) by proto shodila jádro. Přidal jsem
+do zkušebního ovladače obsluhu chyby, která jen zapíše
+`ABOXTEST: FAULT at IOVA …` a vrátí „zpracováno“; ve stejném commitu se brány
+hodin UAIF0 zapínají u všech testů `abox*` (ne jen `abox3`), aby šlo kanál
+pustit jako v ABOX3. Image **`out/troika-test-ABOX6.img`** (sha256 začíná
+`d0d4736d`), zatím nespuštěný.
+
+### 33.8 Návrh pokusu ABOX6: kontroly toku dat z paměti
+
+Zápisy jako v ABOX4 (31.18; nástroj `abox-wr` je v image), jen s adresou
+vyrovnávací paměti RDMA1 v IOVA. Po každém zápisu čtení zpět a kontrola
+pinů `gpb0`, na konci vše vrátit.
+
+1. **Záporná kontrola:** `BUF_STR` = `STR_POINT` = `0x83000000`, `BUF_END` =
+   `0x83003c00` (nenamapováno), potom zbytek sekvence a zapnutí kanálu.
+   Čekám `ABOXTEST: FAULT at IOVA 0x83…` v logu, pokud kanál čte z paměti.
+2. **Kladná kontrola:** totéž s `0x81100000` / `0x81103c00` (namapováno,
+   ve vyrovnávací paměti je rostoucí řada bajtů): žádná chyba a sleduji
+   pozici ve `STATUS`.
+
+Co z toho bude vědět: jestli RDMA vůbec čte z paměti (záporná kontrola je
+rozhodující), a jestli překlad adres byl tím chybějícím článkem (kladná).
+Rizika jako v ABOX4 plus obsluha chyby jádra (nepanikaří); zásadní věc, že
+zápisy dělám jen nástrojem s pevným seznamem 16 adres.
+
+### 33.9 ABOX6: obsluha chyby se nenastavila, oprava v ABOX7 (04:29)
+
+Uživatel spustil `out/troika-test-ABOX6.img`. Výpis: `device-info/abox-ABOX6.txt`
+(jen čtení, žádné zápisy do ABOXu). Hodiny UAIF0 se zapnuly (obě brány,
+24,576 MHz), registry ABOXu jsou ve výchozím stavu, mapování prošla.
+
+**Chyba v mé úpravě:** jádro při `iommu_set_fault_handler()` vypsalo
+`WARNING: drivers/iommu/iommu.c:2061`. Funkce obsluhu odmítne, pokud doména
+už má „cookie“ – výchozí doména patří vrstvě pro DMA (`IOMMU_COOKIE_DMA_IOVA`).
+Obsluha chyby se tedy **nenastavila** a záporná kontrola by shodila jádro
+(`panic`). Té kontroly jsem se nedotkl.
+
+Oprava (`ABOX7`, sha256 začíná `b2e4f857`): zkušební ovladač si vyžádá
+vlastní doménu (`iommu_paging_domain_alloc`), nastaví na ni obsluhu chyby
+a připojí ji (`iommu_attach_device`); ovladač má `driver_managed_dma`, aby
+jádro nechalo zařízení bez výchozí domény. Při první verzi oprava selhala
+při překladu (pole je ve struktuře `platform_driver`, ne `device_driver`);
+dočasný image ABOX7 z té doby jsem smazal a postavil znovu z opraveného
+kernelu. Čeká na spuštění; po startu zkontroluju, že varování zmizelo
+a že vypsal `own domain attached: 0`, a teprve potom navrhnu zápisy.
+
+## 34. Klávesnice v Phoshi je smrsknutá u spodního okraje (04:31, příprava opravy)
+
+Hlášení uživatele: místo pro softwarovou klávesnici je vyhrazeno, ale
+klávesnice je deformovaně smrsknutá u spodního okraje.
+
+- Klávesnice je `stevia` 0.58 (`phosh-osk-stevia`, nástupce `phosh-osk-stub`).
+  Podle jejího popisu a nastavení (`mobi.phosh.osk`, klíč `scaling`,
+  výchozí `['auto-portrait', 'auto-landscape']`) upravuje výšku podle
+  rozlišení a umí vynechat pás dole („bottom-dead-zone“, cíl 8 mm) – tedy
+  pracuje i s milimetry.
+- Náš výstup je framebuffer od bootloaderu (simpledrm) **bez fyzického
+  rozměru**. Při nulovém rozměru simpledrm předpokládá 96 dpi: pro
+  1080 × 2520 px ohlásí displej asi 286 × 667 mm místo skutečných
+  64 × 148 mm. Tuto chybu jsem v 18.x obešel jen pevným měřítkem v
+  `phoc.ini`, které s milimetry nic nedělá.
+- **Příčina smrsknutí není prokázaná** (GUI nemůžu spustit sám); nepravdivý
+  rozměr je ale doložená chyba a odpovídá příznaku.
+
+Oprava (kód, nezkoušeno): `troika-clk` +1, commit `cbeffdf`
+„Give simpledrm the physical size of the panel“: uzel `panel` s
+`width-mm = <64>`, `height-mm = <148>` a `panel = <&panel>` ve framebufferu.
+Zdroj hodnot: `size = <0x40 0x94>` v původním DT telefonu (`live.dts`),
+shodně u obou panelů. DT se přeložil, `dtc` ukázal obě hodnoty.
+
+Pokud by po ní klávesnice zůstala smrsknutá, jde nastavení vyzkoušet bez
+přestavby přímo v Phoshi (v terminálu):
+
+```bash
+gsettings set mobi.phosh.osk scaling "[]"
+```
+
+případně jen `['auto-portrait']` / `['auto-portrait', 'bottom-dead-zone']`;
+návrat `gsettings reset mobi.phosh.osk scaling`.
+
+### 33.10 Pokus ABOX7: záporná kontrola – kanál z paměti nic nečte (04:32)
+
+Souhlas uživatele: „Ano, obě kontroly“ (záporná a kladná, 33.8). Výpis:
+`device-info/abox-ABOX7.txt`. ABOX7 nabootoval čistě: vlastní doména
+připojená (`own domain attached: 0`), obsluha chyby nastavená, mapování
+`0x80000000` a `0x81100000` prošla, hodiny UAIF0 běží.
+
+- **Záporná kontrola:** stejná sekvence jako v ABOX4 (13 zápisů, po každém
+  piny `gpb0` beze změny), ale `BUF_STR` = `STR_POINT` = `0x83000000`,
+  `BUF_END` = `0x83003c00` – adresa, která v doméně **není namapovaná**.
+  Zapnutí kanálu: `STATUS` = `0x80000000`, pozice 0 při deseti čteních
+  a **v logu žádná chyba překladu** (`ABOXTEST: FAULT` ani hláška
+  `exynos-sysmmu`), žádný `panic`. Teploty 43 až 44 °C.
+- **Kladná kontrola jsem nespouštěl:** když kanál ani s nenamapovanou
+  adresou nesáhne do paměti, namapovaná adresa nic nového neukáže.
+  Souhlas na ni uživatel dal, nevyužil jsem ho.
+- Návrat: všech 14 zapsaných registrů vráceno a ověřeno.
+
+Výklad: **přenos z paměti se bez firmwaru vůbec nespustil.** Kanál je
+„zapnutý“, ale paměť nečte, takže bez zásahu firmwaru (nejspíš softwarová
+fronta mezi kanálem a směšovačem, jak naznačují texty ve firmwaru,
+`PCMOUT … input buffer`) nic nepoběží. Výhrady: nečetl jsem registry
+jednotky překladu (zakázáno kvůli zamrznutí, 33.4), takže nemám přímý důkaz,
+že je překlad opravdu zapnutý a že přístupy kanálu jdou přes něj; kdyby
+kanál tou cestou nešel, chyba by se neobjevila ani při čtení paměti.
+
+Závěr pro cestu A: překlad adres je **hotový a použitelný** pro firmware
+(vlastní doména, mapování `0x80000000` 12 MiB a vyrovnávací paměti).
+Chybí etapa A2: nahrát firmware a zapnout procesor ABOXu. To jsou zápisy
+do tří registrů PMU (`0x11862520`, `0x11862528`, čtení `0x11862524`),
+které nemám povolené, a nahrání ~1,7 MB firmwaru do paměti. Rizika:
+firmware je vendorský kód, který se na naší jednotce nikdy nespustil;
+jeho přístupy do paměti jdou přes naši doménu (jiné adresy než
+`0x80000000` a `0x81…` skončí chybou překladu, ne zápisem do kernelu);
+zámek procesoru ABOXu při chybě se projeví zaseknutím zvuku, ne jádra.
+

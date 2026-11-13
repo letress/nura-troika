@@ -1,7 +1,7 @@
 From 7130bb20a51398a5119483faba642ab9ce63ce88 Mon Sep 17 00:00:00 2001
 From: Alexandru Chimac <alex@chimac.ro>
 Date: Wed, 22 Jul 2026 23:44:04 +0300
-Subject: [PATCH 20/95] clk: samsung: clk-pll: Add support for pll_1061x
+Subject: [PATCH 20/96] clk: samsung: clk-pll: Add support for pll_1061x
 
 These PLLs are found in the Exynos9610 and Exynos9810 SoCs, and
 are similar to pll_1460x (using CON3 instead of CON1), so the code
