@@ -4647,3 +4647,13 @@ Stav `linux/` (troika-clk):
   UAIF0 → zesilovač; zdroj zatím zůstává ručně přes registry.
 - **Bezpečný první krok:** po SPI číst jen ID čipu CS35L41 (registr
   `DEVID`), žádný zápis a bez ochranného firmwaru zesilovač nepovolit.
+
+### 33.22 První pokus o CS35L41 po SPI (ABOX15, 2026-11-13)
+
+Ovladač SPI6 se zaregistroval (`spi spi6.0`) a `cs35l41` se navázal; chybějící
+napájení VA a VP nahradily atrapy, jak se čekalo. První přenos ale skončil
+chybou `I/O Error: rx-0 tx-1 len-6 res(-5)` (čekání na naplnění RX FIFO
+vypršelo, ovladač čeká na přijatá data i u vysílání), tedy „Failed waiting for
+OTP_BOOT_DONE“, probe `-EIO`. Registry řadiče byly čitelné (hodiny běží),
+sběrnice ale nejspíš nekmitá. ABOX16 vypíše při chybě registry řadiče
+(DEBUG v `spi-s3c64xx.c`).

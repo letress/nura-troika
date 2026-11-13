@@ -1,0 +1,33 @@
+From 716f7ff8269393075eb3f88035fd6b0f8c8ef047 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 16:07:46 +0100
+Subject: [PATCH 20/20] DEBUG: spi-s3c64xx: dump the controller registers on an
+ I/O error
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/spi/spi-s3c64xx.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/spi/spi-s3c64xx.c b/drivers/spi/spi-s3c64xx.c
+index eb206d9..f6444f5 100644
+--- a/drivers/spi/spi-s3c64xx.c
++++ b/drivers/spi/spi-s3c64xx.c
+@@ -902,6 +902,14 @@ static int s3c64xx_spi_transfer_one(struct spi_controller *host,
+ 				(sdd->state & TXBUSY) ? 'f' : 'p',
+ 				xfer->len, use_dma ? 1 : 0, status);
+ 
++			dev_err(&spi->dev,
++				"DEBUG regs: ch %08x clk %08x mode %08x cs %08x int %08x status %08x pkt %08x swap %08x fb %08x rate %lu\n",
++				readl(sdd->regs + 0x00), readl(sdd->regs + 0x04),
++				readl(sdd->regs + 0x08), readl(sdd->regs + 0x0c),
++				readl(sdd->regs + 0x10), readl(sdd->regs + 0x14),
++				readl(sdd->regs + 0x20), readl(sdd->regs + 0x28),
++				readl(sdd->regs + 0x2c), clk_get_rate(sdd->src_clk));
++
+ 			if (use_dma) {
+ 				struct dma_tx_state s;
+ 
+-- 
+2.56.0
+
