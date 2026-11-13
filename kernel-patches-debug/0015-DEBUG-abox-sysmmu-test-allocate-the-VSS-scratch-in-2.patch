@@ -1,7 +1,7 @@
 From f613653882be7a51c8ea2e214ad03d9481b45ab6 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 14:21:16 +0100
-Subject: [PATCH 15/15] DEBUG: abox-sysmmu-test: allocate the VSS scratch in 2
+Subject: [PATCH 15/16] DEBUG: abox-sysmmu-test: allocate the VSS scratch in 2
  MiB pieces
 
 An 8 MiB allocation is above the largest page order and failed silently.
