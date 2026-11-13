@@ -4699,3 +4699,11 @@ VA zesilovače nezapnul, což vysvětluje samé jedničky. ABOX20 umí zápisem 
 `acpmdbg_ldo42` zapnout jen enable bity (`FUNC_UPDATE`, maska 0xC0, formát
 z `acpm_mfd.c:219`) a jen když napěťové pole zůstává 1,8 V. Zapíná se až po
 souhlasu uživatele.
+
+### 33.27 LDO42 zapnutý, zesilovač odpovídá jinak (ABOX20, 2026-11-14)
+
+Zápis 1 do `acpmdbg_ldo42` proběhl (`ret 0`), registr po něm čte `0xec`
+(enable 11, napětí beze změny 1,8 V). Po `unbind` a `bind` ovladače
+`cs35l41` už MISO nečte samé jedničky: čekání na `OTP_BOOT_DONE` vypršelo
+(`-ETIMEDOUT`), čtení tedy fungují, ale bit chybí. ABOX21 při tom vypíše
+DEVID, REVID a stavové registry.

@@ -2238,3 +2238,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-13: ABOX17: SPI6 přenáší, CS35L41 hlásí OTP Boot error (33.24). ABOX18 (129903bc): feedback delay 1, výpis DEVID/REVID.
 - 2026-11-13: CS35L41 čte samé jedničky, VP je zapnuté; ABOX19 čte registr LDO42 (jen čtení), FINDINGS 33.25 (out/troika-test-ABOX19.img, 34627145)
 - 2026-11-14: LDO42 vypnutý (0x2c), ABOX20 ho umí zapnout zápisem; čeká na souhlas (out/troika-test-ABOX20.img, 6cdb4871)
+- 2026-11-14: LDO42 zapnut (0xec), CS35L41 odpovídá, OTP_BOOT_DONE timeout; ABOX21 vypisuje registry (out/troika-test-ABOX21.img, 62111d7e)

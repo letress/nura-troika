@@ -1,0 +1,33 @@
+From 68d4c9f150dca655b7d3fb0897791ae3934d738b Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 00:45:37 +0100
+Subject: [PATCH 24/24] DEBUG: print the CS35L41 ID registers when
+ OTP_BOOT_DONE times out
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/sound/soc/codecs/cs35l41.c b/sound/soc/codecs/cs35l41.c
+index 438ceaa..59a35c3 100644
+--- a/sound/soc/codecs/cs35l41.c
++++ b/sound/soc/codecs/cs35l41.c
+@@ -1254,6 +1254,14 @@ int cs35l41_probe(struct cs35l41_private *cs35l41, const struct cs35l41_hw_cfg *
+ 				       int_status, int_status & CS35L41_OTP_BOOT_DONE,
+ 				       1000, 100000);
+ 	if (ret) {
++		unsigned int a = 0, b = 0, c = 0, d = 0;
++
++		regmap_read(cs35l41->regmap, CS35L41_DEVID, &a);
++		regmap_read(cs35l41->regmap, CS35L41_REVID, &b);
++		regmap_read(cs35l41->regmap, CS35L41_IRQ1_STATUS3, &c);
++		regmap_read(cs35l41->regmap, CS35L41_IRQ1_STATUS4, &d);
++		dev_info(cs35l41->dev, "DEBUG: timeout devid %08x revid %08x status3 %08x status4 %08x last %08x\n",
++			 a, b, c, d, int_status);
+ 		dev_err_probe(cs35l41->dev, ret,
+ 			      "Failed waiting for OTP_BOOT_DONE\n");
+ 		goto err;
+-- 
+2.56.0
+
