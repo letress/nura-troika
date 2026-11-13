@@ -43,6 +43,10 @@ aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
 # Čtení registrů přes /dev/mem (test TMU): busybox devmem nemá. Jen čte.
 aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
 	-o "$tmp/bin/mem-rd" "$root/test-initramfs/mem-rd.c"
+# Zápis do vybraných registrů zvukové jednotky (test ABOX): jen adresy ze
+# seznamu v abox-wr.c. Sám se nespouští.
+aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
+	-o "$tmp/bin/abox-wr" "$root/test-initramfs/abox-wr.c"
 # Modul firmwaru ACPM pro změnu frekvencí (test ACPM3): soubor ze zdrojů
 # původního kernelu, který si kernel načte přes request_firmware().
 fvp="$root/refs/downstream-kernel/firmware/exynos9610_acpm_fvp.fw"

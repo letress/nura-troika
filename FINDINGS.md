@@ -3675,3 +3675,423 @@ Závěr: dávka PKG8 funguje – GPU, teploty i WiFi z balíčků, bez ručních
 zásahů. **Neověřeno:** že rozhraní dostalo tovární adresu MAC (pravidlo
 udev), změna frekvence GPU pod zátěží v tomto systému, delší provoz.
 
+### 31.9 Krok 2a: výpis registrů ABOXu z LineageOS (02:13, jen čtení)
+
+LineageOS na telefonu (kernel 4.14.113), `adb root`. Výpisy v
+`device-info/abox-lineage-klid.txt` a `abox-lineage-hraje.txt`.
+
+- Ladicí soubor `/sys/kernel/debug/regmap/14a50000.abox/registers` existuje,
+  ale pokrývá jen 77 registrů (`0x0`–`0x50`, `0x200`–`0x348`, `0x500`–`0x560`,
+  `0x600`–`0x664`): napájení, směrování, míchání, UAIF, časovače. **Registry
+  RDMA (`0x1000`+) v něm nejsou**; `/dev/mem` tento kernel nemá.
+- Výjimka: kanál **RDMA5** (komprimované přehrávání, `compr5`) má vlastní
+  soubor `…/regmap/14a51500.abox_rdma/registers` s rozsahem `0x00`–`0x68`.
+  Při běžném přehrávání je celý nulový.
+- Firmware běží (`calliope_version` = `r9I0`). Log firmwaru
+  (`/sys/kernel/debug/abox/log-00`) je nekonečný proud; čtení se zaseklo,
+  ukončil jsem ho, nic po něm nezůstalo.
+- Stav v klidu (s běžícím firmwarem): `SYSPOWER_CTRL` = 1, `REMAP_MASK` =
+  `0xfff00000`, `REMAP_ADDR` = `0x14b00000`, `DYN_CLOCK_OFF` = `0x7fffffff`,
+  `ROUTE_CTRL0` = `0x30`, `TICK_DIV_RATIO` = `0x4e1`, `SPUS_CTRL0` =
+  `0x15333333`, `UAIF0_CTRL0` = `0x01000014`, `UAIF0_CTRL1` = `0x00800000`.
+- **Rozdíl při přehrávání reproduktorem** (běžel proud `pcm1p` = RDMA1,
+  S16_LE, 2 kanály, 48 kHz, perioda 960, vyrovnávací paměť 3840 vzorků):
+
+| Registr | klid | hraje |
+|---|---|---|
+| `0x0038` `QCHANNEL_DISABLE` | `0x00000000` | `0x00000004` |
+| `0x0040` `ROUTE_CTRL0` | `0x00000030` | `0x00000031` |
+| `0x0200` `SPUS_CTRL0` | `0x15333333` | `0x15333323` |
+| `0x0500` `UAIF0_CTRL0` | `0x01000014` | `0x01000015` |
+| `0x0504` `UAIF0_CTRL1` | `0x00800000` | `0x0984f000` |
+
+  Reproduktor tedy hraje přes **UAIF0** (do kodeku CS47L35), ne přes UAIF4.
+
+Co to dává: doložené hodnoty směrování a rozhraní I2S pro 48 kHz stereo.
+Co chybí: hodnoty registrů samotného kanálu RDMA. Možnosti: (a) přimět
+LineageOS, aby hrál komprimovaným kanálem RDMA5, a přečíst jeho soubor;
+(b) rozebrat firmware `calliope_dram.bin`; (c) pokusné hodnoty na našem
+kernelu se souhlasem uživatele (zápisy jen do digitální části ABOXu).
+Vedle toho jsou ke čtení i registry kodeku a zesilovače
+(`spi9.0-cs47l35_*`, `spi6.0`) – zatím nečteno, některé registry přerušení
+se čtením mohou mazat.
+
+### 31.10 Komprimovaný kanál nejde použít; firmware má adresy registrů v sobě (02:20)
+
+- Při přehrávání souboru MP3 se zhasnutým displejem běžel zase proud
+  `pcm1p` (RDMA1); soubor registrů RDMA5 zůstal 12 čtení po 3 s nulový.
+  Zásady zvuku v tomto LineageOS žádný výstup pro komprimované přehrávání
+  nemají (`dumpsys media.audio_policy` ho neuvádí, `vold.has_compress` = 0).
+  Cesta (a) z 31.9 tedy bez zásahu do systému nevede nikam.
+- Rychlá sonda do firmwaru (`calliope_dram.bin`, jen na PC): obsahuje jako
+  konstanty **stejné fyzické adresy registrů, jaké známe** – `0x14a51000`,
+  `0x14a51030` (stav RDMA0), `0x14a51400`, `0x14a51430`, `0x14a51600`,
+  `0x14a51630`, řadu `0x14a505xx` (UAIF) a `0x14a50284`; v `calliope_sram.bin`
+  jsou `0x14a50010/14`, `0x14a50600` a řadič přerušení `0x14af…`. Kód kolem
+  těchto konstant tedy ukáže, jak firmware kanál RDMA nastavuje.
+- Na PC není žádný nástroj pro rozbor kódu procesoru ARM (zkoušeno:
+  `objdump` jen pro x86 a arm64, `llvm-objdump`, `capstone`, `rizin` chybí).
+
+Další krok cesty (b): doinstalovat nástroj pro rozbor (např. modul Pythonu
+`capstone` pro uživatele, bez práv správce) a projít místa, kde firmware
+s adresami RDMA pracuje. Jen na PC, na telefon se nesahá.
+
+### 31.11 Rozbor firmwaru: jak se nastavuje kanál RDMA (02:24, jen na PC)
+
+Uživatel doinstaloval modul `capstone`. Rozebíral jsem
+`calliope_dram.bin` z obrazu `vendor` (1 758 792 bajtů, kopie jen ve scratchpadu; kód je Thumb). Firmware má
+pro registry RDMA sadu malých funkcí „nastav/přečti pole“ (od `0x2e4c`),
+všechny počítají adresu `0x14a51000 + kanál × 0x100`:
+
+| Registr | Pole | Zdroj ve firmwaru |
+|---|---|---|
+| `CTRL0` (`+0x00`) | bit 0 = zapnuto | `0x2e4c` (shodné s `ABOX_RDMA_ENABLE` v `abox.h`) |
+| | bit 4 = příznak z parametru vyrovnávací paměti | `0x2e76` – význam neznám |
+| | bit 5 = příznak, při nastavení kanálu vždy 1 | `0x2ea2` – význam neznám |
+| | bity 12:8 = formát vzorků (5 bitů) | `0x2ece`; text „RDMA format was set: 0x%02X“ |
+| | bit 13 = „expend“ | `0x2efa`; nastaví se jen při formátu 8 |
+| | bity 18:16 (3 bity) | `0x2f26` – v cestě nastavení nepoužito |
+| | bity 22:19 (4 bity) = 8, u kanálu 7 hodnota 4 | `0x2f52`; 8 je i výchozí hodnota po startu (`0x00400000`) |
+| | bit 23 = příznak | `0x2f7e` – v cestě nastavení nepoužito |
+| `CTRL1` (`+0x04`) | zapisuje se 1 | `0x2faa`, volá se v jiné větvi (kanál s nulovým příznakem `+0x54`) |
+| `BUF_STR` (`+0x08`) | adresa začátku, spodní 4 bity zachová | `0x2fba` |
+| `BUF_END` (`+0x0c`) | začátek + velikost | `0x2fe6` |
+| `BUF_OFFSET` (`+0x10`) | bity 15:4 | `0x3012`; hodnota = třetí parametr nastavení (nejspíš perioda v bajtech) |
+| `STR_POINT` (`+0x14`) | = začátek | `0x3042` |
+| `VOL_FACTOR` (`+0x18`), `VOL_CHANGE` (`+0x1c`) | 24 bitů, z kontextu kanálu | `0x306e`, `0x3096` |
+| `STATUS` (`+0x30`) | bity 12:0 pozice | `0x30be` (shodné s `RBUF_CNT`) |
+
+Formát vzorků je stejný kód, jaký původní kernel používá jinde:
+`abox_get_format()` v `abox.h` = `(kanály − 1) | (16 bitů: 1, 24: 2, 32: 3) << 3`.
+Stereo 16 bitů = `0x09`; formát `0x08` je mono 16 bitů, proto se u něj
+zapíná bit 13 (rozšíření mono na stereo).
+
+**Pořadí při startu přehrávání** (funkce `0x582`, pak `0x1b44`):
+`VOL_FACTOR`, `VOL_CHANGE`, `BUF_STR`, `BUF_END`, `STR_POINT`, `BUF_OFFSET`,
+pole 22:19 = 8, formát, bit 5 = 1, bit 4, bit 13, povolení dvou přerušení
+kanálu ve vlastním řadiči ABOXu, nakonec bit 0 = 1.
+
+Co z toho plyne: **kanál RDMA je čistě hardwarový přenos z paměti**;
+firmware ho jen nastaví a obsluhuje jeho přerušení. Pro cestu B to je
+příznivé – data přes procesor ABOXu v této cestě nejdou.
+
+Co pořád nevím: význam bitů 4 a 5 a pole 18:16, jaké hodnoty má
+`VOL_FACTOR`/`VOL_CHANGE` (berou se z kontextu, který plní jiný kód),
+přesný význam `BUF_OFFSET`, a hlavně **jakou adresu paměti hardware čeká**:
+původní kernel dává firmwaru adresu přes IOMMU (`IOVA_RDMA_BUFFER`), na
+našem kernelu IOMMU pro ABOX zapnutá není. RDMA z paměti jen čte, takže
+špatná adresa nic nepřepíše, ale může hrát nesmysl nebo skončit chybou
+sběrnice.
+
+`tools/fw-disasm.py` je nástroj, kterým jsem to četl.
+
+### 31.12 Návrh pokusu ABOX1: rozběhnout jeden kanál RDMA bez firmwaru (02:27)
+
+Cíl: zjistit, jestli se po nastavení registrů podle 31.11 hýbe pozice
+přehrávání ve `STATUS`. Bez kodeku, zesilovače a napájecích větví; rozhraní
+ke kodeku (UAIF) a směrování se v tomto pokusu **nezapínají**, takže z čipu
+nevychází žádný zvukový signál.
+
+Nástroj `test-initramfs/abox-wr.c` (v image `out/troika-test-ABOX1.img`):
+zapíše jeden registr ABOXu, ale jen z pevného seznamu 14 adres (napájení
+a směrování ABOXu, UAIF0, kanál RDMA1); jinou adresu odmítne. Sám se
+nespouští.
+
+Postup přes telnet, po každém kroku čtení registrů a logu:
+
+| Krok | Zápis | Hodnota | Zdroj hodnoty |
+|---|---|---|---|
+| 0 | – jen čtení | `0x14920000` (řízení jednotky překladu adres ABOXu), registry ABOXu | `REG_MMU_CTRL` v `exynos-iommu.h`; čekám 0 = překlad vypnutý |
+| 1 | `SYSPOWER_CTRL` `0x0010` | `0x00000001` | hodnota v LineageOS v klidu i při přehrávání (31.9) |
+| 2 | `RDMA1 BUF_STR` `0x1108` | `0xe9400000` | paměť vyhrazená pro ABOX v našem DT (`abox@e9400000`, 4 MiB, z původního systému) |
+| 3 | `RDMA1 BUF_END` `0x110c` | `0xe9403c00` | začátek + 15 360 bajtů (3840 vzorků × 4 bajty, jako proud v LineageOS) |
+| 4 | `RDMA1 STR_POINT` `0x1114` | `0xe9400000` | = začátek (firmware, 31.11) |
+| 5 | `RDMA1 BUF_OFFSET` `0x1110` | `0x00000f00` | perioda 960 vzorků × 4 bajty; význam pole je můj výklad |
+| 6 | `RDMA1 CTRL0` `0x1100` | `0x00400920` | výchozí `0x00400000` + formát `0x09` (stereo 16 bitů) v bitech 12:8 + bit 5 (firmware ho při nastavení zapíná) |
+| 7 | `RDMA1 CTRL0` `0x1100` | `0x00400921` | bit 0 = zapnuto |
+| 8 | – jen čtení | `RDMA1 STATUS` `0x14a51130` několikrát po sobě | pozice v bitech 12:0 |
+| 9 | návrat | `CTRL0` = `0x00400920`, pak `0x00400000`; vyrovnávací registry 0; `SYSPOWER_CTRL` 0 | výchozí stav přečtený v 31.6 |
+
+Hlasitost (`VOL_FACTOR`, `VOL_CHANGE`) a `CTRL1` nechávám na výchozích
+hodnotách, protože pro ně doloženou hodnotu nemám.
+
+Rizika:
+
+- Kanál z paměti jen čte. Když adresa neprojde (překlad adres, sběrnice),
+  může zvuková jednotka nahlásit chybu nebo se zaseknout; v nejhorším
+  zamrzne telefon – Power + Vol−. Nic se neukládá trvale.
+- Nevím, jestli se kanál bez zapnutého odběratele (směrování, UAIF) vůbec
+  rozběhne. Když se pozice nehýbe, je to výsledek, ne chyba; další krok
+  (směrování a UAIF podle hodnot z LineageOS) navrhnu zvlášť.
+- Žádné napájecí větve, žádný zápis do PMU, žádný firmware.
+
+Když kterýkoli krok dopadne neočekávaně (zápis se nepřečte zpět, chyba
+v logu), přeruším a vrátím registry do výchozího stavu.
+
+### 31.13 Pokus ABOX1: kanál se dá nastavit a zapnout, pozice stojí (02:31)
+
+Souhlas uživatele: „Ano, proveď pokus“ (kroky 1 až 9 z 31.12; předem
+upozorněn, že řízení překladu adres má hodnotu 4, ne 0). Výpis:
+`device-info/abox-ABOX1.txt`.
+
+- Výchozí stav: ABOX jako v 31.6; `0x14920000` (řízení překladu adres) =
+  `0x00000004` – bit 0 „zapnuto“ nulový, bit 2 nastavený (původní ovladač
+  zapíná hodnotou 5, vypíná 0; co znamená samotný bit 2, nevím).
+- Nástroj `abox-wr` adresu mimo seznam odmítl (zkoušeno na `0x2000`).
+- Krok 1: `SYSPOWER_CTRL` = 1 → `SYSPOWER_STATUS` (`0x14`) se přepnul na 1.
+- Kroky 2 až 6: všechny zápisy se přečetly zpět beze změny
+  (`BUF_STR` `0xe9400000`, `BUF_END` `0xe9403c00`, `BUF_OFFSET` `0xf00`,
+  `STR_POINT`, `CTRL0` `0x00400920`).
+- Krok 7: `CTRL0` = `0x00400921`. **`STATUS` se změnil z 0 na
+  `0x80000000`** – bit 31 je `ABOX_RDMA_PROGRESS` („kanál běží“).
+  Pozice (`RBUF_OFFSET` bity 28:16, `RBUF_CNT` bity 12:0) zůstala při osmi
+  čteních po 0,2 s nulová.
+- Krok 9: po vypnutí se `STATUS` vrátil na 0; všechny registry vráceny do
+  výchozího stavu a ověřeny. V logu nic nového, teploty 37 °C, telefon běží.
+
+Výklad: kanál bez firmwaru nastavení přijme a po zapnutí se hlásí jako
+běžící, ale data neodebírá. Odpovídá to očekávání, že vzorky si z kanálu
+bere až odběratel (míchání → rozhraní UAIF) svými hodinami; ten zapnutý
+nebyl. Jestli adresa paměti prošla (překlad adres), z toho ještě **nepoznám**
+– bez odběru se z paměti možná vůbec nečetlo.
+
+Další krok (nový souhlas): přidat směrování a rozhraní UAIF0 podle hodnot
+z LineageOS (31.9): `QCHANNEL_DISABLE` = 4, `ROUTE_CTRL0` = `0x31`,
+`SPUS_CTRL0` = `0x15333323`, `UAIF0_CTRL1` = `0x0984f000`, `UAIF0_CTRL0` =
+`0x01000015`. Tím rozhraní začne generovat hodiny a data I2S; piny UAIF0
+v našem DT nastavené nejsou, takže ven z čipu by signál jít neměl – ověřím
+čtením stavu pinů před pokusem.
+
+### 31.14 Návrh pokusu ABOX2: kanál RDMA1 s odběratelem (02:37)
+
+Jako ABOX1, navíc směrování, míchání a rozhraní UAIF0 s hodnotami
+přečtenými v LineageOS při přehrávání (31.9). Kodek, zesilovač a napájecí
+větve dál mimo.
+
+Ověřeno čtením před pokusem: řídicí registr pinů banky `gpb0`
+(`0x14a60000`, `pinctrl_dispaud`; piny UAIF0 jsou `gpb0-1` až `gpb0-4`
+a hodiny kodeku `gpb0-0` podle `live.dts`) je `0x00000000` – všechny piny
+jsou vstupy, signály rozhraní tedy **z čipu ven nejdou**.
+
+Nástroj `abox-wr` dostal do seznamu tři další registry (`0x0030`, `0x0050`,
+`0x0204`); novou verzi jsem na běžící telefon přenesl přes telnet do paměti
+(součet sedí), image se neměnil.
+
+| Krok | Registr | Hodnota | Výchozí |
+|---|---|---|---|
+| 1 | `SYSPOWER_CTRL` `0x0010` | `0x00000001` | 0 |
+| 2 | `DYN_CLOCK_OFF` `0x0030` | `0x7fffffff` | viz čtení |
+| 2 | `TICK_DIV_RATIO` `0x0050` | `0x000004e1` | viz čtení |
+| 2 | `QCHANNEL_DISABLE` `0x0038` | `0x00000004` | 0 |
+| 3 | `SPUS_CTRL1` `0x0204` | `0x00370009` | viz čtení |
+| 3 | `SPUS_CTRL0` `0x0200` | `0x15333323` | 0 |
+| 3 | `ROUTE_CTRL0` `0x0040` | `0x00000031` | 0 |
+| 4 | `UAIF0_CTRL1` `0x0504` | `0x0984f000` | 0 |
+| 4 | `UAIF0_CTRL0` `0x0500` | `0x01000015` | `0x01000010` |
+| 5 | RDMA1 jako v ABOX1, zapnout, číst `STATUS` | | |
+| 6 | návrat: kanál vypnout, UAIF0 vypnout, všechny registry na výchozí | | |
+
+Všechny hodnoty kroků 1 až 4 jsou stav registrů v LineageOS při přehrávání
+reproduktorem (proud RDMA1, stereo 48 kHz). Rizika jako u ABOX1; navíc
+rozhraní UAIF0 začne uvnitř čipu vyrábět hodiny I2S (ven nejdou).
+
+### 31.14 Návrh pokusu ABOX2: směrování a UAIF0 (02:38)
+
+Cíl: přidat k nastavenému kanálu RDMA1 odběratele, aby se `STATUS` začal
+hýbat. Pořád bez kodeku, zesilovače a napájecích větví.
+
+**Co z čipu ven nevyjde.** Piny rozhraní UAIF0 jsou `gpb0-0` až `gpb0-4`
+(původní DT: `aud_i2s0_bus`, `aud_i2s0_sdo_bus`, `aud_codec_mclk`; v klidu
+funkce 0). Registr výběru funkce banky `gpb0` (`0x14a60000`) na telefonu
+čte `0x00000000`, tedy všechny pětice pinů jsou **vstupy**; náš DT je
+nenastavuje. Zapnuté UAIF0 tak hodiny a data generuje jen uvnitř čipu.
+
+**Co jednotlivé bity znamenají** (z `abox.h`): `UAIF0_CTRL0` bit 0 =
+`SPK_ENABLE` (zapnutí výstupu), bit 2 = `MODE`, bit 4 = `DATA_MODE`, bity
+27:24 = `START_FIFO_DIFF_SPK`; `UAIF0_CTRL1` bity 28:24 = formát vzorků
+(`0x09` = stereo 16 bitů). Hodnota ze záznamu LineageOS tedy sedí na
+stejný formát, který jsem dal kanálu RDMA1.
+
+Postup (po stavu z 31.13, s `SYSPOWER_CTRL` = 1 a kanálem nastaveným, ale
+vypnutým); po každém kroku čtení všech registrů a logu:
+
+| Krok | Registr | Zápis | Zdroj |
+|---|---|---|---|
+| 1 | `QCHANNEL_DISABLE` `0x38` | `0x00000004` | LineageOS při přehrávání |
+| 2 | `SPUS_CTRL0` `0x200` | `0x15333323` | LineageOS při přehrávání |
+| 3 | `ROUTE_CTRL0` `0x40` | `0x00000031` | LineageOS při přehrávání |
+| 4 | `UAIF0_CTRL1` `0x504` | `0x0984f000` | LineageOS při přehrávání |
+| 5 | `UAIF0_CTRL0` `0x500` | `0x01000015` | LineageOS při přehrávání (bit 0 zapíná) |
+| 6 | `RDMA1 CTRL0` `0x1100` | `0x00400921` | pokus ABOX1 |
+| 7 | čtení | `RDMA1 STATUS` `0x1130` desetkrát po 0,2 s, stav pinů `0x14a60000` | – |
+| 8 | návrat | `RDMA1 CTRL0` → `0x00400000`, `UAIF0_CTRL0` → `0x01000010`, `UAIF0_CTRL1` → `0`, `ROUTE_CTRL0` → 0, `SPUS_CTRL0` → 0, `QCHANNEL_DISABLE` → 0, vyrovnávací registry 0, `SYSPOWER_CTRL` → 0 | výchozí stav (31.6) |
+
+Všech osm adres (včetně `0x504` a `0x500`) už je v seznamu povolených
+v `abox-wr`; nic nového se do image přidávat nemusí, proto se pokus dá
+udělat v běžícím ABOX1 bez restartu.
+
+Co se může stát:
+
+- Rozhraní potřebuje hodiny z domény zvuku. Brány `gout_clk_dispaud_abox_bclk_uaif0`
+  a `…_clk_aud_uaif0_clk` jsou podle `clk_summary` vypnuté; jestli se
+  s UAIF0 otevřou samy (automatické řízení), nevím. Když ne, pozice se
+  dál nepohne – pak další krok je zapnout je přes rámec hodin (ne zápisem
+  do jejich registrů) v ladicím kódu kernelu, což navrhnu zvlášť.
+- Když zápis do některého registru zablokuje sběrnici ABOXu (hodina
+  nejede), telefon zamrzne; pomůže Power + Vol−, nic trvalého.
+- Jakmile by se mělo ukázat, že cokoli vychází z pinů (stav pinů se
+  změní), přeruším a vrátím registry.
+
+### 31.15 Pokus ABOX2: zápisy prošly, pozice stojí, rozhraní nejede (02:40)
+
+Souhlas uživatele: „Ano, proveď pokus“ (kroky z 31.14, vše s návratem).
+Výpis: `device-info/abox-ABOX2.txt`.
+
+- Výchozí stav v pořádku (ABOX1 běžel 10 minut), piny `gpb0` = 0 (vstupy).
+- Příprava (napájení, kanál RDMA1 nastavený a vypnutý) jako v 31.13.
+- Pět zápisů (`0x38` = 4, `0x200`, `0x40`, `0x504`, `0x500`) všechny
+  přečteny zpět beze změny; po každém jsem kontroloval, že piny zůstaly
+  vstupy – zůstaly. V logu nic nového.
+- Zapnutí kanálu (`CTRL0` = `0x00400921`): `STATUS` = `0x80000000`
+  desetkrát po sobě, **pozice zůstala 0**; `UAIF0_STATUS` (`0x50c`) čte 0.
+  Teploty 38 až 40 °C.
+- Návrat: všechny registry vráceny a ověřeny (včetně `SYSPOWER_STATUS` = 0).
+  Jeden příkaz v mém skriptu pro sledování byl chybný (špatné volání
+  `mem-rd` pro stav rozhraní, vypsalo „cislo“); stav jsem pak přečetl zvlášť.
+
+Výklad: odběratel je nastavený, ale nic nebere – nejpravděpodobněji proto,
+že rozhraní UAIF0 nemá hodiny. Brány `gout_clk_dispaud_abox_bclk_uaif0`
+a `gout_clk_dispaud_clk_aud_uaif0_clk` jsou podle `clk_summary` vypnuté
+a rozhraní bez hodin bitový takt negeneruje, takže nic neodebírá z kanálu.
+
+**Další krok (navrhnu zvlášť, vyžaduje nový kernel):** ladicí kód
+(`troika-clk-test`), který tyto dvě brány zapne přes rámec hodin
+(`clk_prepare_enable`), ne zápisem do registrů CMU. Zapnutí hradla hodin
+je podle zkušeností z GPU a USB nízkorizikové; zkoušel bych ho nejdřív
+samotné a pozici sledoval stejným postupem. Cena: sestavení kernelu
+(asi 2 min) a nový image.
+
+### 31.16 Příprava pokusu ABOX3: zapnout hodiny UAIF0 (02:47)
+
+Zdroj hodin jsem ověřil čtením na telefonu: selektor `mout_clk_aud_uaif0`
+už vybírá vnitřní dělič (`dout_clk_aud_uaif0`, 24,576 MHz z PLL zvuku),
+ne vnější vstup z kodeku. Chybí tedy jen dvě brány
+(`gout_clk_dispaud_abox_bclk_uaif0`, `gout_clk_dispaud_clk_aud_uaif0_clk`),
+které jsou vypnuté (počet zapnutí 0).
+
+Ladicí commit na `troika-clk-test` (jen s `pmos_test=abox3` na příkazové
+řádce, jinak nic): pozdní inicializace najde uzel `samsung,exynos9610-cmu-dispaud`,
+vezme obě brány přes poskytovatele hodin a zavolá `clk_prepare_enable()`;
+vypíše `CLKDBG abox3: gate … enabled, ret …, rate …`. Do registrů CMU se
+nezapisuje přímo. Zapnutí je tedy hned při startu, ještě než něco jiného
+zapíšu do zvukové jednotky. Sestaveno bez chyb, `out/troika-test-ABOX3.img`
+(sha256 začíná `6acfc0e5`).
+
+Postup po spuštění a souhlasu: přečíst stav (hlášky, `clk_summary`, piny
+`0x14a60000`), pak stejných deset zápisů jako v 31.14 a sledování `STATUS`,
+nakonec návrat. Piny zůstávají vstupy, takže ven nic nejde; riziko je totéž
+jako v ABOX2 plus to, že se hodiny zvukové domény začnou skutečně točit
+(rutinní věc).
+
+### 31.17 Pokus ABOX3: hodiny běží, pozice pořád stojí (02:51)
+
+Souhlas uživatele: „Ano, proveď pokus“ (opakování sekvence ABOX2 po
+restartu do ABOX3). Výpis: `device-info/abox-ABOX3.txt`.
+
+- Po startu: `CLKDBG abox3: gate 24 enabled … rate 24576001` a totéž pro
+  bránu 28; obě brány UAIF0 jsou zapnuté (`clk_summary`), registry ABOXu
+  ve výchozím stavu, piny `gpb0` = 0.
+- Všech jedenáct zápisů (příprava + směrování + UAIF0) prošlo a přečetlo se
+  zpět, po každém jsem kontroloval piny – beze změny.
+- Zapnutí kanálu: `STATUS` = `0x80000000`, pozice **0** při deseti
+  čteních, `UAIF0_STATUS` = 0, piny beze změny, teploty 40 až 42 °C.
+- Návrat: vše vráceno a ověřeno.
+
+Hodiny tedy nebyly (jediná) příčina. Porovnání se záznamem z LineageOS
+(31.9) ukázalo registry, které původní systém při přehrávání měl nastavené
+a já je zatím nezapsal (na čerstvém startu jsou nulové):
+
+| Registr | LineageOS při přehrávání | Náš start | Význam (z `abox.h`) |
+|---|---|---|---|
+| `SPUS_CTRL1` `0x204` | `0x00370009` | 0 | bity 4:0 formát směšovače (`9` = stereo 16 bitů), 18:16 a 21:19 volba výstupů (`7` a `6`) |
+| `TIMER0_CTRL1` `0x604` | `0x00000001` | 0 | režim časovače 0 |
+| `SPUM_CTRL0/1` `0x300/304` | `0x1113`, `0x900` | 0 | směšovač nahrávání (pro přehrávání nejspíš nepotřebné) |
+| `UAIF1/2/4`, `DSIF` | jiné nežádoucí | 0 | ostatní rozhraní (nepotřebná) |
+
+Registry `0x24`, `0x28`, `0x30`, `0x50` (remap, dynamické vypínání hodin,
+dělič taktu) jsou na našem startu už shodné s LineageOS – nastavil je
+bootloader. Nejpravděpodobnější chybějící kus je **`SPUS_CTRL1` s formátem
+směšovače**: bez něj směšovač nepřijímá data z RDMA ve správném formátu.
+
+**Chyba při přípravě (moje):** při zkoušce nově zkopírovaného nástroje
+`abox-wr` na telefon jsem do příkazu zařadil i zápis do `0x204` (hodnota
+0, tedy výchozí). Soubor v tu chvíli ještě nebyl na telefonu celý (ztratil
+se poslední krátký řádek base64), takže se nic nezapsalo a registr čte dál
+0. Měl jsem zkoušet jen odmítnutí; zápis bez tvého souhlasu do toho nepatří.
+Po opravě jsem ověřil součet a zkusil jen použití a odmítnutí.
+
+Návrh pokusu ABOX4 (stejný start ABOX3, žádný restart): k sekvenci z
+31.14 přidat před zapnutím kanálu `0x204` = `0x00370009` a `0x604` =
+`0x00000001`; po pokusu obě vrátit na 0. Nový nástroj má v seznamu navíc
+jen tyto dvě adresy (`abox-wr` v repozitáři a kopie na telefonu v
+`/tmp/abox-wr2`, součet `4823ddaf…`).
+
+### 31.18 Pokus ABOX4: ani s formátem směšovače a časovačem se pozice nehýbe (02:52)
+
+Souhlas uživatele: „Ano, proveď pokus“ (sekvence z 31.17 s `SPUS_CTRL1`
+= `0x00370009` a `TIMER0_CTRL1` = 1 navíc, v běžícím ABOX3, s nástrojem
+`abox-wr2`). Všech třináct zápisů prošlo a přečetlo se zpět, piny beze
+změny. Po zapnutí kanálu `STATUS` = `0x80000000`, **pozice 0** při dvanácti
+čteních. Návrat: všechny registry včetně obou nových vráceny a ověřeny,
+v logu nic.
+
+Tím mám nastavené všechno, co LineageOS při přehrávání odlišovalo od
+výchozího stavu a co se týká přehrávání (zbylé nenulové registry patří
+jiným rozhraním a nahrávání). Čtyři pokusy za sebou (kanál, + směrování,
++ hodiny, + směšovač a časovač) vedou ke stejnému výsledku.
+
+Vyhodnocení: **cesta B bez firmwaru zřejmě nevede k cíli**. Pravděpodobné
+důvody, které z mých pokusů nelze rozlišit:
+
+1. Mezi kanálem RDMA a směšovačem je podle textů ve firmwaru softwarová
+   fronta (`PCMOUT: QUEUE FULLED: input buffer`, `out-empty interrupt`), tj.
+   data přenáší úloha na procesoru ABOXu, ne čistý hardwarový tok. To
+   jsem v 31.5 jako možnost uvedl a teď to podporují pokusy.
+2. Kanál čte paměť přes jednotku překladu adres (`sysmmu_abox`
+   `0x14920000`, řízení čte 4) a bez jejích tabulek se z paměti nečte.
+3. Chybí zapnutí přerušení kanálu ve vlastním řadiči ABOXu (firmware je
+   před zapnutím kanálu povoluje).
+
+Možnosti dál: (A) rozběhnout původní firmware Calliope (nahrát
+`calliope_sram.bin` a `calliope_dram.bin`, zapnout procesor ABOXu,
+zápisy do PMU a volání zabezpečeného firmwaru, zprávy kernel ↔ firmware –
+velká práce); (B2) zkusit ještě bod 3 a prověřit bod 2 čtením (levné, ale
+pravděpodobně ne rozhodující); (C) zvuk odložit a věnovat se jiným věcem
+(Bluetooth sdílí rádio s WiFi, ověření adresy MAC, balíčky).
+
+### 31.19 Levné ověření B2: přerušení a překlad adres (jen čtení, 02:56)
+
+Výpis: `device-info/abox-B2.txt` (telefon v ABOX3, registry ABOXu ve
+výchozím stavu).
+
+- **Řadič přerušení ABOXu** (`abox_gic`, `0x14af1000` rozdělovač,
+  `0x14af2000` rozhraní procesoru): `GICD_CTLR` = 0 (vypnuto), povolena jsou
+  jen softwarová přerušení 0–15 (`ISENABLER0` = `0xffff`), `GICC_CTLR` = 0,
+  `PMR` = 0. Přerušení kanálů přehrávání tu nejsou povolená a řadič jako
+  celek neběží. Firmware ho zapíná sám (v `calliope_sram.bin` jsou adresy
+  `0x14af1…`/`0x14af2…`), původní kernel na straně AP také.
+- **Překlad adres** (`sysmmu_abox`, `0x14920000`): řízení 4, konfigurace
+  `0x20000`, stav 0, fronta chyb prázdná (`0x10`–`0x18` = 0). Dva další
+  registry (`0x14920030`, `0x1492001c`) při čtení skončily chybou sběrnice
+  (`Bus error`, signál pro čtecí nástroj, telefon běžel dál, v logu nic) –
+  v této verzi jednotky nejsou. Význam bitu 2 v řízení neznám.
+
+Výklad: oba body jsou „vypnuto, jak to nechává bootloader“. Zápisy do
+řadiče přerušení (`ISENABLER`, `CTLR`, `PMR`) i do překladu adres by byly
+odhady – čísla přerušení kanálu nemám doložená (firmware je předává funkcím
+s kódem, který jsem nerozebral). Levné ověření tedy **nic nerozhodlo** a
+další zápisy bych dělal naslepo, což jsem u hardwarových hodnot odmítl.
+
+Zbývá (A) rozběhnout původní firmware, nebo (C) zvuk odložit. Cesta B bez
+firmwaru zůstává otevřená jen s podstatně hlubším rozborem firmwaru.
+

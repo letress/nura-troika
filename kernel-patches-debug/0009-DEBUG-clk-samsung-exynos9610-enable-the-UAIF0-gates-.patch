@@ -1,0 +1,66 @@
+From 9786f1ed2818bb25ef65079d3b032620c206bf02 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 02:44:43 +0100
+Subject: [PATCH 9/9] DEBUG: clk: samsung: exynos9610: enable the UAIF0 gates
+ for the abox3 test
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/clk/samsung/clk-exynos9610.c | 44 ++++++++++++++++++++++++++++
+ 1 file changed, 44 insertions(+)
+
+diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
+index 331ffd1..aacbb52 100644
+--- a/drivers/clk/samsung/clk-exynos9610.c
++++ b/drivers/clk/samsung/clk-exynos9610.c
+@@ -3772,3 +3772,47 @@ static int __init exynos9610_pd_status_debug(void)
+ 	return 0;
+ }
+ late_initcall(exynos9610_pd_status_debug);
++
++/*
++ * DEBUG: test "abox3" turns on the clock gates of the first audio interface
++ * (UAIF0) so that its bit clock runs. Only with pmos_test=abox3 on the
++ * command line; the gates go through the clock framework, no CMU register
++ * is written directly.
++ */
++static const unsigned int abox3_gates[] = {
++	CLK_GOUT_CLK_DISPAUD_ABOX_BCLK_UAIF0,
++	CLK_GOUT_CLK_DISPAUD_CLK_AUD_UAIF0_CLK,
++};
++
++static int __init exynos9610_abox3_debug(void)
++{
++	struct device_node *np;
++	unsigned int i;
++
++	if (!strstr(saved_command_line, "pmos_test=abox3"))
++		return 0;
++
++	np = of_find_compatible_node(NULL, NULL, "samsung,exynos9610-cmu-dispaud");
++	if (!np)
++		return 0;
++
++	for (i = 0; i < ARRAY_SIZE(abox3_gates); i++) {
++		struct of_phandle_args args = {
++			.np = np, .args_count = 1, .args = { abox3_gates[i] },
++		};
++		struct clk *clk = of_clk_get_from_provider(&args);
++		int ret;
++
++		if (IS_ERR(clk)) {
++			pr_info("CLKDBG abox3: gate %u not found (%ld)\n",
++				abox3_gates[i], PTR_ERR(clk));
++			continue;
++		}
++		ret = clk_prepare_enable(clk);
++		pr_info("CLKDBG abox3: gate %u enabled, ret %d, rate %lu\n",
++			abox3_gates[i], ret, clk_get_rate(clk));
++	}
++	of_node_put(np);
++	return 0;
++}
++late_initcall(exynos9610_abox3_debug);
+-- 
+2.56.0
+

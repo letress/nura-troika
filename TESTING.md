@@ -1703,6 +1703,38 @@ adb shell 'cat /sys/kernel/debug/regmap/*abox*/registers' > ~/nura-troika/device
 
 5. Napiš mi; výpisy si přečtu sám (adresář `device-info/` se necommituje).
 
+## 5ai. Test ABOX1: jeden kanál přehrávání bez firmwaru
+
+Cíl a postup: FINDINGS.md 31.12. Bez zvuku, bez kodeku, bez napájecích
+větví. Samotné spuštění image do zvukové jednotky nic nezapisuje.
+
+1. Telefon z LineageOS do fastbootu (`adb reboot bootloader`) a:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ABOX1.img
+```
+
+2. Napiš mi, že běží. Zkontroluju výchozí stav (jen čtení) a zeptám se na
+   souhlas se zápisy z tabulky v 31.12.
+
+**Výsledek ABOX1 (2026-11-13): částečně** – kanál RDMA1 nastavení přijal a po
+zapnutí hlásí „běží“ (`STATUS` = `0x80000000`), pozice se bez odběratele
+nehýbe; vše vráceno do výchozího stavu (FINDINGS.md 31.13).
+
+**Výsledek ABOX2 (2026-11-13): částečně** – zápisy směrování a UAIF0 prošly
+a vše se vrátilo, pozice přehrávání stojí, rozhraní nejspíš nemá hodiny
+(FINDINGS.md 31.15).
+
+## 5aj. Test ABOX3: pokus ABOX2 s hodinami UAIF0 (čeká na souhlas)
+
+Postup: FINDINGS.md 31.16. Telefon z ABOX1 do fastbootu (z testovacího
+image: `sudo`‑free příkaz `/bin/reboot-arg bootloader` přes telnet dělám já,
+když řekneš), pak:
+
+```bash
+fastboot boot ~/nura-troika/out/troika-test-ABOX3.img
+```
+
 ## 6. Balíčky pmaports
 
 V `~/nura-troika/pmaports` (větev `motorola-troika-mainline`):

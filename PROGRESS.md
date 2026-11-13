@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: Dávka balíčků PKG8 funguje na telefonu – systém z balíčků s teplotami, řízením GPU a WiFi v Phoshi (FINDINGS.md 32.1). Zbývá ověřit adresu MAC a GPU pod zátěží; databáze zemí chybí; Bluetooth není. Zvuk: cesta B, čeká výpis registrů ABOXu z LineageOS (TESTING.md 5ah); výjimka z pravidla o regulátorech jen pro zvuk. `troika-clk` 95 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-13 (commit „Balíčky PKG8 fungují…“); pmaports pushnut do `fef101563`
+## Stav: Zvuk – cesta bez firmwaru (ABOX1–ABOX4) ani levné ověření B2 (řadič přerušení ABOXu i překlad adres vypnuté, FINDINGS.md 31.19) pozici přehrávání nerozhýbaly; zbývá (A) rozběhnout firmware Calliope, nebo (C) zvuk odložit – rozhodnutí uživatele. Balíčky PKG8 (GPU + WiFi) fungují (32.1). Telefon běží v ABOX3, registry ABOXu ve výchozím stavu. `troika-clk` 95 commitů nad v7.3.3, `troika-clk-test` +9; hlavní repozitář commitnut a pushnut 2026-11-13 včetně pokusů se zvukem (commit „Zvuk: pokusy ABOX1 až ABOX4…“); pmaports pushnut do `fef101563`
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -2047,3 +2047,88 @@ nepushnut.
 Na pokyn uživatele hlavní repozitář commitnut a pushnut (patche kernelu
 beze změny, 95 + 8) a pmaports pushnut včetně opravy `fef101563`. Telefon
 běží v systému z balíčků (PKG8, netboot).
+
+### 2026-11-13 02:13 – zvuk: výpis registrů ABOXu z LineageOS
+
+FINDINGS.md 31.9. Regmap pokrývá jen směrování/UAIF (77 registrů), RDMA ne,
+kromě RDMA5 (komprimovaný kanál, při běžném přehrávání nulový). Rozdíl
+klid/hraje: `QCHANNEL_DISABLE`, `ROUTE_CTRL0`, `SPUS_CTRL0`, `UAIF0_CTRL0/1`;
+reproduktor jde přes UAIF0. Telefon běží v LineageOS, adb root. Necommitnuto
+od `4c8f004`.
+
+### 2026-11-13 02:20 – zvuk: komprimovaný kanál nepoužitelný, sonda do firmwaru
+
+FINDINGS.md 31.10. LineageOS komprimované přehrávání nenabízí (RDMA5
+zůstal nulový). Firmware Calliope obsahuje fyzické adresy registrů RDMA
+a UAIF, rozbor je schůdný, ale na PC chybí disassembler pro ARM – čeká na
+svolení uživatele k instalaci (`capstone` přes pip pro uživatele).
+Telefon běží v LineageOS. Necommitnuto od `4c8f004`.
+
+### 2026-11-13 02:24 – zvuk: rozbor firmwaru Calliope, pole registrů RDMA
+
+FINDINGS.md 31.11. Uživatel nainstaloval `capstone`. Z firmwaru vyčtena
+pole `RDMA_CTRL0`, pořadí nastavení kanálu a kód formátu (shodný
+s `abox_get_format`); RDMA je čistě hardwarový přenos. Nový
+`tools/fw-disasm.py`. Otevřené: adresa paměti bez IOMMU, bity 4/5,
+hlasitost. Další: návrh pokusu na našem kernelu (zápisy do jednoho kanálu,
+sledovat `STATUS`) a souhlas. Necommitnuto od `4c8f004`.
+
+### 2026-11-13 02:27 – zvuk: návrh pokusu ABOX1
+
+Nový `test-initramfs/abox-wr.c` (zápis jen do 14 vyjmenovaných registrů
+ABOXu), přidán do testovacího image; sestaven `out/troika-test-ABOX1.img`
+(sha256 začíná `2c48d29e`). Návrh kroků a hodnot v FINDINGS.md 31.12.
+Souhlas zatím není. Necommitnuto od `4c8f004`: FINDINGS 31.9–31.12,
+TESTING 5ai, PROGRESS, `tools/fw-disasm.py`, `abox-wr.c`, úprava
+`make-clk-test-bootimg.sh`.
+
+### 2026-11-13 02:31 – pokus ABOX1 proveden
+
+Souhlas přes AskUserQuestion („Ano, proveď pokus“). Zápisy do RDMA1
+a `SYSPOWER_CTRL` prošly, `STATUS` po zapnutí `0x80000000`, pozice 0;
+registry vráceny. Řízení překladu adres ABOXu čte 4. Necommitnuto od
+`4c8f004`.
+
+### 2026-11-13 02:38 – zvuk: návrh pokusu ABOX2 (směrování + UAIF0)
+
+FINDINGS.md 31.14. Piny UAIF0 (`gpb0-0..4`) jsou na telefonu vstupy, takže
+ven nic nepůjde. Všechny potřebné registry už má `abox-wr` povolené, pokus
+jde provést v běžícím ABOX1. Čeká na souhlas uživatele. Necommitnuto od
+`4c8f004`.
+
+### 2026-11-13 02:40 – pokus ABOX2 proveden
+
+Souhlas přes AskUserQuestion („Ano, proveď pokus“). Zápisy prošly, piny
+beze změny, pozice 0, vše vráceno. Necommitnuto od `4c8f004`.
+
+### 2026-11-13 02:47 – zvuk: příprava ABOX3 (hodiny UAIF0)
+
+`troika-clk-test` +1 (ladicí zapnutí bran UAIF0 jen s `pmos_test=abox3`),
+sestaven `out/troika-test-ABOX3.img` (`6acfc0e5`). Čeká na restart telefonu
+do fastbootu, spuštění a souhlas s opakováním pokusu ABOX2. Necommitnuto od
+`4c8f004`.
+
+### 2026-11-13 02:51 – zvuk: ABOX3 (hodiny běží, pozice stojí), příprava ABOX4
+
+FINDINGS.md 31.17. Pokus s hodinami UAIF0 prošel, vše vráceno; pozice 0.
+Porovnání s LineageOS: chybí `SPUS_CTRL1` `0x00370009` a časovač 0
+(`0x604` = 1). `abox-wr` rozšířen o `0x204` a `0x604`, kopie na telefonu.
+Moje chyba: do zkoušky nového nástroje jsem zařadil zápis (nic se
+nezapsalo). Čeká na souhlas s ABOX4. Necommitnuto od `4c8f004`.
+
+### 2026-11-13 02:52 – pokus ABOX4 (jen zápisy bez firmwaru) bez pohybu pozice
+
+Souhlas přes AskUserQuestion. Vše vráceno. Cesta B pravděpodobně slepá;
+rozhodnutí o dalším postupu je na uživateli. Necommitnuto od `4c8f004`.
+
+### 2026-11-13 02:56 – zvuk: B2 (jen čtení) bez rozhodnutí
+
+Řadič přerušení ABOXu i překlad adres jsou vypnuté; dvě čtení sysmmu skončila
+chybou sběrnice (bez následků). Další zápisy by byly odhady. Necommitnuto od
+`4c8f004`.
+
+### 2026-11-13 03:06 – commit a push (zvuk)
+
+Na pokyn uživatele hlavní repozitář commitnut a pushnut: ladicí patche
+znovu vyexportovány (9), patche kernelu beze změny (95). pmaports beze
+změny. Telefon běží v ABOX3, registry zvukové jednotky ve výchozím stavu.
