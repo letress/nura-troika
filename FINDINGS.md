@@ -4667,3 +4667,13 @@ je aktivní při 1, výchozí hodnota 1, před přenosem se musí vynulovat“).
 Mainline ovladač to pro tuto jednotku nedělá. Oprava: příznak
 `has_usi_reset` v portu `exynos9610`, `hwinit` maže bit 0 `USI_CON`
 (commit `spi: s3c64xx: Add the Exynos9610 SPI controller`). Test: ABOX17.
+
+### 33.24 SPI6 přenáší, zesilovač ale odpovídá chybou (ABOX17, 2026-11-13)
+
+Po opravě USI_CON přenosy proběhly, `cs35l41` však hlásí „OTP Boot error“
+(`-EINVAL`): po splnění `OTP_BOOT_DONE` je nastaven `OTP_BOOT_ERR`. Obojí
+najednou svědčí spíš pro samé jedničky na MISO (čip neodpovídá, nebo se
+vzorkuje špatně) než pro skutečnou chybu OTP. Vendor DT má u zesilovače
+`controller-data` s `samsung,spi-feedback-delay = 1` (živý DT, SPI6), mainline
+použil výchozí 0. ABOX18 nastavuje zpoždění 1 a vypíše syrové hodnoty
+DEVID, REVID a stavových registrů.

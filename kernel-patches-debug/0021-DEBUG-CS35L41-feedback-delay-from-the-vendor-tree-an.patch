@@ -1,0 +1,51 @@
+From c2983ac8a7b261ad36d65e2721da883af45c43a7 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 16:22:04 +0100
+Subject: [PATCH 21/21] DEBUG: CS35L41 feedback delay from the vendor tree and
+ a raw ID print
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts |  4 ++++
+ sound/soc/codecs/cs35l41.c                       | 11 +++++++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index b513687..beb913d 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -395,5 +395,9 @@ speaker_amp: amplifier@0 {
+ 		cirrus,boost-peak-milliamp = <4500>;
+ 		cirrus,boost-ind-nanohenry = <1000>;
+ 		cirrus,boost-cap-microfarad = <15>;
++
++		controller-data {
++			samsung,spi-feedback-delay = <1>;
++		};
+ 	};
+ };
+diff --git a/sound/soc/codecs/cs35l41.c b/sound/soc/codecs/cs35l41.c
+index b2a0767..438ceaa 100644
+--- a/sound/soc/codecs/cs35l41.c
++++ b/sound/soc/codecs/cs35l41.c
+@@ -1259,6 +1259,17 @@ int cs35l41_probe(struct cs35l41_private *cs35l41, const struct cs35l41_hw_cfg *
+ 		goto err;
+ 	}
+ 
++	{
++		unsigned int a = 0, b = 0, c = 0, d = 0;
++
++		regmap_read(cs35l41->regmap, CS35L41_DEVID, &a);
++		regmap_read(cs35l41->regmap, CS35L41_REVID, &b);
++		regmap_read(cs35l41->regmap, CS35L41_IRQ1_STATUS3, &c);
++		regmap_read(cs35l41->regmap, CS35L41_IRQ1_STATUS4, &d);
++		dev_info(cs35l41->dev, "DEBUG: devid %08x revid %08x status3 %08x status4 %08x\n",
++			 a, b, c, d);
++	}
++
+ 	regmap_read(cs35l41->regmap, CS35L41_IRQ1_STATUS3, &int_status);
+ 	if (int_status & CS35L41_OTP_BOOT_ERR) {
+ 		dev_err(cs35l41->dev, "OTP Boot error\n");
+-- 
+2.56.0
+
