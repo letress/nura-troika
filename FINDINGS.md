@@ -4707,3 +4707,12 @@ Zápis 1 do `acpmdbg_ldo42` proběhl (`ret 0`), registr po něm čte `0xec`
 `cs35l41` už MISO nečte samé jedničky: čekání na `OTP_BOOT_DONE` vypršelo
 (`-ETIMEDOUT`), čtení tedy fungují, ale bit chybí. ABOX21 při tom vypíše
 DEVID, REVID a stavové registry.
+
+### 33.28 S napájením čte zesilovač samé nuly (ABOX21, 2026-11-14)
+
+S LDO42 zapnutým (`0xec`) dává timeout DEVID, REVID, STATUS3 i STATUS4
+`00000000`: bez napájení byly samé jedničky, s napájením samé nuly, čip tedy
+MISO nějak ovlivňuje, ale smysluplná data nevrací. SPI frekvence nelze z
+`clk_summary` určit (hodiny jsou v klidu vypnuté; IPCLK 399,75 MHz).
+ABOX22 po timeoutu čte DEVID s resetem ve vysoké i nízké úrovni a po delším
+čekání, aby se poznalo, jestli je reset zapojený, jak se předpokládá.

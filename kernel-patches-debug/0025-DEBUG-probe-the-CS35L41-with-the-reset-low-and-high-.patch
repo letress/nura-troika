@@ -1,0 +1,46 @@
+From 22ede98dfe1a5fb18bb59cf35c66d9d8923b8920 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 00:49:20 +0100
+Subject: [PATCH 25/25] DEBUG: probe the CS35L41 with the reset low and high
+ after the OTP timeout
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41.c | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/sound/soc/codecs/cs35l41.c b/sound/soc/codecs/cs35l41.c
+index 59a35c3..6f870a3 100644
+--- a/sound/soc/codecs/cs35l41.c
++++ b/sound/soc/codecs/cs35l41.c
+@@ -1262,6 +1262,27 @@ int cs35l41_probe(struct cs35l41_private *cs35l41, const struct cs35l41_hw_cfg *
+ 		regmap_read(cs35l41->regmap, CS35L41_IRQ1_STATUS4, &d);
+ 		dev_info(cs35l41->dev, "DEBUG: timeout devid %08x revid %08x status3 %08x status4 %08x last %08x\n",
+ 			 a, b, c, d, int_status);
++		if (cs35l41->reset_gpio) {
++			int i;
++
++			msleep(200);
++			regmap_read(cs35l41->regmap, CS35L41_DEVID, &a);
++			dev_info(cs35l41->dev, "DEBUG: devid after 200 ms %08x\n", a);
++			for (i = 0; i < 3; i++) {
++				gpiod_set_value_cansleep(cs35l41->reset_gpio, 0);
++				msleep(20);
++				a = 0xdead;
++				regmap_read(cs35l41->regmap, CS35L41_DEVID, &a);
++				dev_info(cs35l41->dev, "DEBUG: reset low devid %08x gpio %d\n",
++					 a, gpiod_get_value_cansleep(cs35l41->reset_gpio));
++				gpiod_set_value_cansleep(cs35l41->reset_gpio, 1);
++				msleep(20 << i);
++				a = 0xdead;
++				regmap_read(cs35l41->regmap, CS35L41_DEVID, &a);
++				dev_info(cs35l41->dev, "DEBUG: reset high devid %08x gpio %d after %d ms\n",
++					 a, gpiod_get_value_cansleep(cs35l41->reset_gpio), 20 << i);
++			}
++		}
+ 		dev_err_probe(cs35l41->dev, ret,
+ 			      "Failed waiting for OTP_BOOT_DONE\n");
+ 		goto err;
+-- 
+2.56.0
+

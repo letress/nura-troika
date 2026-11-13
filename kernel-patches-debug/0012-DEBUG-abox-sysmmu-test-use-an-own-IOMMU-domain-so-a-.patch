@@ -1,7 +1,7 @@
 From 5db509d4ce0cb8b5570dddfbccbd81fa520f44ba Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 04:26:31 +0100
-Subject: [PATCH 12/24] DEBUG: abox-sysmmu-test: use an own IOMMU domain so a
+Subject: [PATCH 12/25] DEBUG: abox-sysmmu-test: use an own IOMMU domain so a
  fault handler can be set
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

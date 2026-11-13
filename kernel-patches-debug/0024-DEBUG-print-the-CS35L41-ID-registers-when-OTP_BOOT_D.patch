@@ -1,7 +1,7 @@
 From 68d4c9f150dca655b7d3fb0897791ae3934d738b Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 00:45:37 +0100
-Subject: [PATCH 24/24] DEBUG: print the CS35L41 ID registers when
+Subject: [PATCH 24/25] DEBUG: print the CS35L41 ID registers when
  OTP_BOOT_DONE times out
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
