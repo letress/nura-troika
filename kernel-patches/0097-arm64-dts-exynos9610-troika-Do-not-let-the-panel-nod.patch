@@ -1,0 +1,37 @@
+From 07be2ead150132ffe581d14b800090829689840f Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 04:53:59 +0100
+Subject: [PATCH] arm64: dts: exynos9610-troika: Do not let the panel node
+ block the framebuffer
+
+The panel node added to give simpledrm the physical size has no driver.
+fw_devlink treats the panel phandle of the framebuffer as a supplier
+and the framebuffer never probes, so the screen stays on the bootloader
+splash. A disabled node is not tracked as a supplier, and simpledrm
+reads the size from it regardless.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 1503b2f..89f80d4 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -44,6 +44,12 @@ framebuffer0: framebuffer@ed000000 {
+ 	 * tree (hix83112a, nov36672a) have size = <64 148>.
+ 	 */
+ 	panel: panel {
++		/*
++		 * Disabled so that fw_devlink does not make the framebuffer
++		 * wait for a supplier that will never bind. simpledrm still
++		 * reads the size through the phandle.
++		 */
++		status = "disabled";
+ 		width-mm = <64>;
+ 		height-mm = <148>;
+ 	};
+-- 
+2.56.0
+

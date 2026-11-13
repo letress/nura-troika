@@ -1,4 +1,4 @@
-From 80d61a665447cff118139148940e35376b43588e Mon Sep 17 00:00:00 2001
+From ed1481a09ed5316c7e14a7afa8a5ad4922a0be27 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 14:34:57 +0100
 Subject: [PATCH 02/13] DEBUG: phy: exynos5-usbdrd: dump the Exynos9610 PHY

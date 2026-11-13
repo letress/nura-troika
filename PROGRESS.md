@@ -2200,3 +2200,11 @@ PMU ukázalo, že procesor ABOXu je napájen a stačí bit 15 v `0x11862528`.
 (`3975f433`). Čeká na restart a souhlas po krocích (33.11). Uloženo
 automaticky podle oprávnění uživatele.
 
+
+- 2026-11-13: ABOX8 zůstal na „Booting kernel“: uzel `panel` z commitu
+  cbeffdf (velikost displeje) nemá ovladač a fw_devlink držel framebuffer
+  v odloženém probe (`wait for supplier /panel`). Oprava: `status =
+  "disabled"` na uzlu panel (troika-clk 07be2ea, patch 0097); simpledrm
+  velikost čte dál. ABOX9 (`1c2be410`) potvrzen: displej běží, simpledrm
+  a /dev/fb0 jsou. Balíček jádra musí obsahovat 0096 i 0097. Zvuk A2:
+  `load`/`start`/`stop` stále bez souhlasu.

@@ -4452,3 +4452,14 @@ zvukovou jednotku. Pokud by se zasekla sběrnice a telefon zamrzl,
 restartuje se do bootloaderu (jak jsem zažil jednou). `stop` procesor
 zastaví.
 
+
+## 35. Panel bez ovladače blokuje framebuffer (2026-11-13)
+
+Vlastnost `panel = <&panel>` ve framebufferu (kapitola 34) vytváří pro
+fw_devlink závislost na dodavateli. Uzel `panel` nemá zařízení ani
+ovladač, takže framebuffer zůstal v odloženém probe (`deferred probe
+pending: wait for supplier /panel`) a displej se zastavil na „Booting
+kernel“. `of_link_to_phandle()` přeskakuje dodavatele, jehož uzel je
+`disabled`, a simpledrm čte `width-mm`/`height-mm` přes `of_parse_phandle()`,
+který stav uzlu nekontroluje. Proto stačí `status = "disabled"`. Ověřeno
+na ABOX9: simpledrm i /dev/fb0 naběhly.
