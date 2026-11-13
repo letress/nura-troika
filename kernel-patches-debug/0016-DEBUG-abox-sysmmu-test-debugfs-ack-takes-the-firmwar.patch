@@ -1,7 +1,7 @@
 From 476d09edfcd3e4e3cb7790de080fb13c673cf142 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 15:01:06 +0100
-Subject: [PATCH 16/22] DEBUG: abox-sysmmu-test: debugfs ack takes the firmware
+Subject: [PATCH 16/23] DEBUG: abox-sysmmu-test: debugfs ack takes the firmware
  messages one by one
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

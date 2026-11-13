@@ -1,7 +1,7 @@
 From 9a1141f894787e8749bd4ca9869e1a4b7d4e9998 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 22:52:06 +0100
-Subject: [PATCH 05/22] DEBUG: soc: samsung: exynos-pmu: print the reboot
+Subject: [PATCH 05/23] DEBUG: soc: samsung: exynos-pmu: print the reboot
  registers of Exynos9610
 
 Not for upstream. Prints RESET_SEQUENCER_CONFIGURATION, PS_HOLD_CONTROL,

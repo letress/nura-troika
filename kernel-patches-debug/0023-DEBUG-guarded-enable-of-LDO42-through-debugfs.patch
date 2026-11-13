@@ -1,0 +1,78 @@
+From 3114184533043c617e29f906b3e20ad8fc064b6b Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 00:39:07 +0100
+Subject: [PATCH 23/23] DEBUG: guarded enable of LDO42 through debugfs
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/firmware/samsung/exynos-acpm.c | 40 ++++++++++++++++++++++++--
+ 1 file changed, 38 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/firmware/samsung/exynos-acpm.c b/drivers/firmware/samsung/exynos-acpm.c
+index 1ed86b2..53a940c 100644
+--- a/drivers/firmware/samsung/exynos-acpm.c
++++ b/drivers/firmware/samsung/exynos-acpm.c
+@@ -1057,6 +1057,9 @@ static void acpmdbg_dump(struct acpm_info *acpm)
+ #define ACPMDBG_PMIC_B5OUT	0x21	/* S2MPU09_PMIC_REG_B5OUT */
+ #define ACPMDBG_PMIC_L42CTRL	0x63	/* S2MPU09_PMIC_REG_L42CTRL */
+ #define ACPMDBG_PMIC_FUNC_READ	0
++#define ACPMDBG_PMIC_FUNC_UPDATE	2	/* FUNC_UPDATE of the vendor acpm_mfd.h */
++#define ACPMDBG_LDO42_ENABLE_MASK	0xc0	/* S2MPU09_ENABLE_MASK */
++#define ACPMDBG_LDO42_VOLTAGE_1V8	0x2c	/* 700000 + 44 * 25000 uV */
+ #define ACPMDBG_BUCK_MIN_UV	300000	/* S2MPU09_BUCK_MIN1 */
+ #define ACPMDBG_BUCK_STEP_UV	6250	/* S2MPU09_BUCK_STEP1 */
+ 
+@@ -1136,7 +1139,40 @@ static int acpmdbg_ldo42_get(void *data, u64 *val)
+ 
+ 	return 0;
+ }
+-DEFINE_DEBUGFS_ATTRIBUTE(acpmdbg_ldo42_fops, acpmdbg_ldo42_get, NULL, "0x%llx\n");
++
++/*
++ * Writing 1 switches LDO42 on, nothing else: only the enable bits are
++ * updated (FUNC_UPDATE with a mask), and only if the voltage field still holds
++ * the 1.8 V the bootloader left (VA of the CS35L41 allows 1.98 V at most).
++ */
++static int acpmdbg_ldo42_set(void *data, u64 val)
++{
++	struct acpm_info *acpm = data;
++	u64 cur;
++	u32 cmd[4] = {
++		ACPMDBG_PMIC_ADDR << 8 | ACPMDBG_PMIC_L42CTRL,
++		ACPMDBG_PMIC_FUNC_UPDATE | ACPMDBG_LDO42_ENABLE_MASK << 8 |
++			ACPMDBG_LDO42_ENABLE_MASK << 16, 0, 0,
++	};
++	struct acpm_xfer xfer = { };
++	int ret;
++
++	if (val != 1)
++		return -EINVAL;
++	ret = acpmdbg_ldo42_get(data, &cur);
++	if (ret)
++		return ret;
++	if ((cur & ~ACPMDBG_LDO42_ENABLE_MASK) != ACPMDBG_LDO42_VOLTAGE_1V8)
++		return -EINVAL;
++
++	acpm_set_xfer(&xfer, cmd, ARRAY_SIZE(cmd), ACPMDBG_PMIC_CHAN, true);
++	ret = acpm_do_xfer(&acpm->handle, &xfer);
++	dev_info(acpm->dev, "ACPMDBG ldo42: enable ret %d reply %08x %08x\n",
++		 ret, cmd[0], cmd[1]);
++
++	return ret;
++}
++DEFINE_DEBUGFS_ATTRIBUTE(acpmdbg_ldo42_fops, acpmdbg_ldo42_get, acpmdbg_ldo42_set, "0x%llx\n");
+ 
+ static void acpmdbg_g3d_init(struct acpm_info *acpm)
+ {
+@@ -1176,7 +1212,7 @@ static void acpmdbg_g3d_init(struct acpm_info *acpm)
+ 			    &acpmdbg_buck5_fops);
+ 	dev_info(acpm->dev, "ACPMDBG buck5: debugfs file ready, nothing sent\n");
+ 
+-	debugfs_create_file("acpmdbg_ldo42", 0400, NULL, acpm,
++	debugfs_create_file("acpmdbg_ldo42", 0600, NULL, acpm,
+ 			    &acpmdbg_ldo42_fops);
+ }
+ 
+-- 
+2.56.0
+

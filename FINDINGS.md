@@ -4689,3 +4689,13 @@ odpovídá chybové cestě ovladače. Nejpravděpodobnější příčina je, že
 v původním DT. ABOX19 přidává jen čtecí soubor `acpmdbg_ldo42` (registr
 `S2MPU09_PMIC_REG_L42CTRL` = 0x63, adresa PMIC 1, `s2mpu09-regulator.h:138`),
 stejným čtením přes ACPM jako u BUCK5. Nic se nezapisuje.
+
+### 33.26 LDO42 je vypnutý (ABOX19, 2026-11-14)
+
+`acpmdbg_ldo42` vrátil `0x2c`: bity 7:6 (`S2MPU09_ENABLE_MASK`) jsou `00`
+= vypnuto, napěťové pole 0x2c = 700 mV + 44 × 25 mV = 1,8 V (`LDO_MIN3`,
+`LDO_STEP2`, `LDO_VSEL_MASK` 0x3F ze `s2mpu09-regulator.h`). Bootloader tedy
+VA zesilovače nezapnul, což vysvětluje samé jedničky. ABOX20 umí zápisem 1 do
+`acpmdbg_ldo42` zapnout jen enable bity (`FUNC_UPDATE`, maska 0xC0, formát
+z `acpm_mfd.c:219`) a jen když napěťové pole zůstává 1,8 V. Zapíná se až po
+souhlasu uživatele.

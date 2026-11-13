@@ -1,7 +1,7 @@
 From f50d75e3585cd26db091449acb6cbb3781ef1331 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 19:48:24 +0100
-Subject: [PATCH 06/22] DEBUG: firmware: exynos-acpm: dump the firmware layout
+Subject: [PATCH 06/23] DEBUG: firmware: exynos-acpm: dump the firmware layout
  and the plugins
 
 Co-Authored-By: Claude <noreply@anthropic.com>

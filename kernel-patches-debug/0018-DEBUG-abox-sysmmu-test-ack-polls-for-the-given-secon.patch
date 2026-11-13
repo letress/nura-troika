@@ -1,7 +1,7 @@
 From 0fe692bb9efcd2bcbd617ddfb0e3f70583ca816e Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 15:12:49 +0100
-Subject: [PATCH 18/22] DEBUG: abox-sysmmu-test: ack polls for the given
+Subject: [PATCH 18/23] DEBUG: abox-sysmmu-test: ack polls for the given
  seconds, load allowed again after stop
 
 The firmware retries a message to the host only for about 0.8 s and
