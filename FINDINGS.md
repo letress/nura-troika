@@ -4567,3 +4567,18 @@ přišlo o několik sekund později, proto BOOT_DONE nikdy nedorazil. Firmware
 tedy spoléhá jen na rychlé potvrzení, žádnou zprávu od hostitele k
 startu nepotřebuje. ABOX14: `ack N` hlídá a potvrzuje N sekund, `load` jde
 znovu po zastavení.
+
+### 33.18 BOOT_DONE přijat, firmware Calliope je nahoře (ABOX14, 2026-11-13)
+
+S rychlým potvrzením (`ack 15` hned po `start`) proběhl celý start:
+33 zpráv bez jediného SysMMU faultu, mezi nimi REPORT_COMPONENT (`0xc0`,
+4 komponenty v IOVA `0x800f....`), **BOOT_DONE** (`msgtype` 3, `param3` =
+`0x72394930`, tj. verze „r9I0“), msgtype 4 (`0xc`, `0xb00d`), REPORT_LOG a
+24× REPORT_DUMP. Log firmwaru končí „Main init completed! Go processing!“.
+Hostitel k tomu nepotřeboval ani jediný zápis do GIC ani do ABOX registrů,
+jen vynulovat ack v SRAM. Stav „firmware běží a komunikuje“ je tím splněn.
+
+Zbývá: zpráva od hostitele (SRAM `0x22000`, ack `0x222FC`, SOFTINT
+`0x14AF1F00`), nastavení PCM přehrávání (RDMA, buffery, UAIF0 a piny), a
+hlavně cesta ke sluchátku/reproduktoru: z logu firmwaru je vidět NXP
+zesilovač („OEM:NXP“); jaký čip a na jaké sběrnici je, ještě není doloženo.
