@@ -1,7 +1,7 @@
 From 7a01284c1568ee90830c2db65d8ebc790e9db029 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 04:39:00 +0100
-Subject: [PATCH 13/21] DEBUG: abox-sysmmu-test: debugfs files to load and
+Subject: [PATCH 13/22] DEBUG: abox-sysmmu-test: debugfs files to load and
  start the ABOX firmware
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

@@ -1,0 +1,69 @@
+From b228b95c4de1d22f0f62c589245758d32696d44d Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 22:52:31 +0100
+Subject: [PATCH 22/22] DEBUG: read-only debugfs file for the LDO42 control
+ register
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/firmware/samsung/exynos-acpm.c | 30 ++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/drivers/firmware/samsung/exynos-acpm.c b/drivers/firmware/samsung/exynos-acpm.c
+index 329e8ea..1ed86b2 100644
+--- a/drivers/firmware/samsung/exynos-acpm.c
++++ b/drivers/firmware/samsung/exynos-acpm.c
+@@ -1055,6 +1055,7 @@ static void acpmdbg_dump(struct acpm_info *acpm)
+ #define ACPMDBG_PMIC_CHAN	2	/* acpm-ipc-channel of the vendor s2mpu09mfd node */
+ #define ACPMDBG_PMIC_ADDR	1	/* I2C_ADDR_PMIC of the vendor s2mpu09-core.c */
+ #define ACPMDBG_PMIC_B5OUT	0x21	/* S2MPU09_PMIC_REG_B5OUT */
++#define ACPMDBG_PMIC_L42CTRL	0x63	/* S2MPU09_PMIC_REG_L42CTRL */
+ #define ACPMDBG_PMIC_FUNC_READ	0
+ #define ACPMDBG_BUCK_MIN_UV	300000	/* S2MPU09_BUCK_MIN1 */
+ #define ACPMDBG_BUCK_STEP_UV	6250	/* S2MPU09_BUCK_STEP1 */
+@@ -1111,6 +1112,32 @@ static int acpmdbg_buck5_get(void *data, u64 *val)
+ }
+ DEFINE_DEBUGFS_ATTRIBUTE(acpmdbg_buck5_fops, acpmdbg_buck5_get, NULL, "%llu\n");
+ 
++/* Raw control register of LDO42 (VA of the speaker amplifier), read only. */
++static int acpmdbg_ldo42_get(void *data, u64 *val)
++{
++	struct acpm_info *acpm = data;
++	u32 cmd[4] = {
++		ACPMDBG_PMIC_ADDR << 8 | ACPMDBG_PMIC_L42CTRL,
++		ACPMDBG_PMIC_FUNC_READ, 0, 0,
++	};
++	struct acpm_xfer xfer = { };
++	int ret;
++
++	acpm_set_xfer(&xfer, cmd, ARRAY_SIZE(cmd), ACPMDBG_PMIC_CHAN, true);
++	ret = acpm_do_xfer(&acpm->handle, &xfer);
++	dev_info(acpm->dev, "ACPMDBG ldo42: read ret %d reply %08x %08x %08x %08x\n",
++		 ret, cmd[0], cmd[1], cmd[2], cmd[3]);
++	if (ret)
++		return ret;
++	if (cmd[1] >> 24)
++		return -EIO;
++
++	*val = (cmd[1] >> 8) & 0xff;
++
++	return 0;
++}
++DEFINE_DEBUGFS_ATTRIBUTE(acpmdbg_ldo42_fops, acpmdbg_ldo42_get, NULL, "0x%llx\n");
++
+ static void acpmdbg_g3d_init(struct acpm_info *acpm)
+ {
+ 	struct acpm_plugin_shmem __iomem *plugin;
+@@ -1148,6 +1175,9 @@ static void acpmdbg_g3d_init(struct acpm_info *acpm)
+ 	debugfs_create_file("acpmdbg_buck5_uv", 0400, NULL, acpm,
+ 			    &acpmdbg_buck5_fops);
+ 	dev_info(acpm->dev, "ACPMDBG buck5: debugfs file ready, nothing sent\n");
++
++	debugfs_create_file("acpmdbg_ldo42", 0400, NULL, acpm,
++			    &acpmdbg_ldo42_fops);
+ }
+ 
+ static int acpm_probe(struct platform_device *pdev)
+-- 
+2.56.0
+

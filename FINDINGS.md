@@ -4677,3 +4677,15 @@ vzorkuje špatně) než pro skutečnou chybu OTP. Vendor DT má u zesilovače
 `controller-data` s `samsung,spi-feedback-delay = 1` (živý DT, SPI6), mainline
 použil výchozí 0. ABOX18 nastavuje zpoždění 1 a vypíše syrové hodnoty
 DEVID, REVID a stavových registrů.
+
+### 33.25 CS35L41: samé jedničky na MISO (ABOX18, 2026-11-13)
+
+ABOX18 (feedback delay 1) nic nezměnil: `DEVID`, `REVID` i stavové registry
+čtou `ffffffff`, čip tedy po MISO vůbec neodpovídá. Čtením registrů pinctrl
+(`mem-rd`): `gpg4-0` (spínač V_SYS) je výstup ve vysoké úrovni, VP tedy je
+zapnuté. `gpg3-3` (reset) je po neúspěšném probe v nízké úrovni, což
+odpovídá chybové cestě ovladače. Nejpravděpodobnější příčina je, že VA
+(`LDO42`) bootloader nezapnul; dosud to byl jen předpoklad z `always-on`
+v původním DT. ABOX19 přidává jen čtecí soubor `acpmdbg_ldo42` (registr
+`S2MPU09_PMIC_REG_L42CTRL` = 0x63, adresa PMIC 1, `s2mpu09-regulator.h:138`),
+stejným čtením přes ACPM jako u BUCK5. Nic se nezapisuje.

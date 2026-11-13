@@ -2236,3 +2236,4 @@ automaticky podle oprávnění uživatele.
   čtení ID čipu při probe, bez zápisu do zesilovače. Čeká na boot.
 - 2026-11-13: ABOX16 ukázal nuly v registrech SPI6: USI_CON reset (33.23). ABOX17 (395d9bfe) maže USI_RESET v hwinit.
 - 2026-11-13: ABOX17: SPI6 přenáší, CS35L41 hlásí OTP Boot error (33.24). ABOX18 (129903bc): feedback delay 1, výpis DEVID/REVID.
+- 2026-11-13: CS35L41 čte samé jedničky, VP je zapnuté; ABOX19 čte registr LDO42 (jen čtení), FINDINGS 33.25 (out/troika-test-ABOX19.img, 34627145)
