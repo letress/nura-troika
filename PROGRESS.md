@@ -13,6 +13,10 @@ pak kontrola boot image a netboot (TESTING.md kap. 5f). Nic se neflashovalo.
 - Nesahat do `~/troika-backup`.
 - Žádná vymyšlená hardwarová hodnota; bez zdroje = TODO + dotaz.
 - Regulátory, nabíjení, napájení v DTS nepovolovat.
+  (Výjimka 2026-11-13: pro zvuk – kodek a zesilovač – smějí být popsány,
+  postup co nejopatrnější, před každým krokem se ptát.)
+- Potřebnou otázku uživateli položit rovnou, vždy. Neptat se předem, jestli
+  smím otázku položit (zadání uživatele 2026-11-13).
 
 ## Hotovo ve fázi 1
 
@@ -2208,3 +2212,8 @@ automaticky podle oprávnění uživatele.
   velikost čte dál. ABOX9 (`1c2be410`) potvrzen: displej běží, simpledrm
   a /dev/fb0 jsou. Balíček jádra musí obsahovat 0096 i 0097. Zvuk A2:
   `load`/`start`/`stop` stále bez souhlasu.
+
+- 2026-11-13: zvuk A2: `load` a `start` proběhly (souhlas), firmware
+  běží, zapisuje na nenamapované IOVA 0xa0670000, záplava faultů zastavila
+  síť, vypnuto dlouhým stiskem. ABOX10 (`613ac76e`) mapuje vlastní scratch
+  a omezuje výpisy. `load`, `start`, `stop` pro ABOX10 potřebují nový souhlas.

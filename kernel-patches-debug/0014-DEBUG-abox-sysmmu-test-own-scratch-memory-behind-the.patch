@@ -1,0 +1,86 @@
+From 51bbcf6eb468468d1cbd424eac8abe64decba684 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Fri, 13 Nov 2026 05:10:07 +0100
+Subject: [PATCH 14/14] DEBUG: abox-sysmmu-test: own scratch memory behind the
+ VSS addresses, short fault log
+
+The firmware faulted in a loop on 0xa0670000, which the unit does not map,
+and the flood of faults starved the rest of the system.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/iommu/abox-sysmmu-test.c | 30 +++++++++++++++++++++++++++---
+ 1 file changed, 27 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/iommu/abox-sysmmu-test.c b/drivers/iommu/abox-sysmmu-test.c
+index 901f0f9..4902974 100644
+--- a/drivers/iommu/abox-sysmmu-test.c
++++ b/drivers/iommu/abox-sysmmu-test.c
+@@ -10,6 +10,8 @@
+ #include <dt-bindings/clock/samsung,exynos9610-cmu.h>
+ #include <linux/clk.h>
+ #include <linux/clk-provider.h>
++#include <linux/atomic.h>
++#include <linux/gfp.h>
+ #include <linux/debugfs.h>
+ #include <linux/firmware.h>
+ #include <linux/io.h>
+@@ -29,6 +31,13 @@
+ #define ABOX_IOVA_DRAM_FIRMWARE		0x80000000UL	/* IOVA_DRAM_FIRMWARE */
+ #define ABOX_IOVA_RDMA_BUFFER(x)	(0x81000000UL + SZ_1M * (x))
+ #define ABOX_RDMA_TEST_CHANNEL		1
++#define ABOX_IOVA_VSS_FIRMWARE		0xa0000000UL	/* IOVA_VSS_FIRMWARE */
++/*
++ * Own scratch memory behind the VSS addresses. The firmware writes to
++ * 0xa0670000, beyond the 6 MiB PHSY_VSS_SIZE of the vendor driver; the real
++ * region belongs to the modem, so it is never mapped here.
++ */
++#define ABOX_VSS_SCRATCH_SIZE	SZ_8M
+ #define ABOX_TEST_PATTERN_BYTES		0x3c00		/* 3840 frames * 4 bytes */
+ 
+ /* From the stock device tree and from abox.c / abox.h of the vendor kernel */
+@@ -88,8 +97,13 @@ static int abox_test_map(struct device *dev, int idx, unsigned long iova,
+ static int abox_test_fault(struct iommu_domain *domain, struct device *dev,
+ 			   unsigned long iova, int flags, void *token)
+ {
+-	dev_info(dev, "ABOXTEST: FAULT at IOVA %#lx (%s)\n", iova,
+-		 flags & IOMMU_FAULT_WRITE ? "write" : "read");
++	static atomic_t count = ATOMIC_INIT(0);
++	int n = atomic_inc_return(&count);
++
++	/* A running firmware can fault in a loop; keep the log short */
++	if (n <= 16 || !(n & (n - 1)))
++		dev_info(dev, "ABOXTEST: FAULT #%d at IOVA %#lx (%s)\n", n, iova,
++			 flags & IOMMU_FAULT_WRITE ? "write" : "read");
+ 
+ 	return 0;
+ }
+@@ -242,7 +256,7 @@ static int abox_test_probe(struct platform_device *pdev)
+ 	struct device *dev = &pdev->dev;
+ 	struct iommu_domain *domain;
+ 	unsigned char *buf = NULL;
+-	void *fw = NULL;
++	void *fw = NULL, *vss;
+ 	unsigned int i;
+ 	int ret;
+ 
+@@ -279,6 +293,16 @@ static int abox_test_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return ret;
+ 
++	vss = alloc_pages_exact(ABOX_VSS_SCRATCH_SIZE, GFP_KERNEL | __GFP_ZERO);
++	if (vss) {
++		ret = iommu_map(domain, ABOX_IOVA_VSS_FIRMWARE, virt_to_phys(vss),
++				ABOX_VSS_SCRATCH_SIZE, IOMMU_READ | IOMMU_WRITE,
++				GFP_KERNEL);
++		dev_info(dev, "ABOXTEST: map IOVA %#lx -> scratch %pa (%#x bytes): %d\n",
++			 ABOX_IOVA_VSS_FIRMWARE, &(phys_addr_t){ virt_to_phys(vss) },
++			 ABOX_VSS_SCRATCH_SIZE, ret);
++	}
++
+ 	/* A ramp, so a read of the buffer would be recognisable */
+ 	if (buf)
+ 		for (i = 0; i < ABOX_TEST_PATTERN_BYTES; i++)
+-- 
+2.56.0
+

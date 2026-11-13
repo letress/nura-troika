@@ -4463,3 +4463,17 @@ kernel“. `of_link_to_phandle()` přeskakuje dodavatele, jehož uzel je
 `disabled`, a simpledrm čte `width-mm`/`height-mm` přes `of_parse_phandle()`,
 který stav uzlu nekontroluje. Proto stačí `status = "disabled"`. Ověřeno
 na ABOX9: simpledrm i /dev/fb0 naběhly.
+
+### 33.12 První start firmwaru (ABOX9, 2026-11-13)
+
+`load` (souhlas) proběhl bez chyby: SRAM 28 420 B, DRAM 1 758 792 B, první
+slovo SRAM `e59ff018`, DRAM `38504c43`, PMU beze změny. `start` (souhlas,
+bit 15 do `0x11862528`) spustil procesor: `started 1`, PMU status `0x1`.
+Firmware ihned zapisoval na IOVA `0xa0670000` (oblast VSS), kterou jsem
+nenamapoval (VSS je skutečná sdílená oblast modemu, podle ovladače výrobce
+`PHSY_VSS_SIZE` = 6 MiB a adresa je dokonce za ní). Série SysMMU faultů
+zahltila telefon: USB síť přestala odpovídat (na PC `NETDEV WATCHDOG`),
+konzole reagovala jen na tlačítka. `stop` nešel poslat; telefon jsem vypnul
+dlouhým stiskem. Bez poškození.
+Úprava (ABOX10): na `0xa0000000` vlastní 8 MiB nulované paměti (skutečná
+VSS oblast se nemapuje) a výpis faultů omezen na prvních 16 a mocniny dvou.
