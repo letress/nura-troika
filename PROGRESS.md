@@ -1,6 +1,6 @@
 # PROGRESS – port Nura na Motorola One Action (troika)
 
-## Stav: Připravena dávka balíčků s GPU i WiFi (FINDINGS.md 29 a 30.13): `firmware-motorola-troika` (modul FVP + firmware rádia), kernel pkgrel 8 (95 patchů + moduly ovladače SCSC), zařízení pkgrel 8 (načtení modulů, adresa MAC) – pmaports pushnut, **sestavení kernelu spustil uživatel 2026-11-13 00:12**; postup TESTING.md 5ae (sestavení spouští uživatel, asi 1,5 h). Ověřeno s místními image: teplota, škálování a brzdění GPU, WiFi od startu rádia po internet. `troika-clk` 95 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-13 včetně `wifi/scsc` (commit „WiFi do balíčků…“); pmaports pushnut do `426d6ea28`
+## Stav: Dávka balíčků PKG8 funguje na telefonu – systém z balíčků s teplotami, řízením GPU a WiFi v Phoshi (FINDINGS.md 32.1). Zbývá ověřit adresu MAC a GPU pod zátěží; databáze zemí chybí; Bluetooth není. Zvuk: cesta B, čeká výpis registrů ABOXu z LineageOS (TESTING.md 5ah); výjimka z pravidla o regulátorech jen pro zvuk. `troika-clk` 95 commitů nad v7.3.3, `troika-clk-test` +8; hlavní repozitář commitnut a pushnut 2026-11-13 (commit „Balíčky PKG8 fungují…“); pmaports pushnut do `fef101563`
 
 USB síť na telefonu funguje z místně sestaveného kernelu (test USB1). Balíček r3 se
 ještě nestavěl. Další krok je na uživateli: sestavit balíčky, `install`, `export`,
@@ -1987,3 +1987,63 @@ hlavní repozitář commitnut a pushnut (včetně `wifi/scsc`), pmaports pushnut
 (`8055cfd51`, `0d3ed3a57`, `426d6ea28`). Uživatel v 00:12 spustil sestavení
 balíčku kernelu (asi 1,5 h); netboot server z 21:10 ještě běží – před
 `install` ukončit. Telefon běží ve WLAN2.
+
+### 2026-11-13 00:26 – zvuk: průzkum ABOXu (jen čtení)
+
+Na podnět z vedlejšího vlákna (přání uživatele). FINDINGS.md kap. 31:
+kodek CS47L35 a zesilovač CS35L41 na SPI, zvuk vede jen přes ABOX, původní
+ovladač řídí přehrávání zprávami firmwaru Calliope; mainline pro ABOX nic
+nemá, port gta4xl také ne. Překážka: napájecí větve (pravidlo o
+regulátorech). Doporučené další kroky jen čtením. pmaports neměněn
+(běží sestavení kernelu). Necommitnuto od `a251575`.
+
+### 2026-11-13 00:36 – zvuk: rozbor firmwaru ABOXu (jen čtení)
+
+FINDINGS.md 31.5: RDMA je hardwarový přenos z paměti, jeho registry
+nastavuje firmware (kernel je jen čte); cesta bez firmwaru má šanci, ale
+jistá není. Navržené tři kroky ověření na telefonu, první jen čtením.
+Necommitnuto od `a251575` (FINDINGS kap. 31, PROGRESS).
+
+### 2026-11-13 00:37 – zvuk: cesta B zvolena, krok 1 (čtení) hotov
+
+Uživatel: „první metodou B a testováním“. ABOX po startu: doména zapnutá,
+hodiny běží, registry čitelné a ve výchozím stavu (FINDINGS.md 31.6).
+Upřesněno, co pravidlo o regulátorech znamená pro zvuk. Další: krok 2
+(zápisy do registrů jednoho kanálu RDMA, sledovat `STATUS`) – potřebuje
+návrh s konkrétními hodnotami a souhlas. Necommitnuto od `a251575`.
+
+### 2026-11-13 00:56 – zvuk: návrh kroku 2 (nejdřív výpis z LineageOS)
+
+Pro zápisy do RDMA chybí doložené hodnoty bitů; navržen krok 2a jen čtením:
+výpis registrů ABOXu z LineageOS v klidu a při přehrávání (TESTING.md 5ah,
+FINDINGS.md 31.7). Uživateli vysvětlen původ a důvod pravidla o
+regulátorech. Necommitnuto od `a251575`.
+
+### 2026-11-13 01:01 – sestavení kernelu pkgrel 8 selhalo při instalaci modulů, opraveno
+
+Překlad kernelu i tří modulů WiFi v chrootu prošel; chyba až v `package()`:
+moduly ovladače se instalovaly před moduly kernelu a `depmod` nenašel
+`modules.builtin`. Pořadí v APKBUILD otočeno (pmaports `fef101563`, místní
+commit). Sestavení je potřeba spustit znovu. Uživatel udělil pro zvuk
+výjimku z pravidla o regulátorech (s důrazem na minimální riziko)
+a souhlasí s výpisem registrů ABOXu z LineageOS.
+
+### 2026-11-13 01:29 – PKG8 sestaveno, image zkontrolován
+
+Uživatel sestavil kernel (podruhé, po opravě), firmware, zařízení, `install`
+a `export`. Kontrola prošla (FINDINGS.md 32). Image uložen jako
+`out/troika-test-PKG8.img`. Telefon běží ve WLAN2. Necommitnuto: FINDINGS
+kap. 31 a 32, TESTING 5ah, PROGRESS; pmaports `fef101563` nepushnut.
+
+### 2026-11-13 01:47 – test PKG8 prošel
+
+Systém z balíčků nabootoval přes netboot; kontroly (modul FVP, GPU, teploty,
+RO) v pořádku, WiFi v Phoshi funguje včetně stahování. Necommitnuto:
+FINDINGS kap. 31 a 32, TESTING 5ae/5ah, PROGRESS; pmaports `fef101563`
+nepushnut.
+
+### 2026-11-13 01:51 – commit a push (PKG8, zvuk)
+
+Na pokyn uživatele hlavní repozitář commitnut a pushnut (patche kernelu
+beze změny, 95 + 8) a pmaports pushnut včetně opravy `fef101563`. Telefon
+běží v systému z balíčků (PKG8, netboot).

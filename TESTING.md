@@ -1607,6 +1607,10 @@ sudo sh -c 'lsmod | grep scsc; dmesg | grep -i -E "wlbt|scsc" | grep -v -i -E "m
    Tím, že balíčky nainstaluješ a WiFi zapneš, rádio v plném systému
    spouštíš sám; je to stejný start a vysílání jako v testech WLAN1 a WLAN2.
 
+**Výsledek PKG8 (2026-11-13): prošlo** – systém z balíčků běží, modul FVP
+nahrán, úložiště jen pro čtení, WiFi funguje v Phoshi včetně stahování
+(FINDINGS.md 32.1). Adresa MAC neověřena.
+
 ## 5af. Test WLAN1: první start rádia WiFi
 
 Cíl: ovladač SCSC se načte, nahraje firmware rádia a ohlásí jeho verzi
@@ -1670,6 +1674,34 @@ spojení pak udělám přes telnet sám.
 
 **Výsledek připojení (2026-11-12): prošlo** – WPA2 na 5 GHz, DHCP, ping do
 internetu, stahování řádově 100 až 200 Mb/s (FINDINGS.md 30.11).
+
+## 5ah. Zvuk, krok 2a: výpis registrů ABOXu z LineageOS (jen čtení)
+
+Cíl: doložené hodnoty registrů pro funkční přehrávání (FINDINGS.md 31.7).
+Nic se nezapisuje. Dělat až po dokončení sestavení a testu balíčků, ať se
+nepřeruší.
+
+1. Telefon nabootuj normálně do LineageOS a připoj USB (ladění přes USB
+   zapnuté).
+2. Zjisti, jestli ladicí soubor existuje:
+
+```bash
+adb root && adb shell 'ls /sys/kernel/debug/regmap/ | grep -i abox'
+```
+
+3. Výpis v klidu (nic nehraje):
+
+```bash
+adb shell 'cat /sys/kernel/debug/regmap/*abox*/registers' > ~/nura-troika/device-info/abox-lineage-klid.txt
+```
+
+4. Pusť hudbu reproduktorem a během ní:
+
+```bash
+adb shell 'cat /sys/kernel/debug/regmap/*abox*/registers' > ~/nura-troika/device-info/abox-lineage-hraje.txt
+```
+
+5. Napiš mi; výpisy si přečtu sám (adresář `device-info/` se necommituje).
 
 ## 6. Balíčky pmaports
 

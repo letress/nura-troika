@@ -3442,3 +3442,236 @@ pmbootstrapu a jejich načtení s `cfg80211` jako modulem; že pravidlo udev
 adresu zapíše dřív, než správce sítí rozhraní zapne; chování
 NetworkManageru s tímto ovladačem; databáze zemí stále chybí.
 
+## 31. Zvuk: průzkum ABOXu (2026-11-13 00:26, jen čtení)
+
+Podnět přišel z vedlejšího vlákna na přání uživatele, souběžně se
+sestavováním balíčku kernelu. Na telefon se nesahalo.
+
+### 31.1 Zapojení (původní DT telefonu, `device-info/live.dts`)
+
+| Součást | Kde | Poznámka |
+|---|---|---|
+| kodek Cirrus CS47L35 | `spi@13940000` (`spi_9`), `cs47l35@0` | přerušení a reset přes GPIO, vlastní pinctrl (`aif1`, `aif2`, `aif3`), `micvdd` 3,0 V |
+| zesilovač Cirrus CS35L41 | `spi@13900000` (`spi_6`), `cs35l41@0` | reset přes GPIO, vestavěné DSP s firmwarem `cs35l41-dsp1-*` z obrazu `vendor` |
+| napájení obou | `LDO42` čipu S2MPU09 (`vdd_ldo42`, v původním DT `regulator-always-on`) a pevný regulátor `V_SYS` spínaný GPIO | **regulátory** – viz 31.4 |
+| zvuková karta | `samsung,exynos9610-madera` | hodiny `xclkout`, směrování mikrofonů a sluchátek ve `samsung,routing` |
+| zvuková jednotka čipu | ABOX `0x14a50000` (64 KiB registrů), `sysreg` `0x14810000`, SRAM `0x14b00000` (212 KiB), vlastní řadič přerušení, IOMMU, hodiny `pll`/`cpu`/`audif`/`bus` | uvnitř: 8× RDMA (přehrávání), 5× WDMA (nahrávání), UAIF 0/1/2/4 (I2S), DSIF, SPDY |
+
+Spojení: `uaif@0` ↔ CS47L35 (rozhraní 0), `uaif@2` ↔ CS47L35 (rozhraní 2),
+`uaif@1` a `uaif@4` jsou v DT vedené na zástupný kodek. Zesilovač je
+v seznamu kodeků karty s předponou `SPK`; kudy přesně do něj jde zvuk,
+jsem z DT nevyčetl (nejspíš přes kodek).
+
+**Mimo ABOX žádné zvukové rozhraní procesoru v DT není.** Kodek je připojený
+na piny UAIF, které patří ABOXu. „Obejít ABOX“ tedy nejde ve smyslu jiného
+rozhraní čipu; jde jen o to, jestli ABOX rozběhnout bez jeho firmwaru.
+
+### 31.2 Co dělá původní ovladač (`sound/soc/samsung/abox`, 13 317 řádků)
+
+- ABOX má vlastní procesor (v ovladači „Calliope“). Ovladač mu nahraje
+  firmware `calliope_sram.bin` a `calliope_dram.bin` (v obrazu `vendor`,
+  `/firmware`; vyhrazená paměť `abox@e9400000`, 4 MiB – tu už v našem DT
+  máme), zapne ho a čeká na hlášení o startu. Při tom volá zabezpečený
+  firmware (`exynos_smc(0x82000701)`, `0x82000501`).
+- **Přehrávání a nahrávání (RDMA/WDMA) se nastavuje zprávami tomu firmwaru**
+  (`IPC_PCMPLAYBACK`: parametry, vyrovnávací paměť, start/stop, pozice).
+  V `abox_rdma.c` je 13 míst s odesláním zprávy.
+- Rozhraní I2S (UAIF) se nastavuje přímo registry (`abox_if.c` zprávy
+  neposílá). Registry mají v `abox.h` jména (`ABOX_SYSPOWER_CTRL`,
+  `ABOX_ROUTE_CTRL0`, `ABOX_SPUS_CTRL0`, `ABOX_UAIF_CTRL0`, `ABOX_RDMA_CTRL0`,
+  `ABOX_RDMA_BUF_STR` …), popis bitů je jen to, co plyne z kódu.
+- Závislosti: napájecí doména `dispaud`, hodiny zvuku, IOMMU, PM QoS.
+
+### 31.3 Co existuje jinde
+
+- Mainline: ovladače obou čipů Cirrus jsou (`sound/soc/codecs/cs47l35.c`,
+  `madera.c`, `cs35l41*`), pro ABOX mobilních čipů nic.
+- Samsung poslal v červenci 2025 do konferencí sadu „ABOX generic“ pro
+  automobilový ExynosAuto v920 (správa, zprávy, PCM); narazila na výhrady
+  správců (zobecnění jako knihovna, popis v DT). Pro 9610/9611/850/7885
+  jsem nic nenašel. Zdroje:
+  [série](https://lists.infradead.org/pipermail/linux-arm-kernel/2025-July/1046572.html),
+  [patch 1/9](https://lists.infradead.org/pipermail/linux-arm-kernel/2025-July/1046578.html),
+  [připomínka k DTS](https://lkml.iu.edu/hypermail/linux/kernel/2507.1/02021.html).
+- Port gta4xl: „Audio remains unported“ (README). Tady návod není.
+
+### 31.4 Cesty a překážky
+
+- **A – přenést původní ovladač ABOX** (4.14 → 7.3) s firmwarem Calliope.
+  Jistý princip (takhle to funguje v Androidu), ale velká práce: 13 tisíc
+  řádků proti starému rozhraní ASoC, k tomu IOMMU, napájecí doména, hodiny,
+  dvě zabezpečená volání a firmware jako další binární soubor výrobce.
+- **B – vlastní malý ovladač bez firmwaru**, který by registry RDMA a UAIF
+  ovládal přímo. Nevím, jestli to hardware dovolí: v původním ovladači
+  jde datová cesta vždy přes firmware a popis registrů nemám. Zjistilo by
+  se to jen pokusy na telefonu (zápisy do ABOXu, zapnutí domény `dispaud`).
+- **C – zvuk mimo ABOX**: Bluetooth (stejné rádio jako WiFi, zatím
+  nesestavujeme) nebo zvuková karta přes USB (vyžaduje USB v režimu
+  hostitele, máme jen režim zařízení). Obojí obchází reproduktor telefonu.
+
+Společná překážka pro A i B: kodek i zesilovač potřebují **napájecí větve**
+(`LDO42` a `V_SYS`), tedy popis regulátorů v DT, což pravidlo uživatele
+zatím zakazuje. `LDO42` je čip PMIC ovládaný přes firmware ACPM; jestli ho
+bootloader nechává zapnutý, nevím (šlo by to přečíst stejnou zprávou jako
+napětí GPU – jen se souhlasem).
+
+Doporučení: nezačínat přenosem celého ovladače. Nejdřív dva levné kroky jen
+čtením, které rozhodnou mezi A a B: (1) přečíst stav `LDO42` a domény
+`dispaud` na běžícím telefonu, (2) projít v původním ovladači, co přesně
+firmware pro RDMA dělá (jestli jen nastaví registry, nebo sám přenáší data).
+
+### 31.5 Co dělá firmware při přehrávání (00:36, jen čtení)
+
+Ze zdrojáků původního ovladače a z textů ve firmwaru (kopie
+`calliope_dram.bin`, 1,76 MB, a `calliope_sram.bin`, 28 KiB, jen ve
+scratchpadu; záloha nedotčena):
+
+- **RDMA je hardwarový přenos z paměti.** Má registry začátku a konce
+  vyrovnávací paměti, kroku, zapnutí a stavu (`ABOX_RDMA_CTRL0`, `_CTRL1`,
+  `_BUF_STR`, `_BUF_END`, `_BUF_OFFSET`, `_STR_POINT`, `_VOL_FACTOR`,
+  `_STATUS` od `0x1000`, po `0x100` na kanál).
+- **Kernel tyto registry nikdy nezapisuje.** Pošle firmwaru adresu a velikost
+  vyrovnávací paměti a parametry (`PCM_SET_BUFFER`, `PCM_PLTDAI_HW_PARAMS`,
+  `PCM_PLTDAI_TRIGGER`) a sám jen čte `CTRL0` (zapnuto) a `STATUS` (pozice
+  v paměti: `RBUF_OFFSET`, `RBUF_CNT`). Registry tedy nastavuje firmware.
+- O konci periody se kernel dozvídá zprávou od firmwaru
+  (`PCM_PLTDAI_POINTER`). Přerušení ABOXu jdou do jeho vlastního řadiče
+  (`abox_gic@0x14AF0000`), k hlavnímu procesoru vede jediné (SPI 198).
+- Směrování a míchání (`ABOX_ROUTE_CTRL*`, `ABOX_SPUS_CTRL*`, …) dělá
+  z velké části kernel přímo registry: `abox.h` má 313 definic a `abox.c`
+  přes sto míst, kde s nimi pracuje.
+- Texty ve firmwaru (`RDMA format was set`, `input ch-%d ASRC`,
+  `out-empty interrupt`, `QUEUE FULLED: input buffer`) ukazují, že firmware
+  kromě nastavení registrů dělá i vlastní zpracování proudu (převzorkování,
+  efekty, fronty). Jestli běžné přehrávání jde čistě hardwarem, nebo data
+  procházejí přes procesor ABOXu, z toho **nepoznám**.
+
+Závěr pro cestu B (bez firmwaru): **má reálnou šanci, ale není jistá.**
+Hardware má vše potřebné popsané jmény registrů; chybí význam bitů
+`RDMA_CTRL0/1` (formát, kanály) a jistota, že přenos běží bez procesoru
+ABOXu. Konec periody by šel nahradit časovačem a čtením `STATUS`. Ověřit to
+jde jen na telefonu, po krocích:
+
+1. Jen čtení: stav domény `dispaud` (při startu hlásí zapnuto), hodin zvuku
+   a výpis registrů ABOXu tak, jak je nechal bootloader.
+2. Se souhlasem: zapnout hodiny, zapsat registry jednoho kanálu RDMA
+   a sledovat, jestli se pozice ve `STATUS` hýbe – bez kodeku, bez zvuku.
+3. Teprve potom kodek a zesilovač, což znamená napájecí větve (pravidlo
+   o regulátorech) a rozhraní UAIF.
+
+Cesta A (přenos původního ovladače s firmwarem) zůstává záložní.
+
+### 31.6 Cesta B, krok 1: stav ABOXu po startu (00:37, jen čtení)
+
+Uživatel zvolil cestu B (bez firmwaru) s testováním. Na běžícím telefonu
+(image WLAN2, hodinu po startu), jen čtením (`device-info/abox-regs-WLAN2.txt`):
+
+- Doména `dispaud` je zapnutá (`status 0x3000f`), PLL zvuku běží
+  (`fout_aud_pll` 1179,648 MHz), hodiny procesoru a sběrnice ABOXu jsou
+  odvozené (393 a 197 MHz), UAIF0 24,576 MHz.
+- ABOX na čtení odpovídá: `0x14a50000` = `0x41424f58` (znaky „ABOX“),
+  verze `0x01110000`.
+- Všechno ostatní je ve výchozím stavu: `SYSPOWER_CTRL`, `ROUTE_CTRL0..3`
+  a `SPUS_CTRL0..3` nulové, `UAIF0_CTRL0` = `0x01000010`, `RDMA0_CTRL0` =
+  `0x00400000`, vyrovnávací paměť a `STATUS` nulové. Bootloader ABOX
+  nenastavuje a jeho procesor nepouští.
+
+**K pravidlu o regulátorech** (upřesnění mé dřívější formulace): pravidlo
+zní „regulátory, nabíjení a napájení v DTS zatím nepovoluj“. Kodek
+a zesilovač si při startu ovladače žádají napájecí větve (`AVDD`, `DBVDD`,
+`CPVDD`, `SPKVDD`, `VA`, `VP`). Kdyby je měl kernel sám zapínat a řídit,
+potřebuje v DT regulátor `LDO42` (přes firmware ACPM, zápisy do PMIC)
+a spínaný `V_SYS` – to pravidlo zakazuje. Pokud ale větve nechává zapnuté
+bootloader (v původním DT je `LDO42` „always-on“ a `V_SYS` „boot-on“),
+mainline ovladačům stačí náhradní regulátory jádra, které nic nespínají,
+a do DT se žádný regulátor psát nemusí. Jestli jsou zapnuté, je potřeba
+ověřit čtením (registr `LDO42` přes ACPM – nová zpráva, se souhlasem; stav
+GPIO pro `V_SYS`). Blokuje to tedy až krok 3 a jen tehdy, kdyby větve
+zapnuté nebyly.
+
+### 31.7 Návrh kroku 2 cesty B: nejdřív opsat hodnoty z původního systému (00:56)
+
+Pro pokusné zápisy do kanálu přehrávání mi chybí doložené hodnoty: původní
+zdrojáky pojmenovávají registry RDMA, ale z bitů `RDMA_CTRL0` znají jen
+„zapnuto“ (bit 0) a u `STATUS` pozici; formát, počet kanálů a význam
+`CTRL1`, `BUF_OFFSET` a `STR_POINT` nastavuje firmware a nikde popsané
+nejsou. Novější jádra Samsungu mají jinou verzi ABOXu (jiné rozložení
+registrů), takže jako zdroj neposlouží. Podle pravidla o nevymýšlení
+hodnot proto zápisy zatím nenavrhuju.
+
+Spolehlivý zdroj je sám telefon: v nainstalovaném LineageOS původní ovladač
+ABOX běží a používá `regmap`, takže jeho registry by měly jít přečíst
+z ladicího souboru `/sys/kernel/debug/regmap/…abox…/registers` (původní
+kernel `/dev/mem` nemá: `# CONFIG_DEVMEM is not set`). **Krok 2a, jen čtení:**
+
+1. Nabootovat telefon normálně do LineageOS.
+2. Přes `adb root` uložit výpis registrů ABOXu v klidu a znovu během
+   přehrávání hudby reproduktorem (a případně sluchátky).
+3. Rozdíl obou výpisů ukáže přesné hodnoty registrů RDMA, směrování a UAIF
+   pro funkční přehrávání – a také, jestli se při něm mění něco, co vypadá
+   na práci procesoru ABOXu.
+
+Rizika: čtení všech registrů naráz může u některých mít vedlejší účinek
+(v nejhorším krátké zadrhnutí zvuku); nic se nezapisuje. Jestli ladicí
+soubor na LineageOS existuje a je čitelný, nevím – zjistí se prvním
+příkazem. **Krok 2b** (zápisy na našem kernelu) navrhnu až s těmito
+hodnotami a požádám o souhlas.
+
+**K původu pravidla o regulátorech:** je v pravidlech projektu od začátku
+(`PROGRESS.md`, řádek 15: „Regulátory, nabíjení, napájení v DTS
+nepovolovat“; v mých poznámkách vedené jako doslovné zadání uživatele
+s dovětkem „riziko poškození hardwaru“). Původní zprávu už v kontextu
+nemám, opírám se o tyto zápisy. Věcný důvod existuje: jakmile kernel
+regulátor zná, může mu měnit napětí v mezích z DT (chybná mez nebo záměna
+větví = přepětí), nepoužívané regulátory po startu sám vypíná (odpojení
+něčeho, co běžet má) a u nabíjení jde o proud a napětí baterie.
+
+### 31.8 Výjimka z pravidla o regulátorech pro zvuk (2026-11-13 01:01)
+
+Uživatel: „u toho zvuku tomu uděluju výjimku, ale snaž se i tak postupovat
+a provádět mě při testování tak, aby se riziko jakéhokoli poškození naprosto
+minimalizovalo.“ Platí jen pro napájení kodeku a zesilovače; postup: nejdřív
+stav přečíst, hodnoty jen z původního DT, co nejmenší kroky, před každým
+krokem, který větev mění, se zeptat.
+
+## 32. Balíčky PKG8: sestaveno, image zkontrolován (2026-11-13 01:29)
+
+- První sestavení kernelu pkgrel 8 selhalo v `package()` (pořadí instalace
+  modulů, `depmod` bez `modules.builtin`); po otočení pořadí prošlo. Překlad
+  ovladače SCSC v chrootu pmbootstrapu funguje.
+- `firmware-motorola-troika` 1-r0: stažení z repozitáře Motoroly
+  a z TheMuppets prošlo kontrolou součtů; balíček obsahuje modul FVP,
+  `mx140.bin`, čtyři `.hcf`, čtyři odkazy a seznam pro initramfs.
+- Systém (chroot `rootfs_motorola-troika`): kernel 7.3.3-r8, zařízení 1-r8
+  (+ `-phosh`), firmware 1-r0; moduly `scsc_*.ko.zst` v `updates/`
+  a v `modules.dep`; `motorola-troika-wlan.conf`, `70-wlan-mac.rules`,
+  skript v `/usr/libexec/motorola-troika`.
+- Boot image (`out/troika-test-PKG8.img`): hlavička v1, „second“ = DTB
+  výrobce; v initramfs je `usr/lib/firmware/exynos9610_acpm_fvp.fw`
+  (seznam mkinitfs tedy funguje), pravidlo a hák pro UFS jen ke čtení,
+  `blockdev`, hák netbootu. Firmware rádia v initramfs není (není potřeba,
+  moduly se načítají až ze systému). V kernelu jsou řetězce TMU, ACPM,
+  hodin GPU přes ACPM, tabulky OPP, podsvícení a uzlu rádia.
+
+**Na telefonu zatím neběželo.**
+
+### 32.1 Test PKG8: systém z balíčků běží, WiFi funguje v Phoshi (01:47)
+
+Uživatel spustil `out/troika-test-PKG8.img` s novým systémem z netbootu
+(`serve --replace`). Výstup kontrol jsem četl z jeho terminálu:
+
+- `Failed to attach plugin`: 0 – modul FVP se nahrál z initramfs balíčku.
+- GPU: `cur_freq` 260 MHz v klidu (řízení frekvence existuje).
+- Teploty 42,7 / 41,7 / 46,0 °C.
+- Úložiště: `sda` a oddíly RO = 1.
+- WiFi: `scsc_wlan`, `scsc_mx`, `scsc_platform_mif` a `cfg80211` (jako
+  modul) načtené samy při startu; správce sítí hledá sítě (4 až 12 nalezených
+  na jedno hledání, 38 kanálů). **Uživatel se připojil a stáhl aplikaci
+  z obchodu.**
+- V logu opakovaně `WF_FW_INFO: |cpu PHY|id 0x200E|` (informační hlášení
+  firmwaru rádia, úroveň varování) – význam neznám, provoz to neruší.
+
+Závěr: dávka PKG8 funguje – GPU, teploty i WiFi z balíčků, bez ručních
+zásahů. **Neověřeno:** že rozhraní dostalo tovární adresu MAC (pravidlo
+udev), změna frekvence GPU pod zátěží v tomto systému, delší provoz.
+
