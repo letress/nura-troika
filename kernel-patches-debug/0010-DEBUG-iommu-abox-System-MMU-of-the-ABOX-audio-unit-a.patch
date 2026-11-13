@@ -1,4 +1,4 @@
-From 57e7c6855b822d8c7d2a67aaef930721eeda0b87 Mon Sep 17 00:00:00 2001
+From d4b1f8cb39dba3911d99c2965e4be126bde3b60c Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 03:16:34 +0100
 Subject: [PATCH 10/12] DEBUG: iommu: abox: System MMU of the ABOX audio unit
@@ -13,10 +13,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
  create mode 100644 drivers/iommu/abox-sysmmu-test.c
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index 426b71e..d030230 100644
+index 1503b2f..0454948 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -251,6 +251,21 @@ &usi_cmgp0_i2c {
+@@ -263,6 +263,21 @@ &usi_cmgp0_i2c {
  / {
  	reserved-memory {
  		/* The vendor kernel has no fixed address for it either. */
@@ -38,7 +38,7 @@ index 426b71e..d030230 100644
  		wlbt_reserved: wifi {
  			size = <0x1000000>;
  			alignment = <0x0 0x1000000>;
-@@ -321,3 +336,23 @@ wifi: wifi@119c0000 {
+@@ -333,3 +348,23 @@ wifi: wifi@119c0000 {
  		samsung,boot_cfg-syscon-phandle = <&wlbt_boot>;
  	};
  };

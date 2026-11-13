@@ -2183,3 +2183,12 @@ doménu. Telefon běží v ABOX6, v registrech ABOXu nic. Necommitnuto od
 Záporná kontrola bez chyby překladu; vše vráceno. Kladná nespuštěna.
 Uživatel povolil automatický commit a push; tento commit je první takový.
 
+### 2026-11-13 04:33 – troika-clk-test přeskládána na 96 commitů, DTB přeložen
+
+Na žádost druhé relace: `troika-clk-test` přeskládána (`git rebase troika-clk`,
+bez konfliktů, 12 ladicích commitů navíc), DTB přeložen (panel 64 × 148 mm je
+v něm), `kernel-patches` (96) i `kernel-patches-debug` (12) znovu
+vyexportovány. Image `ABOX*` v `out/` jsou ze starší báze a panel nemají;
+Image kernelu v `build/linux` není přeložen znovu (jen DTB). Do pmaports
+přibude 0096 při příští dávce balíčků.
+

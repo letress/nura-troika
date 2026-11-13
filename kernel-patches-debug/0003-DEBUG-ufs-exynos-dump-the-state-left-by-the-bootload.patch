@@ -1,4 +1,4 @@
-From 1d9ad05fd0dee7b9b936610da687801c5279410c Mon Sep 17 00:00:00 2001
+From db7a343e7ac434facfb2d06b08e5e7d485fcec7f Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 20:44:08 +0100
 Subject: [PATCH 03/12] DEBUG: ufs: exynos: dump the state left by the
