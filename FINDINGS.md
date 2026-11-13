@@ -4477,3 +4477,15 @@ konzole reagovala jen na tlačítka. `stop` nešel poslat; telefon jsem vypnul
 dlouhým stiskem. Bez poškození.
 Úprava (ABOX10): na `0xa0000000` vlastní 8 MiB nulované paměti (skutečná
 VSS oblast se nemapuje) a výpis faultů omezen na prvních 16 a mocniny dvou.
+
+### 33.13 Firmware Calliope běží (ABOX11, 2026-11-13)
+
+S 8 MiB vlastní paměti za `0xa0000000` (sekce 33.12) proběhl `load` i
+`start` (oba se souhlasem) bez jediného SysMMU faultu a bez zamrznutí sítě.
+Status: `started 1`, PMU status `0x10000001` (bit 0 = CPU běží). Oblast
+`ipc rx` (SRAM `0x22300`), do které píše firmware, se z nul změnila na
+zprávy firmwaru, za 3 s se měnila dál (`00000001 … 80b00000`, pak
+`… 00000020 00000018 80820000 00004000 00647065`): firmware tedy
+komunikuje. Význam zpráv zatím nedekódován (A3, podle `abox_ipc`
+ovladače výrobce). Hostitelská strana (`ipc tx`) nic neposlala.
+`stop` zatím nebyl použit (potřebuje souhlas).

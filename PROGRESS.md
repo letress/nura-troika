@@ -2217,3 +2217,7 @@ automaticky podle oprávnění uživatele.
   běží, zapisuje na nenamapované IOVA 0xa0670000, záplava faultů zastavila
   síť, vypnuto dlouhým stiskem. ABOX10 (`613ac76e`) mapuje vlastní scratch
   a omezuje výpisy. `load`, `start`, `stop` pro ABOX10 potřebují nový souhlas.
+
+- 2026-11-13: zvuk A2 hotovo: ABOX11 (`f1f2ade3`) `load`+`start` bez faultů,
+  CPU zvuku běží a píše zprávy do `ipc rx`. Telefon běží dál s firmwarem;
+  `stop` čeká na souhlas. Další: A3, dekódování IPC.
