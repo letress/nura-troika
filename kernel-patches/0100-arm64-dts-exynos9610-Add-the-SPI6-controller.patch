@@ -1,4 +1,4 @@
-From cd5caf73da2000534e2efe5def62fac4b404993c Mon Sep 17 00:00:00 2001
+From e7f12da3eb49afbe9d5658996c90939491360677 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 15:59:39 +0100
 Subject: [PATCH 100/100] arm64: dts: exynos9610: Add the SPI6 controller

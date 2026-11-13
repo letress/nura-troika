@@ -2234,3 +2234,4 @@ automaticky podle oprávnění uživatele.
   +1 (uzel CS35L41 na SPI6, DEBUG). Testovací jádro má zvukový podsystém a
   CS35L41 zabudovaně (jen sestavení, ne v balíčku). ABOX15 (`0962327f`):
   čtení ID čipu při probe, bez zápisu do zesilovače. Čeká na boot.
+- 2026-11-13: ABOX16 ukázal nuly v registrech SPI6: USI_CON reset (33.23). ABOX17 (395d9bfe) maže USI_RESET v hwinit.

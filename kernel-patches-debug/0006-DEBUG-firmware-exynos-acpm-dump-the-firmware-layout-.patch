@@ -1,4 +1,4 @@
-From cb96a98a78a24440b49eaef5d09b2d308f099688 Mon Sep 17 00:00:00 2001
+From f50d75e3585cd26db091449acb6cbb3781ef1331 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 19:48:24 +0100
 Subject: [PATCH 06/20] DEBUG: firmware: exynos-acpm: dump the firmware layout

@@ -1,4 +1,4 @@
-From 339aedc567f1a0304eaf697f9df34ca31636ce07 Mon Sep 17 00:00:00 2001
+From 11e6466520a1d988e9f15214beb342770fb42916 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 15:59:39 +0100
 Subject: [PATCH 099/100] spi: s3c64xx: Add the Exynos9610 SPI controller
@@ -9,16 +9,58 @@ receive level in bits 21:15 and transmit level in bits 12:6, with a
 older port configuration offset 15). Chip select is manual in the vendor
 tree, so the automatic mode quirk is not set.
 
+The block sits behind a USI wrapper whose reset bit in USI_CON (0xc4) is
+set after reset and keeps the SPI registers from taking writes. The vendor
+driver clears it before the first transfer; do the same in hwinit.
+
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---
- drivers/spi/spi-s3c64xx.c | 13 +++++++++++++
- 1 file changed, 13 insertions(+)
+ drivers/spi/spi-s3c64xx.c | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
 
 diff --git a/drivers/spi/spi-s3c64xx.c b/drivers/spi/spi-s3c64xx.c
-index 8d4120c..eb206d9 100644
+index 8d4120c..33ad866 100644
 --- a/drivers/spi/spi-s3c64xx.c
 +++ b/drivers/spi/spi-s3c64xx.c
-@@ -1566,6 +1566,17 @@ static const struct s3c64xx_spi_port_config exynos850_spi_port_config = {
+@@ -79,6 +79,9 @@
+ #define S3C64XX_SPI_INT_RX_FIFORDY_EN		(1<<1)
+ #define S3C64XX_SPI_INT_TX_FIFORDY_EN		(1<<0)
+ 
++/* USI wrapper: the reset bit of USI_CON is set at reset and holds the bus */
++#define EXYNOS_SPI_USI_CON			0xc4
++#define EXYNOS_SPI_USI_CON_RESET		BIT(0)
+ #define S3C64XX_SPI_ST_RX_FIFO_RDY_V2		GENMASK(23, 15)
+ #define S3C64XX_SPI_ST_TX_FIFO_RDY_V2		GENMASK(14, 6)
+ #define S3C64XX_SPI_ST_TX_FIFO_LVL_SHIFT	6
+@@ -153,6 +156,8 @@ struct s3c64xx_spi_dma_data {
+  * @clk_from_cmu: True, if the controller does not include a clock mux and
+  *	prescaler unit.
+  * @clk_ioclk: True if clock is present on this device
++ * @has_usi_reset: True if the USI wrapper holds the block in reset until
++ *                 the reset bit of its USI_CON register is cleared
+  * @has_loopback: True if loopback mode can be supported
+  * @use_32bit_io: True if the SoC allows only 32-bit register accesses.
+  *
+@@ -173,6 +178,7 @@ struct s3c64xx_spi_port_config {
+ 	bool	high_speed;
+ 	bool	clk_from_cmu;
+ 	bool	clk_ioclk;
++	bool	has_usi_reset;
+ 	bool	has_loopback;
+ 	bool	use_32bit_io;
+ };
+@@ -1123,6 +1129,10 @@ static void s3c64xx_spi_hwinit(struct s3c64xx_spi_driver_data *sdd)
+ 
+ 	sdd->cur_speed = 0;
+ 
++	if (sdd->port_conf->has_usi_reset)
++		writel(readl(regs + EXYNOS_SPI_USI_CON) & ~EXYNOS_SPI_USI_CON_RESET,
++		       regs + EXYNOS_SPI_USI_CON);
++
+ 	if (sci->no_cs)
+ 		writel(0, sdd->regs + S3C64XX_SPI_CS_REG);
+ 	else if (!(sdd->port_conf->quirks & S3C64XX_SPI_QUIRK_CS_AUTO))
+@@ -1566,6 +1576,18 @@ static const struct s3c64xx_spi_port_config exynos850_spi_port_config = {
  	.quirks		= S3C64XX_SPI_QUIRK_CS_AUTO,
  };
  
@@ -31,12 +73,13 @@ index 8d4120c..eb206d9 100644
 +	.clk_div	= 2,
 +	.high_speed	= true,
 +	.clk_from_cmu	= true,
++	.has_usi_reset	= true,
 +};
 +
  static const struct s3c64xx_spi_port_config exynosautov9_spi_port_config = {
  	/* fifo_lvl_mask is deprecated. Use {rx, tx}_fifomask instead. */
  	.fifo_lvl_mask	= { 0x1ff, 0x1ff, 0x7f, 0x7f, 0x7f, 0x7f, 0x1ff, 0x7f,
-@@ -1635,6 +1646,8 @@ static const struct of_device_id s3c64xx_spi_dt_match[] = {
+@@ -1635,6 +1657,8 @@ static const struct of_device_id s3c64xx_spi_dt_match[] = {
  	{ .compatible = "samsung,exynos5433-spi",
  			.data = &exynos5433_spi_port_config,
  	},

@@ -1,4 +1,4 @@
-From 716f7ff8269393075eb3f88035fd6b0f8c8ef047 Mon Sep 17 00:00:00 2001
+From 5ea076a08708453a2696c926363da90c41e2d27a Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 16:07:46 +0100
 Subject: [PATCH 20/20] DEBUG: spi-s3c64xx: dump the controller registers on an
@@ -10,10 +10,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
  1 file changed, 8 insertions(+)
 
 diff --git a/drivers/spi/spi-s3c64xx.c b/drivers/spi/spi-s3c64xx.c
-index eb206d9..f6444f5 100644
+index 33ad866..367e90e 100644
 --- a/drivers/spi/spi-s3c64xx.c
 +++ b/drivers/spi/spi-s3c64xx.c
-@@ -902,6 +902,14 @@ static int s3c64xx_spi_transfer_one(struct spi_controller *host,
+@@ -908,6 +908,14 @@ static int s3c64xx_spi_transfer_one(struct spi_controller *host,
  				(sdd->state & TXBUSY) ? 'f' : 'p',
  				xfer->len, use_dma ? 1 : 0, status);
  

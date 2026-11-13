@@ -4657,3 +4657,13 @@ vypršelo, ovladač čeká na přijatá data i u vysílání), tedy „Failed wa
 OTP_BOOT_DONE“, probe `-EIO`. Registry řadiče byly čitelné (hodiny běží),
 sběrnice ale nejspíš nekmitá. ABOX16 vypíše při chybě registry řadiče
 (DEBUG v `spi-s3c64xx.c`).
+
+### 33.23 SPI6: blok drží reset USI (ABOX16, 2026-11-13)
+
+Výpis registrů řadiče při chybě ukázal samé nuly (CH, CLK, MODE, PACKET)
+a CS v klidu: zápisy do řadiče se neprojevují. Vendorový ovladač před
+prvním přenosem zapisuje nulu do `USI_CON` (offset `0xC4` bloku, „USI_RESET
+je aktivní při 1, výchozí hodnota 1, před přenosem se musí vynulovat“).
+Mainline ovladač to pro tuto jednotku nedělá. Oprava: příznak
+`has_usi_reset` v portu `exynos9610`, `hwinit` maže bit 0 `USI_CON`
+(commit `spi: s3c64xx: Add the Exynos9610 SPI controller`). Test: ABOX17.

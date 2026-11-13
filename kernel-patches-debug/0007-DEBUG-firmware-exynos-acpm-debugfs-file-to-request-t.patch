@@ -1,4 +1,4 @@
-From 6ae05b6beb0f4f300cb2871c142569fb6237ba73 Mon Sep 17 00:00:00 2001
+From c1811aeb2690d26c47f552f2d57e1a2e5fe60615 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 20:16:00 +0100
 Subject: [PATCH 07/20] DEBUG: firmware: exynos-acpm: debugfs file to request
