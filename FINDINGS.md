@@ -4621,3 +4621,29 @@ reproduktor **Qisheng** (`SPK ID` 0 ↔ `gain-media-speaker0`); ID se čte z GPI
 `gpm25` při startu karty. Pro ochranu platí soubory
 `cs35l41-dsp1-prot.wmfw` a `cs35l41-dsp1-spk-prot-*-qisheng.bin` z vendor
 oddílu zálohy. Výsledek platí jen pro tento kus telefonu.
+
+### 33.21 CS35L41 v mainline: co chybí (rozbor, 2026-11-13)
+
+Stav `linux/` (troika-clk):
+
+- **Hotovo:** pinctrl banky `gpp2`, `gpg3`, `gpa0` a skupiny `spi6_bus`,
+  `spi6_cs`, `spi6_cs_func` existují; ovladač `snd-soc-cs35l41-spi` je v
+  mainline.
+- **Chybí 1, uzel SPI:** v `exynos9610.dtsi` není žádný uzel SPI. Vendor
+  `spi_6` (`0x13900000`, přerušení SPI 254, FIFO 64) bere hodiny `GATE_SPI_0_QCH`
+  a `SPI0`, stejně jako vendor `spi_7` bere `SPI1` a `spi_9` `SPI2`. V
+  mainline CMU PERI jim odpovídá `CLK_GOUT_PERI_SPI_0_PCLK` a
+  `CLK_GOUT_PERI_SPI_0_IPCLK` (dělič `dout_clk_peri_spi0`). Shoda vendor →
+  mainline je odvozená z názvů hodin, ověří se čtením.
+- **Chybí 2, port ovladače SPI:** vendor port `exynos-spi` je starý formát
+  (`rx_lvl_offset` 15, `tx_st_done` 25, FIFO podle DT = 64 B, `high_speed`,
+  `clk_from_cmu`), ne `exynos850` (jiné bity stavu). Mainline má pro starý
+  formát `fifo_lvl_mask[]` indexovaný číslem portu z aliasu (`spi6` = index
+  6), pole `exynos7`/`exynos5433` mají jen 6 položek. Je třeba nový port
+  `samsung,exynos9610-spi` (maska `0x7f` pro 64 B FIFO, offset 15, `tx_st_done`
+  25, `clk_div` 2 jako vzorec starého ovladače). Režim CS (`samsung,spi-chip-
+  select-mode` = 0 v živém DT) ověřit.
+- **Chybí 3, ABOX:** v mainline není ovladač ABOX, tedy ani zdroj I2S pro
+  UAIF0 → zesilovač; zdroj zatím zůstává ručně přes registry.
+- **Bezpečný první krok:** po SPI číst jen ID čipu CS35L41 (registr
+  `DEVID`), žádný zápis a bez ochranného firmwaru zesilovač nepovolit.
