@@ -4878,3 +4878,13 @@ a pak tón. Příčinu jsem nedohledal, jen že tato posloupnost funguje.
 Slyšitelnost zatím neověřena: sekvence tónu −72 / −62 / −52 dBFS (a −42, ten
 telnet vzhledem k limitu času nevypsal) proběhla bez chyby; co z toho bylo
 slyšet, může říct jen uživatel.
+
+### 33.34 PRVNÍ SLYŠITELNÝ ZVUK z reproduktoru (2026-11-14)
+
+Tón z generátoru kodeku (Tone Generator 1 → AIF2TX1 → CS47L35 AIF2 → CS35L41,
+přes ochranné DSP, `SPK PCM Source` = DSP) uživatel slyšel. Úrovně −72 až −42
+dBFS (dvakrát) neslyšel; slyšet byl až krok kolem −32 / −22 dBFS (mixer 20,
+`SPK Digital PCM Volume` 657 a 737, 6 s každý; který z obou dvou, jsem se
+neptal). Tím je ověřeno celé zapojení kodek → zesilovač → reproduktor
+(hodiny, napájení LDO42, `codec_en`, SPI9, SPI6, firmware ochrany). Zbývá cesta
+ABOX UAIF0 → kodek AIF1 s reálným PCM.

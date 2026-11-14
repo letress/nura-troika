@@ -2257,3 +2257,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-14: PŘÍČINA SPI: hodiny 200 MHz (chyběl CLK_SET_RATE_PARENT), patche 0101–0103; firmware ochrany CS35L41 se nahraje čistě (Qisheng tuning); out/troika-test-ABOX52.img (337a073d); FINDINGS 33.31 (opravuje 33.29/33.30)
 - 2026-11-14: kodek CS47L35 funguje (codec_en, SPI9, FLL z 32 kHz), karta kodek→zesilovač; zesilovač se nezamkne na hodiny (PLL_UNLOCK); čeká srovnání s Lineage; patch 0104 (SPI9 dtsi); out/troika-test-ABOX69.img (caf60e76); FINDINGS 33.32
 - 2026-11-14: srovnání s původním systémem; po správné posloupnosti zesilovač s tónem z kodeku naběhne (GLOBAL_EN=1, PLL zamčená, bez chyb); slyšitelnost čeká na uživatele; FINDINGS 33.33
+- 2026-11-14: PRVNÍ SLYŠITELNÝ ZVUK: tón z kodeku přes CS35L41 a ochranné DSP slyšet z reproduktoru (kolem −32/−22 dBFS); zbývá ABOX → AIF1 s PCM; FINDINGS 33.34
