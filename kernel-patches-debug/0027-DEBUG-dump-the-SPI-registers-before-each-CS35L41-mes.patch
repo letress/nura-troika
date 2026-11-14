@@ -1,0 +1,38 @@
+From 5d739ad18287e763cb0d60b01262cbbbee54fa4a Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:13:07 +0100
+Subject: [PATCH 27/29] DEBUG: dump the SPI registers before each CS35L41
+ message
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/spi/spi-s3c64xx.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/drivers/spi/spi-s3c64xx.c b/drivers/spi/spi-s3c64xx.c
+index 2bd9391..85f61a4 100644
+--- a/drivers/spi/spi-s3c64xx.c
++++ b/drivers/spi/spi-s3c64xx.c
+@@ -795,6 +795,19 @@ static int s3c64xx_spi_prepare_message(struct spi_controller *host,
+ 	struct spi_device *spi = msg->spi;
+ 	struct s3c64xx_spi_csinfo *cs = spi->controller_data;
+ 
++	{
++		static int dbg_cnt;
++
++		if (!strcmp(spi->modalias, "cs35l41") && dbg_cnt++ < 40)
++			dev_info(&spi->dev,
++				 "DEBUG msg regs: ch %08x clk %08x mode %08x cs %08x int %08x st %08x pkt %08x swap %08x fb %08x usi %08x\n",
++				 readl(sdd->regs + 0x00), readl(sdd->regs + 0x04),
++				 readl(sdd->regs + 0x08), readl(sdd->regs + 0x0c),
++				 readl(sdd->regs + 0x10), readl(sdd->regs + 0x14),
++				 readl(sdd->regs + 0x20), readl(sdd->regs + 0x28),
++				 readl(sdd->regs + 0x2c), readl(sdd->regs + 0xc4));
++	}
++
+ 	/* Configure feedback delay */
+ 	if (!cs)
+ 		/* No delay if not defined */
+-- 
+2.56.0
+

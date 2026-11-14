@@ -2252,3 +2252,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-14: LDO42 zapnut (0xec), CS35L41 odpovídá, OTP_BOOT_DONE timeout; ABOX21 vypisuje registry (out/troika-test-ABOX21.img, 62111d7e)
 - 2026-11-14: CS35L41 s LDO42 čte samé nuly; ABOX22 zkouší reset low/high (out/troika-test-ABOX22.img, c7bd8a44)
 - 2026-11-14: `tools/auto-test.sh` (restart → fastboot → boot jen z out/ → síť → příkaz → log v logs/auto-test/); z fastbootu jen devices/getvar/boot/reboot, flash/erase odmítá; ověřeno na ABOX22 (jen čtení dmesg, bez zápisu do napájení). Zapnutí LDO42 do automatu nepatří bez uživatelova souhlasu.
+- 2026-11-14: CS35L41 ROZPOZNÁN (35a40, rev B0): oprava CS v spi-s3c64xx (patch 0101) + čtení s 4 bajty navíc v cs35l41-spi.c (jen test větev, příčina neznámá); LDO42 zapnout je potřeba; out/troika-test-ABOX34.img (96e04b29); FINDINGS 33.29

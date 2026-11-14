@@ -1,0 +1,164 @@
+From 5e604035bdcb1ac82bc3a9c8151cfc8b3f50ed1c Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 11:43:56 +0100
+Subject: [PATCH 26/29] DEBUG: try the SPI modes and low speeds when CS35L41
+ does not answer
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41.c | 132 +++++++++++++++++++++++++++++++++++++
+ 1 file changed, 132 insertions(+)
+
+diff --git a/sound/soc/codecs/cs35l41.c b/sound/soc/codecs/cs35l41.c
+index 6f870a3..2f55952 100644
+--- a/sound/soc/codecs/cs35l41.c
++++ b/sound/soc/codecs/cs35l41.c
+@@ -13,6 +13,7 @@
+ #include <linux/init.h>
+ #include <linux/kernel.h>
+ #include <linux/module.h>
++#include <linux/spi/spi.h>
+ #include <linux/moduleparam.h>
+ #include <linux/pm_runtime.h>
+ #include <linux/property.h>
+@@ -1283,6 +1284,137 @@ int cs35l41_probe(struct cs35l41_private *cs35l41, const struct cs35l41_hw_cfg *
+ 					 a, gpiod_get_value_cansleep(cs35l41->reset_gpio), 20 << i);
+ 			}
+ 		}
++		if (cs35l41->reset_gpio && cs35l41->dev->bus == &spi_bus_type) {
++			struct spi_device *spi = to_spi_device(cs35l41->dev);
++			static const u32 speeds[] = { 200000, 1000000, 4000000 };
++			u8 old_mode = spi->mode;
++			u32 old_speed = spi->max_speed_hz;
++			int m, k;
++
++			for (m = 0; m < 4; m++) {
++				for (k = 0; k < ARRAY_SIZE(speeds); k++) {
++					spi->mode = (spi->mode & ~SPI_MODE_X_MASK) | m;
++					spi->max_speed_hz = speeds[k];
++					if (spi_setup(spi))
++						continue;
++					a = 0xdead;
++					regmap_read(cs35l41->regmap, CS35L41_DEVID, &a);
++					dev_info(cs35l41->dev, "DEBUG: spi mode %d %u Hz devid %08x\n",
++						 m, speeds[k], a);
++				}
++			}
++			{
++				u8 *tx = kzalloc(32, GFP_KERNEL), *rx = kzalloc(32, GFP_KERNEL);
++				static const u32 addrs[] = { 0x0, 0x4 };
++				int n;
++
++				for (n = 0; tx && rx && n < ARRAY_SIZE(addrs); n++) {
++					for (m = 0; m < 4; m += 3) {
++					 for (int sp = 0; sp < 3; sp++) {
++						struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx,
++									   .len = 24 };
++
++						memset(tx, 0, 32);
++						memset(rx, 0xa5, 32);
++						tx[0] = 0x80 | (addrs[n] >> 24);
++						tx[1] = addrs[n] >> 16;
++						tx[2] = addrs[n] >> 8;
++						tx[3] = addrs[n];
++						spi->mode = (spi->mode & ~SPI_MODE_X_MASK) | m;
++						spi->max_speed_hz = speeds[sp];
++						if (spi_setup(spi))
++							continue;
++						k = spi_sync_transfer(spi, &xf, 1);
++						dev_info(cs35l41->dev, "DEBUG: raw addr %x mode %d %u Hz ret %d rx %*ph\n",
++							 addrs[n], m, speeds[sp], k, 24, rx);
++					 }
++					}
++				}
++				for (n = 0; tx && rx && n < 4; n++) {
++					static const u8 txl[] = { 6, 8, 10, 12 };
++					struct spi_transfer xf[2] = {
++						{ .tx_buf = tx, .len = txl[n] },
++						{ .rx_buf = rx, .len = 12 },
++					};
++
++					memset(tx, 0, 32);
++					memset(rx, 0xa5, 32);
++					tx[0] = 0x80;
++					spi->mode &= ~SPI_MODE_X_MASK;
++					spi->max_speed_hz = 1000000;
++					if (spi_setup(spi))
++						continue;
++					k = spi_sync_transfer(spi, xf, 2);
++					dev_info(cs35l41->dev, "DEBUG: two-step tx %u rx %*ph ret %d\n",
++						 txl[n], 12, rx, k);
++				}
++				/*
++				 * Write framing on IRQ1_MASK1 (reset value ffffffff, only
++				 * masks interrupts): 4 byte address, k pad bytes, 4 data
++				 * bytes, read back with 6 pad bytes, original value restored.
++				 */
++				for (n = 0; tx && rx && n < 4; n++) {
++					static const u8 pads[] = { 2, 6, 6, 6 };
++					static const u32 vals[] = { 0xfffffffe, 0xfffffffe, 0xffffffff, 0xffffffff };
++					struct spi_transfer xw = { .tx_buf = tx };
++					struct spi_transfer xr[2] = {
++						{ .tx_buf = tx + 16, .len = 10 },
++						{ .rx_buf = rx, .len = 4 },
++					};
++					u32 want = vals[n];
++
++					memset(tx, 0, 32);
++					memset(rx, 0xa5, 32);
++					tx[0] = 0x00; tx[1] = 0x01; tx[2] = 0x01; tx[3] = 0x10;
++					tx[4 + pads[n]] = want >> 24;
++					tx[5 + pads[n]] = want >> 16;
++					tx[6 + pads[n]] = want >> 8;
++					tx[7 + pads[n]] = want;
++					xw.len = 8 + pads[n];
++					tx[16] = 0x80; tx[17] = 0x01; tx[18] = 0x01; tx[19] = 0x10;
++					spi->mode &= ~SPI_MODE_X_MASK;
++					spi->max_speed_hz = 1000000;
++					if (spi_setup(spi))
++						continue;
++					k = spi_sync_transfer(spi, &xw, 1);
++					m = spi_sync_transfer(spi, xr, 2);
++					dev_info(cs35l41->dev, "DEBUG: write pad %u val %08x ret %d, read back %*ph ret %d\n",
++						 pads[n], want, k, 4, rx, m);
++				}
++				for (n = 0; tx && rx && n < 3; n++) {
++					static const u16 setup[] = { 1, 20, 300 };
++					int r, pos;
++
++					spi->mode &= ~SPI_MODE_X_MASK;
++					spi->max_speed_hz = 1000000;
++					spi->cs_setup.value = 0;
++					spi->cs_hold = spi->cs_setup;
++					if (spi_setup(spi))
++						continue;
++					for (r = 0; r < 5; r++) {
++						struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 24 };
++
++						msleep(setup[n]);
++						memset(tx, 0, 32);
++						memset(rx, 0xa5, 32);
++						tx[0] = 0x80;
++						k = spi_sync_transfer(spi, &xf, 1);
++						for (pos = 0; pos < 21; pos++)
++							if (!memcmp(rx + pos, "\x00\x03\x5a\x40", 4))
++								break;
++						dev_info(cs35l41->dev, "DEBUG: cs setup %u ms run %d ret %d devid at %d: %*ph\n",
++							 setup[n], r, k, pos < 21 ? pos : -1, 24, rx);
++					}
++				}
++				spi->cs_setup.value = 0;
++				spi->cs_hold.value = 0;
++				kfree(tx);
++				kfree(rx);
++			}
++			spi->mode = old_mode;
++			spi->max_speed_hz = old_speed;
++			spi_setup(spi);
++		}
+ 		dev_err_probe(cs35l41->dev, ret,
+ 			      "Failed waiting for OTP_BOOT_DONE\n");
+ 		goto err;
+-- 
+2.56.0
+

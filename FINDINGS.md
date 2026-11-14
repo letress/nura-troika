@@ -4716,3 +4716,36 @@ MISO nějak ovlivňuje, ale smysluplná data nevrací. SPI frekvence nelze z
 `clk_summary` určit (hodiny jsou v klidu vypnuté; IPCLK 399,75 MHz).
 ABOX22 po timeoutu čte DEVID s resetem ve vysoké i nízké úrovni a po delším
 čekání, aby se poznalo, jestli je reset zapojený, jak se předpokládá.
+
+### 33.29 CS35L41 odpovídá: chyběl CS a čtení potřebuje delší padding (ABOX34, 2026-11-14)
+
+Výsledek ladění SPI6 (ABOX23 až ABOX34), vše bylo jen čtení z čipu nebo zápis
+do masky přerušení:
+
+1. **Ovladač nestahoval CS.** `spi-s3c64xx` neregistroval `set_cs` u jádra
+   SPI. Řadič s vlastním pinem CS v ručním režimu proto vybral zařízení při
+   prvním přenosu a už ho neuvolnil (výpis registrů: `CS_REG` = 0 před každou
+   zprávou). Čip viděl všechny další přenosy jako jednu dlouhou transakci;
+   první čtení po `spi_setup()` fungovalo, další vracela nuly. Oprava:
+   patch 0101 (`host->set_cs`), na čisté větvi. Řadiče s automatickým CS a
+   s GPIO CS se chovají jako dřív.
+2. **LDO42 zapnout bylo potřeba.** Bez něj čip vracel samé jedničky. Zapnutí
+   (`acpmdbg_ldo42`, zápis 1) se po teplém restartu obrazem přes
+   `fastboot boot` zachová, po vypnutí napájení ne.
+3. **Čtení potřebuje o 4 bajty víc paddingu než `regmap` (16 bitů).**
+   Celý proud MISO ukázal: odpověď (`00 03 5a 40` = DEVID 0x00035A40, další
+   slova REVID `b0`, `61`) začíná na bajtu 10 místo 6, při 200 kHz i 4 MHz
+   stejně, ve všech čtyřech režimech SPI. Samosmyčka řadiče (`SPI_LOOP`)
+   vrátila vzor beze změny, řadič tedy nic neposouvá. Zápis s paddingem 2
+   bajty funguje (zápis a zpětné čtení masky `IRQ1_MASK1` = `fffffffe`),
+   zápis s paddingem 6 bajtů zapsal nuly (jen do masek přerušení, po resetu
+   čipu pryč). Zdroj posunu zatím neznám (TODO: proč; vendor má `pad_bits`
+   16 a funguje). Pro test vlastní sběrnice `regmap` v `cs35l41-spi.c`:
+   zápisy beze změny, čtení se 4 bajty navíc.
+
+Po tom: `Cirrus Logic CS35L41 (35a40), Revision: B0`, probe projde (i po
+`unbind`/`bind`). Hlášky `pm_runtime_resume_and_get failed in cs35l41_irq`
+(33×, jen při probe) a `Subsystem ID not found` zatím neřeším; další krok je
+firmware ochrany reproduktoru a cesta zvuku. Pozn.: skript sestavení obrazu
+při chybě překladu zabalil starý kernel (ABOX23 jsem smazal); kontrola
+chyb před sestavením obrazu je teď ruční.

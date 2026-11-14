@@ -1,0 +1,54 @@
+From 3218e5de4823e3e8b4630f2f424344968422b2c9 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:20:48 +0100
+Subject: [PATCH 28/29] DEBUG: SPI self loopback test of the controller
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/spi/spi-s3c64xx.c  |  1 +
+ sound/soc/codecs/cs35l41.c | 17 +++++++++++++++++
+ 2 files changed, 18 insertions(+)
+
+diff --git a/drivers/spi/spi-s3c64xx.c b/drivers/spi/spi-s3c64xx.c
+index 85f61a4..f34fa1b 100644
+--- a/drivers/spi/spi-s3c64xx.c
++++ b/drivers/spi/spi-s3c64xx.c
+@@ -1619,6 +1619,7 @@ static const struct s3c64xx_spi_port_config exynos9610_spi_port_config = {
+ 	.high_speed	= true,
+ 	.clk_from_cmu	= true,
+ 	.has_usi_reset	= true,
++	.has_loopback	= true,	/* DEBUG */
+ };
+ 
+ static const struct s3c64xx_spi_port_config exynosautov9_spi_port_config = {
+diff --git a/sound/soc/codecs/cs35l41.c b/sound/soc/codecs/cs35l41.c
+index 2f55952..4b19dba 100644
+--- a/sound/soc/codecs/cs35l41.c
++++ b/sound/soc/codecs/cs35l41.c
+@@ -1408,6 +1408,23 @@ int cs35l41_probe(struct cs35l41_private *cs35l41, const struct cs35l41_hw_cfg *
+ 				}
+ 				spi->cs_setup.value = 0;
+ 				spi->cs_hold.value = 0;
++				/* controller self loopback: rx must equal tx */
++				if (tx && rx) {
++					struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 24 };
++					int i;
++
++					for (i = 0; i < 24; i++)
++						tx[i] = i + 1;
++					memset(rx, 0xa5, 32);
++					spi->mode = (spi->mode & ~SPI_MODE_X_MASK) | SPI_LOOP;
++					spi->max_speed_hz = 1000000;
++					if (!spi_setup(spi)) {
++						k = spi_sync_transfer(spi, &xf, 1);
++						dev_info(cs35l41->dev, "DEBUG: loopback ret %d rx %*ph\n", k, 24, rx);
++					}
++					spi->mode &= ~SPI_LOOP;
++					spi_setup(spi);
++				}
+ 				kfree(tx);
+ 				kfree(rx);
+ 			}
+-- 
+2.56.0
+

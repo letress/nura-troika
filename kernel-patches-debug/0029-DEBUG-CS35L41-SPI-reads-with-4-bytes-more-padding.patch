@@ -1,0 +1,81 @@
+From acce85a8ac23a7643119546acd68376faaf44833 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:23:56 +0100
+Subject: [PATCH 29/29] DEBUG: CS35L41 SPI reads with 4 bytes more padding
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 50 +++++++++++++++++++++++++++++++++-
+ 1 file changed, 49 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index f9b6bf7..21a2bf2 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -27,6 +27,54 @@ static const struct spi_device_id cs35l41_id_spi[] = {
+ 
+ MODULE_DEVICE_TABLE(spi, cs35l41_id_spi);
+ 
++/*
++ * DEBUG: on this board the amplifier answers a read 4 bytes later than the
++ * 16 bits of padding of the register map say, writes keep the 16 bits. Reads
++ * therefore get 4 more bytes of padding than the register map adds.
++ */
++#define CS35L41_SPI_READ_EXTRA_PAD	4
++
++static int cs35l41_spi_write(void *context, const void *data, size_t count)
++{
++	return spi_write(to_spi_device(context), data, count);
++}
++
++static int cs35l41_spi_gather_write(void *context, const void *reg, size_t reg_len,
++				    const void *val, size_t val_len)
++{
++	struct spi_transfer t[2] = { { .tx_buf = reg, .len = reg_len, },
++				     { .tx_buf = val, .len = val_len, }, };
++	struct spi_message m;
++
++	spi_message_init(&m);
++	spi_message_add_tail(&t[0], &m);
++	spi_message_add_tail(&t[1], &m);
++
++	return spi_sync(to_spi_device(context), &m);
++}
++
++static int cs35l41_spi_read(void *context, const void *reg, size_t reg_len,
++			    void *val, size_t val_len)
++{
++	u8 hdr[16] = { };
++
++	if (reg_len + CS35L41_SPI_READ_EXTRA_PAD > sizeof(hdr))
++		return -EINVAL;
++	memcpy(hdr, reg, reg_len);
++
++	return spi_write_then_read(to_spi_device(context), hdr,
++				   reg_len + CS35L41_SPI_READ_EXTRA_PAD, val, val_len);
++}
++
++static const struct regmap_bus cs35l41_regmap_spi_bus = {
++	.write = cs35l41_spi_write,
++	.gather_write = cs35l41_spi_gather_write,
++	.read = cs35l41_spi_read,
++	.read_flag_mask = 0x80,
++	.reg_format_endian_default = REGMAP_ENDIAN_BIG,
++	.val_format_endian_default = REGMAP_ENDIAN_BIG,
++};
++
+ static int cs35l41_spi_probe(struct spi_device *spi)
+ {
+ 	const struct regmap_config *regmap_config = &cs35l41_regmap_spi;
+@@ -44,7 +92,7 @@ static int cs35l41_spi_probe(struct spi_device *spi)
+ 		return ret;
+ 
+ 	spi_set_drvdata(spi, cs35l41);
+-	cs35l41->regmap = devm_regmap_init_spi(spi, regmap_config);
++	cs35l41->regmap = devm_regmap_init(&spi->dev, &cs35l41_regmap_spi_bus, &spi->dev, regmap_config);
+ 	if (IS_ERR(cs35l41->regmap))
+ 		return dev_err_probe(cs35l41->dev, PTR_ERR(cs35l41->regmap),
+ 				     "Failed to allocate register map\n");
+-- 
+2.56.0
+

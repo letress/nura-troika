@@ -1,7 +1,7 @@
-From 71ae9fa6e9bf7318feaf34ff1e28a1e4495baae3 Mon Sep 17 00:00:00 2001
+From 9dc70c59092b3ff899c693d06361c0c4810894f1 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 20:34:14 +0100
-Subject: [PATCH 08/25] DEBUG: firmware: exynos-acpm: G3D rates up to 764 MHz,
+Subject: [PATCH 08/29] DEBUG: firmware: exynos-acpm: G3D rates up to 764 MHz,
  read the BUCK5 voltage
 
 Co-Authored-By: Claude <noreply@anthropic.com>
