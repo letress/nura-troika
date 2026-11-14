@@ -16,3 +16,4 @@
 /pmaports/
 # Místní nastavení nástrojů
 /.claude/
+/logs/
