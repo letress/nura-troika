@@ -4888,3 +4888,37 @@ dBFS (dvakrát) neslyšel; slyšet byl až krok kolem −32 / −22 dBFS (mixer 
 neptal). Tím je ověřeno celé zapojení kodek → zesilovač → reproduktor
 (hodiny, napájení LDO42, `codec_en`, SPI9, SPI6, firmware ochrany). Zbývá cesta
 ABOX UAIF0 → kodek AIF1 s reálným PCM.
+
+### 33.35 Hostitelské IPC do firmwaru ABOX funguje, RDMA1 naprogramován (ABOX71, 2026-11-14)
+
+Do testovacího ovladače (`abox-sysmmu-test.c`) přibyly debugfs `abox-fw/gic`
+(`abox_gic_init_gic` z vendorového `abox_gic.c`: PRIMASK 0xff, GICD_CTRL 3,
+40 slov priority 0x10101010, GICC_CTRL 3), `abox-fw/ipc` (slova hex: zpráva
+do SRAM `0x22000`, ack `0x222FC` = 1, SOFTINT `(1<<16)|ipcid` do GICD+0xf00,
+čekání na vynulování ack) a `abox-fw/fill` (sinus 1 kHz, 48 kHz stereo S16,
+do vyrovnávací paměti na IOVA `0x81100000`, 0x3c00 B); do testovací karty
+`troika-test-aif1` (vynutí DAPM pinů AIF1RX1/2) a zápisy 0x500, 0x504, 0x506–0x508.
+
+- **Zprávy `IPC_PCMPLAYBACK` (ipcid 2), čísla hexadecimálně:** OPEN 0xb,
+  HW_PARAMS 0xe, PREPARE 0x10, TRIGGER 0x11, SET_BUFFER 0x14. Pořadí z
+  `abox_rdma.c`: OPEN, SET_BUFFER (phyaddr 0x81100000, size 0xf00, count 4),
+  HW_PARAMS (48000, 16, 2), PREPARE, TRIGGER 1. Bez předchozího OPEN firmware
+  hlásí „Output channel was not assigned“ a pak z TRIGGER vypíše nesmyslný
+  kanál (jednou jsem omylem poslal TRIGGER místo OPEN, protože jsem zadal
+  „11“ jako desítkové; firmware pak přestal potvrzovat).
+- **Se správným pořadím** firmware potvrzuje všechny zprávy, v logu
+  „PCM open for task 1“, „output channel-1 uses normal stream 0x81100000,
+  15360“, „RDMA format was set: 0x09“, „output ch-1 ASRC: 4 to 9“.
+  Po TRIGGER má RDMA1 `CTRL0` = 0x00400921, `BUF_STR` 0x81100000,
+  `BUF_END` 0x81103c00, `BUF_OFFSET` 0xf00, `STR_POINT` 0x81100000.
+- **Zatím nic neteče:** `RDMA1_STATUS` 0, zesilovač zůstal vypnutý
+  (`GLOBAL_EN` 0). Nastavení směrování a UAIF0 jsem zapsal podle výpisu z
+  původního systému (0x504 = 0x0984f000, 0x200 = 0x15333323, 0x40 = 0x31,
+  0x38 = 4, 0x500 = 0x01000015). Rozdíl proti původnímu systému: moje
+  `SPUS_CTRL1` (0x204) a `SPUM_CTRL0/1` (0x300/0x304) jsou 0, v původním
+  0x00370009, 0x1113, 0x900; hostitel je nastavuje při startu, firmware ne.
+  Také ASRC „4 to 9“ naznačuje jinou výstupní frekvenci směšovače, než čeká
+  UAIF0. Nezjištěno.
+- **Pád:** po výpisu registrů smyčkou s chybnou adresou (moje chyba v
+  příkazu, `0x14a50` + 4 číslice místo součtu) telefon přestal odpovídat
+  a po 2 minutách se sám neobnovil; čeká na dlouhý stisk tlačítek.
