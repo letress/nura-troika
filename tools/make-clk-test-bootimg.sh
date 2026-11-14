@@ -52,6 +52,10 @@ aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
 	-o "$tmp/bin/ctl-rd" "$root/test-initramfs/ctl-rd.c"
 aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
 	-o "$tmp/bin/ctl-wr" "$root/test-initramfs/ctl-wr.c"
+# Přehrání sinu na PCM ALSA (test zvuku přes ABOX); hlavičky ALSA z kernelu.
+aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
+	-I "$root/build/uapi-stub" -I "$root/build/uapi/include" \
+	-o "$tmp/bin/pcm-sine" "$root/test-initramfs/pcm-sine.c"
 # Firmware ochrany reproduktoru CS35L41 (tools/extract-cs35l41-fw.sh) pod
 # názvy, které hledá wm_adsp; ladění Qisheng „music“ (FINDINGS 33.20).
 cs="$root/dl/cs35l41-fw"

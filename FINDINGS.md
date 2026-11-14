@@ -4965,3 +4965,36 @@ CS47L35 (AIF1 → AIF2) a CS35L41 s ochranným DSP (ABOX77, úroveň asi −34 d
 Tím je ověřena celá fyzická cesta zvuku. Zbývá ji zabalit do ovladačů:
 ASoC platforma/karta pro ABOX (RDMA, UAIF, IPC), karta kodek→zesilovač a
 konfigurace pro balíček.
+
+### 33.38 Ovladač ABOX jako ASoC komponenta, přehrávání přes ALSA (ABOX90, 2026-11-14)
+
+Nový ovladač `sound/soc/samsung/exynos9610-abox.c` (DT `samsung,exynos9610-abox`,
+Kconfig `SND_SOC_EXYNOS9610_ABOX`) nahrazuje ruční zápisy z testovacích
+debugfs: načte firmware Calliope do SRAM a DRAM, spustí procesor přes PMU,
+čeká na BOOT_DONE (rx fronta se bere pracovní úlohou po 5 ms, ack se maže
+hned), inicializuje GIC a pošle konfiguraci směšovače. DAI `abox-rdma1`
+(playback, 48 kHz, stereo, S16) při `startup` pošle OPEN, při `hw_params`
+SET_BUFFER a HW_PARAMS, při `prepare` PREPARE a pak zapíše směrování
+(`SPUS_CTRL0` 0x15333323, `ROUTE_CTRL0` 0x31, `SPUS_CTRL1`, `SPUM_CTRL0/1`,
+`UAIF0_CTRL1`, `QCHANNEL_DISABLE`), při `trigger` zapne UAIF0 (CTRL0 0x…15)
+a pošle TRIGGER. Vyrovnávací paměť je rezervovaná oblast (1 MiB, IOVA
+0x81100000) a data se do ní kopírují přes `copy`; ukazatel se počítá z
+`RDMA1_STATUS` (offset po 16 B + počet bajtů). Testovací karta má druhý
+spoj `RDMA1` (ABOX ↔ AIF1 kodeku, I2S, ABOX poskytuje hodiny).
+
+Co se muselo najít:
+- **Runtime PM:** bez `pm_runtime_resume_and_get` na zařízení ABOX System MMU
+  nemá napájení a firmware hned hlásí chybu (zpráva typu 0xfa) a zamrzne.
+- **Pauzy:** firmware maže ack při přijetí, ne po zpracování; zprávy poslané
+  těsně za sebou ho někdy zablokují. Za každou zprávou je teď 300 ms.
+- **Celé hodnoty registrů:** po restartu jsou `SPUS_CTRL0`/`ROUTE_CTRL0` nulové,
+  takže read-modify-write nestačí; píšou se celé hodnoty z výpisů původního
+  systému. `UAIF0_CTRL0` musí mít bit MODE (0x14 v klidu, 0x15 při hraní),
+  jinak RDMA „běží“, ale nic neodebírá.
+- **Test:** `pcm-sine` (bez libc, hlavičky z `make headers_install`) pustí
+  sinus 1 kHz přes `/dev/snd/pcmC0D1p`; 4 s s amplitudou 100 i 6 s s amplitudou
+  8000 (kolem −34 dBFS po mixeru a DSP zesilovače) prošly bez chyby.
+- **Zbývá:** firmware ABOX přibývá do balíčku (zatím z initramfs), ovladač
+  nepoužívá přerušení (polluje 5 ms), jediný kanál a jediná frekvence,
+  čistá karta místo testovací, automatické výchozí hodnoty mixeru a DSP
+  zesilovače (zatím `ctl-wr`), patche a konfigurace do balíčku.
