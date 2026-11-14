@@ -4957,3 +4957,11 @@ Doplnění k 33.35, které dostalo řetěz od přehrávače po zesilovač do cho
   (`00:01:29 up 1 min`); šlo o prodlevu a časový limit `phone-sh.py`.
   Skutečné zamrznutí způsobila jen chybná adresa v mé smyčce (33.35).
 - Slyšitelnost sinusu z přehrávače zatím neověřena (čeká na uživatele).
+
+### 33.37 ABOX → reproduktor SLYŠET (2026-11-14)
+
+Uživatel slyšel 1 kHz sinus z RDMA1 (firmware Calliope) přes UAIF0, kodek
+CS47L35 (AIF1 → AIF2) a CS35L41 s ochranným DSP (ABOX77, úroveň asi −34 dBFS).
+Tím je ověřena celá fyzická cesta zvuku. Zbývá ji zabalit do ovladačů:
+ASoC platforma/karta pro ABOX (RDMA, UAIF, IPC), karta kodek→zesilovač a
+konfigurace pro balíček.

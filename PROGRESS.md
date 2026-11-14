@@ -2260,3 +2260,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-14: PRVNÍ SLYŠITELNÝ ZVUK: tón z kodeku přes CS35L41 a ochranné DSP slyšet z reproduktoru (kolem −32/−22 dBFS); zbývá ABOX → AIF1 s PCM; FINDINGS 33.34
 - 2026-11-14: hostitelské IPC do firmwaru ABOX funguje (gic, ipc, fill; ABOX71): OPEN/SET_BUFFER/HW_PARAMS/PREPARE/TRIGGER potvrzeny, RDMA1 naprogramován, ale tok dat nezačal; chybí SPUS_CTRL1/SPUM; telefon po chybném čtení visí; FINDINGS 33.35
 - 2026-11-14: sinus z RDMA1 → UAIF0 → Madera AIF1 → AIF2 → CS35L41 teče (GLOBAL_EN=1), čeká na poslech; piny gpb0 funkce 2, konfigurace mixeru IPC, DAPM zdroj AIF1; out/troika-test-ABOX77.img; FINDINGS 33.36
+- 2026-11-14: ABOX → UAIF0 → kodek → CS35L41: sinus z přehrávače SLYŠET (ABOX77); zbývá ovladač ABOX/ASoC karta do balíčku; FINDINGS 33.37
