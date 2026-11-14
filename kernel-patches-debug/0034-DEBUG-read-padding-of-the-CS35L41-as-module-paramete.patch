@@ -1,0 +1,59 @@
+From 43d7f1a15efbac63621f4d7a4233cdc7c82b439c Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:56:02 +0100
+Subject: [PATCH 34/38] DEBUG: read padding of the CS35L41 as module parameters
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 21 ++++++---------------
+ 1 file changed, 6 insertions(+), 15 deletions(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index 5521771..6602e72 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -34,6 +34,11 @@ MODULE_DEVICE_TABLE(spi, cs35l41_id_spi);
+  */
+ #define CS35L41_SPI_READ_EXTRA_PAD	4
+ 
++static unsigned int reg_extra = CS35L41_SPI_READ_EXTRA_PAD;
++static unsigned int dsp_extra = 16;
++module_param(reg_extra, uint, 0644);
++module_param(dsp_extra, uint, 0644);
++
+ static int cs35l41_spi_write(void *context, const void *data, size_t count)
+ {
+ 	return spi_write(to_spi_device(context), data, count);
+@@ -58,7 +63,7 @@ static int cs35l41_spi_read(void *context, const void *reg, size_t reg_len,
+ {
+ 	u8 hdr[32] = { };
+ 	/* DEBUG: the DSP memories (0x02000000 and up) answer even later */
+-	unsigned int extra = (((const u8 *)reg)[0] & 0x7f) >= 0x02 ? 16 : CS35L41_SPI_READ_EXTRA_PAD;
++	unsigned int extra = (((const u8 *)reg)[0] & 0x7f) >= 0x02 ? dsp_extra : reg_extra;
+ 	int ret;
+ 
+ 	if (reg_len + extra > sizeof(hdr))
+@@ -70,20 +75,6 @@ static int cs35l41_spi_read(void *context, const void *reg, size_t reg_len,
+ 	if (val_len > 4) {
+ 		static int n;
+ 
+-		if (n == 0) {
+-			static const u8 ex[] = { 4, 8, 12, 16, 20, 24 };
+-			u8 tmp[16];
+-			int i, j;
+-
+-			for (j = 0; j < 2; j++)
+-				for (i = 0; i < ARRAY_SIZE(ex); i++) {
+-					memset(hdr + reg_len, 0, sizeof(hdr) - reg_len);
+-					spi_write_then_read(to_spi_device(context), hdr,
+-							    reg_len + ex[i], tmp, sizeof(tmp));
+-					dev_info(context, "DEBUG: probe extra %u: %*ph\n",
+-						 ex[i], (int)sizeof(tmp), tmp);
+-				}
+-		}
+ 		if (n++ < 12)
+ 			dev_info(context, "DEBUG: bulk read %*phN len %zu: %*ph\n",
+ 				 (int)reg_len, reg, val_len, (int)min_t(size_t, val_len, 48), val);
+-- 
+2.56.0
+

@@ -1,0 +1,41 @@
+From 48c2e49ee7c2e335638d427619a5e5942f35943e Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:48:57 +0100
+Subject: [PATCH 32/38] DEBUG: longer read padding for the DSP memories of the
+ CS35L41
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index 0ddf2c2..70b9dfb 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -56,16 +56,17 @@ static int cs35l41_spi_gather_write(void *context, const void *reg, size_t reg_l
+ static int cs35l41_spi_read(void *context, const void *reg, size_t reg_len,
+ 			    void *val, size_t val_len)
+ {
+-	u8 hdr[16] = { };
++	u8 hdr[32] = { };
++	/* DEBUG: the DSP memories (0x02000000 and up) answer even later */
++	unsigned int extra = (((const u8 *)reg)[0] & 0x7f) >= 0x02 ? 16 : CS35L41_SPI_READ_EXTRA_PAD;
++	int ret;
+ 
+-	if (reg_len + CS35L41_SPI_READ_EXTRA_PAD > sizeof(hdr))
++	if (reg_len + extra > sizeof(hdr))
+ 		return -EINVAL;
+-	int ret;
+ 
+ 	memcpy(hdr, reg, reg_len);
+ 
+-	ret = spi_write_then_read(to_spi_device(context), hdr,
+-				  reg_len + CS35L41_SPI_READ_EXTRA_PAD, val, val_len);
++	ret = spi_write_then_read(to_spi_device(context), hdr, reg_len + extra, val, val_len);
+ 	if (val_len > 4) {
+ 		static int n;
+ 
+-- 
+2.56.0
+

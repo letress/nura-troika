@@ -1,0 +1,74 @@
+From ff78e29b19d033c7993a60cb0978e2f7faa5c562 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:03:50 +0100
+Subject: [PATCH 36/38] DEBUG: DSP memory write/read self test of the CS35L41
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 43 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 43 insertions(+)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index 244d0fa..d7425d2 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -38,6 +38,48 @@ static unsigned int reg_extra = CS35L41_SPI_READ_EXTRA_PAD;
+ static unsigned int dsp_extra = 22;
+ static unsigned int dump_raw;
+ module_param(dump_raw, uint, 0644);
++static struct spi_device *dbg_spi;
++
++/* DEBUG: write a known pattern into XM and read the raw MISO stream back */
++static int selftest_set(const char *val, const struct kernel_param *kp)
++{
++	static const u8 pat[12] = { 0x00, 0x11, 0x22, 0x33, 0x00, 0x44, 0x55, 0x66,
++				    0x00, 0x77, 0x88, 0x99 };
++	u8 *tx, *rx;
++	u32 addr = 0x02800000 + 0x10000;
++	int i, r;
++
++	if (!dbg_spi)
++		return -ENODEV;
++	tx = kzalloc(256, GFP_KERNEL);
++	rx = kzalloc(256, GFP_KERNEL);
++	if (!tx || !rx) {
++		kfree(tx);
++		kfree(rx);
++		return -ENOMEM;
++	}
++	/* write: address, 2 bytes padding, data */
++	tx[0] = addr >> 24; tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
++	memcpy(tx + 6, pat, sizeof(pat));
++	r = spi_write(dbg_spi, tx, 6 + sizeof(pat));
++	dev_info(&dbg_spi->dev, "DEBUG: selftest write ret %d\n", r);
++
++	for (i = 0; i < 2; i++) {
++		struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 80 };
++
++		memset(tx, 0, 256);
++		tx[0] = 0x80 | (addr >> 24); tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
++		r = spi_sync_transfer(dbg_spi, &xf, 1);
++		dev_info(&dbg_spi->dev, "DEBUG: selftest read %d ret %d:\n%*ph\n", i, r, 80, rx);
++	}
++	kfree(tx);
++	kfree(rx);
++
++	return 0;
++}
++
++static const struct kernel_param_ops selftest_ops = { .set = selftest_set };
++module_param_cb(selftest, &selftest_ops, NULL, 0200);
+ module_param(reg_extra, uint, 0644);
+ module_param(dsp_extra, uint, 0644);
+ 
+@@ -124,6 +166,7 @@ static int cs35l41_spi_probe(struct spi_device *spi)
+ 		return ret;
+ 
+ 	spi_set_drvdata(spi, cs35l41);
++	dbg_spi = spi;
+ 	cs35l41->regmap = devm_regmap_init(&spi->dev, &cs35l41_regmap_spi_bus, &spi->dev, regmap_config);
+ 	if (IS_ERR(cs35l41->regmap))
+ 		return dev_err_probe(cs35l41->dev, PTR_ERR(cs35l41->regmap),
+-- 
+2.56.0
+

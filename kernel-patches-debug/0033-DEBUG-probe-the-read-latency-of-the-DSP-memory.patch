@@ -1,0 +1,38 @@
+From ba469abc523216522d47c70bc0a0d5d9f6a7dbfe Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:52:14 +0100
+Subject: [PATCH 33/38] DEBUG: probe the read latency of the DSP memory
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index 70b9dfb..5521771 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -70,6 +70,20 @@ static int cs35l41_spi_read(void *context, const void *reg, size_t reg_len,
+ 	if (val_len > 4) {
+ 		static int n;
+ 
++		if (n == 0) {
++			static const u8 ex[] = { 4, 8, 12, 16, 20, 24 };
++			u8 tmp[16];
++			int i, j;
++
++			for (j = 0; j < 2; j++)
++				for (i = 0; i < ARRAY_SIZE(ex); i++) {
++					memset(hdr + reg_len, 0, sizeof(hdr) - reg_len);
++					spi_write_then_read(to_spi_device(context), hdr,
++							    reg_len + ex[i], tmp, sizeof(tmp));
++					dev_info(context, "DEBUG: probe extra %u: %*ph\n",
++						 ex[i], (int)sizeof(tmp), tmp);
++				}
++		}
+ 		if (n++ < 12)
+ 			dev_info(context, "DEBUG: bulk read %*phN len %zu: %*ph\n",
+ 				 (int)reg_len, reg, val_len, (int)min_t(size_t, val_len, 48), val);
+-- 
+2.56.0
+

@@ -4749,3 +4749,29 @@ Po tom: `Cirrus Logic CS35L41 (35a40), Revision: B0`, probe projde (i po
 firmware ochrany reproduktoru a cesta zvuku. Pozn.: skript sestavení obrazu
 při chybě překladu zabalil starý kernel (ABOX23 jsem smazal); kontrola
 chyb před sestavením obrazu je teď ruční.
+
+### 33.30 Firmware ochrany: karta funguje, čtení z paměti DSP ne (ABOX35 až ABOX43, 2026-11-14)
+
+- **Testovací karta** `troika-test` (`sound/soc/codecs/troika-test-card.c`, jen
+  test větev): zesilovač + fiktivní CPU DAI. Vzniká `controlC0` s prvky
+  `DSP1 Preload Switch`, `DSP1 Firmware` (= Protection) a dalšími. Nástroj
+  `test-initramfs/ctl-wr.c` smí nastavit jen prvky ze seznamu (zatím jen
+  `DSP1 Preload Switch`). Firmware je v initramfs pod názvy, které hledá
+  `wm_adsp`: `cirrus/cs35l41-dsp1-spk-prot.wmfw` (vendorový `prot.wmfw`) a
+  `.bin` (vendorový `spk-prot-music-qisheng.bin`), extrakce
+  `tools/extract-cs35l41-fw.sh`. Zapnutím `DSP1 Preload Switch` se firmware
+  nahraje (zápisy do DSP, výstup zesilovače zůstává vypnutý).
+- **Nález:** `wmfw` se nahraje (`format 3`, 6. 2. 2019) a `.bin` je tuning
+  „Moto_Robusta2 … Qisheng_Speaker_Music“, ale ovladač `cs_dsp` po zápisu čte
+  hlavičku firmwaru z XM (`0x02800000`) a dostává nesmysly (`n_algs` 0xcd0000
+  apod.). Čtení z paměti DSP mi tedy zatím nefunguje a bez něj `cs_dsp` firmware
+  nespustí; ochrana reproduktoru proto zatím **není** aktivní.
+- **Co o čtení vím:** registry potřebují 4 bajty paddingu navíc (33.29). Pro XM
+  výsledek závisí na paddingu po bajtech (sken 0 až 40 v ABOX43: pole se posouvají
+  o bajt), pravidelný vzor je 24bitová hodnota každých 12 bajtů, obsah
+  neodpovídá bajtům souboru. Zápis vlastního vzoru do XM a zpětné čtení
+  selhalo (jen nuly). TODO: ověřit, jestli zápisy bloků do paměti DSP (rozšířený
+  padding u zápisu?) vůbec dosáhnou paměti, a zjistit, proč má vendor plné
+  funkční čtení s `pad_bits` 16 (příčina latence 4 bajtů je dál neznámá).
+- **Pozorování, ne závěr:** skript `auto-test.sh` občas vidí zesilovač nenavázaný
+  po startu (první `unbind` hlásí „No such device“); `bind` pak funguje.

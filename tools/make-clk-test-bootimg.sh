@@ -47,6 +47,19 @@ aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
 # seznamu v abox-wr.c. Sám se nespouští.
 aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
 	-o "$tmp/bin/abox-wr" "$root/test-initramfs/abox-wr.c"
+# Čtení a (jen povolené) nastavení ovládacích prvků ALSA (test zvuku).
+aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
+	-o "$tmp/bin/ctl-rd" "$root/test-initramfs/ctl-rd.c"
+aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
+	-o "$tmp/bin/ctl-wr" "$root/test-initramfs/ctl-wr.c"
+# Firmware ochrany reproduktoru CS35L41 (tools/extract-cs35l41-fw.sh) pod
+# názvy, které hledá wm_adsp; ladění Qisheng „music“ (FINDINGS 33.20).
+cs="$root/dl/cs35l41-fw"
+if [ -f "$cs/cs35l41-dsp1-prot.wmfw" ] && [ -f "$cs/cs35l41-dsp1-spk-prot-music-qisheng.bin" ]; then
+	mkdir -p "$tmp/lib/firmware/cirrus"
+	install -m 644 "$cs/cs35l41-dsp1-prot.wmfw" "$tmp/lib/firmware/cirrus/cs35l41-dsp1-spk-prot.wmfw"
+	install -m 644 "$cs/cs35l41-dsp1-spk-prot-music-qisheng.bin" "$tmp/lib/firmware/cirrus/cs35l41-dsp1-spk-prot.bin"
+fi
 # Modul firmwaru ACPM pro změnu frekvencí (test ACPM3): soubor ze zdrojů
 # původního kernelu, který si kernel načte přes request_firmware().
 fvp="$root/refs/downstream-kernel/firmware/exynos9610_acpm_fvp.fw"

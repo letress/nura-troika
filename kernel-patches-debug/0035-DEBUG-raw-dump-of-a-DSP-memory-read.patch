@@ -1,0 +1,49 @@
+From 8d6ebcf5fae8f6fefcd0edb7f5551a7193c9ca1b Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:00:32 +0100
+Subject: [PATCH 35/38] DEBUG: raw dump of a DSP memory read
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index 6602e72..244d0fa 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -35,7 +35,9 @@ MODULE_DEVICE_TABLE(spi, cs35l41_id_spi);
+ #define CS35L41_SPI_READ_EXTRA_PAD	4
+ 
+ static unsigned int reg_extra = CS35L41_SPI_READ_EXTRA_PAD;
+-static unsigned int dsp_extra = 16;
++static unsigned int dsp_extra = 22;
++static unsigned int dump_raw;
++module_param(dump_raw, uint, 0644);
+ module_param(reg_extra, uint, 0644);
+ module_param(dsp_extra, uint, 0644);
+ 
+@@ -71,6 +73,20 @@ static int cs35l41_spi_read(void *context, const void *reg, size_t reg_len,
+ 
+ 	memcpy(hdr, reg, reg_len);
+ 
++	if (dump_raw && extra == dsp_extra && val_len >= 12) {
++		u8 *rx = kzalloc(160, GFP_KERNEL);
++		struct spi_transfer xf = { .tx_buf = hdr, .rx_buf = rx, .len = 100 };
++
++		dump_raw--;
++		if (rx) {
++			int r = spi_sync_transfer(to_spi_device(context), &xf, 1);
++
++			dev_info(context, "DEBUG: raw dsp %*phN ret %d len %zu:\n%*ph\n", (int)reg_len, reg,
++				 r, val_len, 100, rx);
++			kfree(rx);
++		}
++	}
++
+ 	ret = spi_write_then_read(to_spi_device(context), hdr, reg_len + extra, val, val_len);
+ 	if (val_len > 4) {
+ 		static int n;
+-- 
+2.56.0
+

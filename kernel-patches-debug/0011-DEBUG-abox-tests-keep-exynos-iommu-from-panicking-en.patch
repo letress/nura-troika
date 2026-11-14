@@ -1,7 +1,7 @@
 From 2f6117716a672e6e594c653bc6d90710af382f22 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 04:15:15 +0100
-Subject: [PATCH 11/29] DEBUG: abox tests: keep exynos-iommu from panicking,
+Subject: [PATCH 11/38] DEBUG: abox tests: keep exynos-iommu from panicking,
  enable the UAIF0 gates for abox*
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

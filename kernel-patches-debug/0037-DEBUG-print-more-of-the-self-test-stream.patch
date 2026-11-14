@@ -1,0 +1,38 @@
+From 6005d83e3170e2fe300835ab753329a36fed5c51 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:06:37 +0100
+Subject: [PATCH 37/38] DEBUG: print more of the self test stream
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index d7425d2..9369d5a 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -65,12 +65,18 @@ static int selftest_set(const char *val, const struct kernel_param *kp)
+ 	dev_info(&dbg_spi->dev, "DEBUG: selftest write ret %d\n", r);
+ 
+ 	for (i = 0; i < 2; i++) {
+-		struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 80 };
++		struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 160 };
+ 
+ 		memset(tx, 0, 256);
+ 		tx[0] = 0x80 | (addr >> 24); tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+ 		r = spi_sync_transfer(dbg_spi, &xf, 1);
+-		dev_info(&dbg_spi->dev, "DEBUG: selftest read %d ret %d:\n%*ph\n", i, r, 80, rx);
++		{
++			int c;
++
++			for (c = 0; c < 160; c += 32)
++				dev_info(&dbg_spi->dev, "DEBUG: selftest read %d ret %d @%3d: %*ph\n",
++					 i, r, c, 32, rx + c);
++		}
+ 	}
+ 	kfree(tx);
+ 	kfree(rx);
+-- 
+2.56.0
+

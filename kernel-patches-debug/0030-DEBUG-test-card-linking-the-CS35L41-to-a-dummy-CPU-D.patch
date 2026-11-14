@@ -1,0 +1,86 @@
+From eba6712294ca4d90bd1e4442042c61ede7b4455e Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:43:34 +0100
+Subject: [PATCH 30/38] DEBUG: test card linking the CS35L41 to a dummy CPU DAI
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/Makefile           |  1 +
+ sound/soc/codecs/troika-test-card.c | 56 +++++++++++++++++++++++++++++
+ 2 files changed, 57 insertions(+)
+ create mode 100644 sound/soc/codecs/troika-test-card.c
+
+diff --git a/sound/soc/codecs/Makefile b/sound/soc/codecs/Makefile
+index 3d122ac..cbb445d 100644
+--- a/sound/soc/codecs/Makefile
++++ b/sound/soc/codecs/Makefile
+@@ -897,3 +897,4 @@ obj-$(CONFIG_SND_SOC_LPASS_TX_MACRO)	+= snd-soc-lpass-tx-macro.o
+ 
+ # Mux
+ obj-$(CONFIG_SND_SOC_SIMPLE_MUX)	+= snd-soc-simple-mux.o
++obj-$(CONFIG_SND_SOC_CS35L41_SPI)	+= troika-test-card.o
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+new file mode 100644
+index 0000000..4b28e97
+--- /dev/null
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -0,0 +1,56 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DEBUG: minimal test card for the CS35L41 of the Motorola One Action.
++ * The amplifier is linked to the dummy CPU DAI, so the ALSA controls of the
++ * amplifier and its DSP exist and the protection firmware can be loaded.
++ * No audio can flow: there is no driver for the ABOX yet.
++ */
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <sound/soc.h>
++
++SND_SOC_DAILINK_DEFS(amp,
++	DAILINK_COMP_ARRAY(COMP_DUMMY()),
++	DAILINK_COMP_ARRAY(COMP_CODEC("spi6.0", "cs35l41-pcm")),
++	DAILINK_COMP_ARRAY(COMP_DUMMY()));
++
++static struct snd_soc_dai_link troika_test_link = {
++	.name = "amp",
++	.stream_name = "amp",
++	.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
++		   SND_SOC_DAIFMT_CBC_CFC,
++	SND_SOC_DAILINK_REG(amp),
++};
++
++static struct snd_soc_card troika_test_card = {
++	.name = "troika-test",
++	.owner = THIS_MODULE,
++	.dai_link = &troika_test_link,
++	.num_links = 1,
++};
++
++static int troika_test_probe(struct platform_device *pdev)
++{
++	troika_test_card.dev = &pdev->dev;
++
++	return devm_snd_soc_register_card(&pdev->dev, &troika_test_card);
++}
++
++static struct platform_driver troika_test_driver = {
++	.driver.name = "troika-test-card",
++	.probe = troika_test_probe,
++};
++
++static struct platform_device *troika_test_pdev;
++
++static int __init troika_test_init(void)
++{
++	int ret = platform_driver_register(&troika_test_driver);
++
++	if (ret)
++		return ret;
++	troika_test_pdev = platform_device_register_simple("troika-test-card", -1, NULL, 0);
++
++	return PTR_ERR_OR_ZERO(troika_test_pdev);
++}
++late_initcall(troika_test_init);
+-- 
+2.56.0
+

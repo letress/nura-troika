@@ -1,0 +1,40 @@
+From 0c7ac823302f45eda927e46465dc7675fc550523 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:46:02 +0100
+Subject: [PATCH 31/38] DEBUG: log the first bulk reads of the CS35L41
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index 21a2bf2..0ddf2c2 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -60,10 +60,20 @@ static int cs35l41_spi_read(void *context, const void *reg, size_t reg_len,
+ 
+ 	if (reg_len + CS35L41_SPI_READ_EXTRA_PAD > sizeof(hdr))
+ 		return -EINVAL;
++	int ret;
++
+ 	memcpy(hdr, reg, reg_len);
+ 
+-	return spi_write_then_read(to_spi_device(context), hdr,
+-				   reg_len + CS35L41_SPI_READ_EXTRA_PAD, val, val_len);
++	ret = spi_write_then_read(to_spi_device(context), hdr,
++				  reg_len + CS35L41_SPI_READ_EXTRA_PAD, val, val_len);
++	if (val_len > 4) {
++		static int n;
++
++		if (n++ < 12)
++			dev_info(context, "DEBUG: bulk read %*phN len %zu: %*ph\n",
++				 (int)reg_len, reg, val_len, (int)min_t(size_t, val_len, 48), val);
++	}
++	return ret;
+ }
+ 
+ static const struct regmap_bus cs35l41_regmap_spi_bus = {
+-- 
+2.56.0
+

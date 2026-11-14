@@ -1,7 +1,7 @@
 From 6fd0af96ffb2e8bc46909d809791b0e947fd5914 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 14:34:57 +0100
-Subject: [PATCH 02/29] DEBUG: phy: exynos5-usbdrd: dump the Exynos9610 PHY
+Subject: [PATCH 02/38] DEBUG: phy: exynos5-usbdrd: dump the Exynos9610 PHY
  registers
 
 Not for upstream and not for the package. Prints USBDRD_PHY_CONTROL

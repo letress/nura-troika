@@ -1,0 +1,72 @@
+From b5928daa1706d19f2a7e04c760f22b2f905a8104 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:12:11 +0100
+Subject: [PATCH 38/38] DEBUG: scan the padding of the firmware ID header read
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 40 +++++++++++++++-------------------
+ 1 file changed, 18 insertions(+), 22 deletions(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index 9369d5a..f980d82 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -43,11 +43,9 @@ static struct spi_device *dbg_spi;
+ /* DEBUG: write a known pattern into XM and read the raw MISO stream back */
+ static int selftest_set(const char *val, const struct kernel_param *kp)
+ {
+-	static const u8 pat[12] = { 0x00, 0x11, 0x22, 0x33, 0x00, 0x44, 0x55, 0x66,
+-				    0x00, 0x77, 0x88, 0x99 };
+ 	u8 *tx, *rx;
+-	u32 addr = 0x02800000 + 0x10000;
+-	int i, r;
++	u32 addr;
++	int r;
+ 
+ 	if (!dbg_spi)
+ 		return -ENODEV;
+@@ -58,24 +56,22 @@ static int selftest_set(const char *val, const struct kernel_param *kp)
+ 		kfree(rx);
+ 		return -ENOMEM;
+ 	}
+-	/* write: address, 2 bytes padding, data */
+-	tx[0] = addr >> 24; tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+-	memcpy(tx + 6, pat, sizeof(pat));
+-	r = spi_write(dbg_spi, tx, 6 + sizeof(pat));
+-	dev_info(&dbg_spi->dev, "DEBUG: selftest write ret %d\n", r);
+-
+-	for (i = 0; i < 2; i++) {
+-		struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 160 };
+-
+-		memset(tx, 0, 256);
+-		tx[0] = 0x80 | (addr >> 24); tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+-		r = spi_sync_transfer(dbg_spi, &xf, 1);
+-		{
+-			int c;
+-
+-			for (c = 0; c < 160; c += 32)
+-				dev_info(&dbg_spi->dev, "DEBUG: selftest read %d ret %d @%3d: %*ph\n",
+-					 i, r, c, 32, rx + c);
++	/* read the 40 byte firmware ID header with every possible padding */
++	{
++		int e;
++
++		for (e = 0; e <= 40; e++) {
++			struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 6 + e + 40 };
++			__be32 *w = (__be32 *)(rx + 6 + e);
++
++			memset(tx, 0, 256);
++			addr = 0x02800000;
++			tx[0] = 0x80 | (addr >> 24); tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
++			r = spi_sync_transfer(dbg_spi, &xf, 1);
++			dev_info(&dbg_spi->dev, "DEBUG: hdr pad %2d: %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x\n",
++				 e, be32_to_cpu(w[0]), be32_to_cpu(w[1]), be32_to_cpu(w[2]), be32_to_cpu(w[3]),
++				 be32_to_cpu(w[4]), be32_to_cpu(w[5]), be32_to_cpu(w[6]), be32_to_cpu(w[7]),
++				 be32_to_cpu(w[8]), be32_to_cpu(w[9]));
+ 		}
+ 	}
+ 	kfree(tx);
+-- 
+2.56.0
+
