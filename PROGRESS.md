@@ -9,12 +9,23 @@ pak kontrola boot image a netboot (TESTING.md kap. 5f). Nic se neflashovalo.
 ## Pravidla (platí pořád)
 
 - Žádné `fastboot flash`, `fastboot erase`, `pmbootstrap flasher`.
-  Test jen přes `fastboot boot` a spouští ho uživatel.
+  Test jen přes `fastboot boot`. Od 2026-11-14 ho pro zvuk (ABOX) smí spouštět
+  i AI samo, viz „Autonomní testování zvuku“ níže; jinde dál spouští uživatel.
 - Nesahat do `~/troika-backup`.
 - Žádná vymyšlená hardwarová hodnota; bez zdroje = TODO + dotaz.
 - Regulátory, nabíjení, napájení v DTS nepovolovat.
   (Výjimka 2026-11-13: pro zvuk – kodek a zesilovač – smějí být popsány,
   postup co nejopatrnější, před každým krokem se ptát.)
+- **Autonomní testování zvuku (ABOX), zadání uživatele 2026-11-14:** testy
+  zvukové jednotky provádí AI samo, bez čekání na vstup uživatele. Smí
+  `fastboot boot` obrazů z `out/`, restart z běžícího testu do bootloaderu,
+  čtení a zápis registrů ABOXu (nástroje abox-wr a spol.) a opakování pokusů.
+  Uživatele volat jen když se telefon zasekne (nepomůže ani watchdog, je třeba
+  držet tlačítka), nebo když je to nutné. Stále platí: nikdy flash/erase, žádná
+  vymyšlená hodnota (jen ze zdrojů, jinak TODO), nečíst neznámé MMIO adresy
+  jednotek s vypnutými hodinami, zápisy po nejmenších krocích s návratem
+  původních hodnot a každý krok zapsat do FINDINGS/PROGRESS. Změny napájecích
+  větví kodeku a zesilovače (regulátory) se bez dotazu nedělají, ani zde.
 - Potřebnou otázku uživateli položit rovnou, vždy. Neptat se předem, jestli
   smím otázku položit (zadání uživatele 2026-11-13).
 
