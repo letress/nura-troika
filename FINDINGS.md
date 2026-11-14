@@ -4843,3 +4843,38 @@ controller` (`spi_9`, `0x13940000`, SPI 256, hodiny SPI_2). Zbytek jen v test v�
   a já ne (OPCLK, `GPIO5` jako IO). Nezjištěno.
 - **Další krok:** srovnat se stavem v Lineage za hraní hudby (výpis registrů
   Madery a zesilovače).
+
+### 33.33 Srovnání s původním systémem; zesilovač s tónem naběhne (2026-11-14)
+
+Za hraní hudby v původním systému (stock Android s `adb root`, jen čtení
+`/sys/kernel/debug/regmap/spi6.0` a `spi9.0-cs47l35_16bit`, výpisy v
+`logs/lineage-*`, adresář je v `.gitignore`):
+
+- **Zesilovač** (`PLL_CLK_CTRL` 0x2C04 = 0x370: zdroj SCLK, REFCLK 1,536 MHz,
+  `GLOBAL_CLK_CTRL` 3 = 48 kHz, `SP_ENABLES` 0x30000, `SP_FORMAT` 0x10180200)
+  má stejné nastavení jako můj test; liší se jen šířka slotu (v testu 24 bitů
+  jen v klidovém stavu před `hw_params`).
+- **Kodek za hraní:** `AIF2_BCLK_CTRL` 0x540 = 0x2b, `AIF2_FRAME_CTRL_1/2`
+  0x20 / 0x1010 / 0x1010 (16bitové sloty, BCLK 1,536 MHz), `AIF2_TX_ENABLES`
+  0x559 = 3, `OPCLK` zapnutý (0x149 = 0x8012), SYSCLK z FLL1. DAPM: běží
+  AIF1RX1/2, AIF2TX1/2, AIF2TXCLK, DBVDD2 (= LDO42), OPCLK, SYSCLK.
+- **Vendor DT** (`exynos9610-erd9610_common.dtsi:1638–1700`): `DBVDD1/2`,
+  `AVDD`, `CPVDD1` z LDO42, `CPVDD2` a `DCVDD` z LDO44, `SPKVDD` z V_SYS;
+  `gpio6` je „Amp Clock“ (OPCLK), `gpio5` IO; spoj `codec-left-amp` je jen
+  `format = "i2s"` bez příznaků master, AIF2 je tedy zdroj hodin.
+
+**Výsledek v ABOX69 po restartu:** LDO42 zapnout, `bind` zesilovače,
+`SPK DSP1 Preload Switch` 1, `SPK PCM Source` = DSP, hlasitosti na minimum,
+pak „AIF2TX1 Input 1“ = 1 (tón): všechny registry kodeku a zesilovače při tónu
+přesně odpovídají původnímu systému (0x540 = 0x2b, 0x546 = 0x20, 0x2C04 =
+0x370, 0x4800 = 0x30000, 0x4808 = 0x10180200), `GLOBAL_EN` (0x2014) = 1,
+`Enable(1)` neselhává, v dmesg žádná chyba. Po vypnutí tónu `GLOBAL_EN` = 0.
+
+**Nevysvětleno:** proč dřívější pokusy končily `PLL_UNLOCK` (-110). Lišily
+se ručními zásahy přes `troika-test-amp` (vynucení BCLK/MCLK, zápisy do 0x101,
+0x149) před zapnutím tónu; teď běží jen `echo s > troika-test-amp` (zdroj SCLK)
+a pak tón. Příčinu jsem nedohledal, jen že tato posloupnost funguje.
+
+Slyšitelnost zatím neověřena: sekvence tónu −72 / −62 / −52 dBFS (a −42, ten
+telnet vzhledem k limitu času nevypsal) proběhla bez chyby; co z toho bylo
+slyšet, může říct jen uživatel.

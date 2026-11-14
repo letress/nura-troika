@@ -2256,3 +2256,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-14: testovací karta + ctl-wr + firmware ochrany v initramfs (ABOX35–43); wmfw/bin se nahrají, ale cs_dsp čte hlavičku z XM špatně; blokuje čtení z paměti DSP (FINDINGS 33.30); out/troika-test-ABOX43.img (1bb7be23)
 - 2026-11-14: PŘÍČINA SPI: hodiny 200 MHz (chyběl CLK_SET_RATE_PARENT), patche 0101–0103; firmware ochrany CS35L41 se nahraje čistě (Qisheng tuning); out/troika-test-ABOX52.img (337a073d); FINDINGS 33.31 (opravuje 33.29/33.30)
 - 2026-11-14: kodek CS47L35 funguje (codec_en, SPI9, FLL z 32 kHz), karta kodek→zesilovač; zesilovač se nezamkne na hodiny (PLL_UNLOCK); čeká srovnání s Lineage; patch 0104 (SPI9 dtsi); out/troika-test-ABOX69.img (caf60e76); FINDINGS 33.32
+- 2026-11-14: srovnání s původním systémem; po správné posloupnosti zesilovač s tónem z kodeku naběhne (GLOBAL_EN=1, PLL zamčená, bez chyb); slyšitelnost čeká na uživatele; FINDINGS 33.33
