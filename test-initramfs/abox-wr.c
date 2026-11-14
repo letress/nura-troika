@@ -37,6 +37,8 @@ static const unsigned short allowed[] = {
 	0x0200,	/* ABOX_SPUS_CTRL0 */
 	0x0204,	/* ABOX_SPUS_CTRL1: formát směšovače, volba výstupů */
 	0x0204,	/* ABOX_SPUS_CTRL1 */
+	0x0300,	/* ABOX_SPUM_CTRL0 */
+	0x0304,	/* ABOX_SPUM_CTRL1 */
 	0x0500,	/* ABOX_UAIF_CTRL0(0) */
 	0x0504,	/* ABOX_UAIF_CTRL1(0) */
 	0x0604,	/* ABOX_TIMER_CTRL1(0) */

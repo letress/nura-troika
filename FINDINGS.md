@@ -4922,3 +4922,38 @@ do vyrovnávací paměti na IOVA `0x81100000`, 0x3c00 B); do testovací karty
 - **Pád:** po výpisu registrů smyčkou s chybnou adresou (moje chyba v
   příkazu, `0x14a50` + 4 číslice místo součtu) telefon přestal odpovídat
   a po 2 minutách se sám neobnovil; čeká na dlouhý stisk tlačítek.
+
+### 33.36 Sinus z RDMA1 teče přes UAIF0 a kodek do zesilovače (ABOX77, 2026-11-14)
+
+Doplnění k 33.35, které dostalo řetěz od přehrávače po zesilovač do chodu:
+
+- **Piny UAIF0:** `gpb0-1..4` musí mít funkci 2 (I2S0), jinak data nikam
+  nejdou. V testovacím DT má uzel `abox-test` `pinctrl-0 = <&aud_i2s0_bus>`
+  (skupina už byla v dtsi, nikdo ji nepoužíval; hodnoty z původního
+  `exynos9610-pinctrl.dtsi`: funkce 2, pull-down).
+- **Konfigurace směšovače firmwaru:** zprávy `IPC_ABOX_CONFIG` (ipcid 0xa):
+  `a 0 1 bb80` (MIXER sample rate 48000), `a 0 10 10 2` (MIXER format 16 bit,
+  2 kanály), `a 0 2 bb80` (OUT1 rate), `a 0 11 10 2` (OUT1 format). Bez nich
+  firmware převádí ASRC „4 to 9“ (špatná frekvence), s nimi „4 to 4“.
+  Registry hostitele z původního systému: `SPUS_CTRL1` 0x204 = 0x00370009,
+  `SPUM_CTRL0/1` 0x300/0x304 = 0x1113 / 0x900.
+- **Čtení stavu RDMA:** `RDMA_STATUS` je na offsetu 0x30 (ne 0x20); bit 31 =
+  probíhá, offset se mění. RDMA1 po TRIGGER běží, `UAIF0_STATUS` 0 (bez chyby).
+- **Firmware se občas zasekne**, když zprávy jdou bez pauz (jednou skončil
+  log po „SIFS1 sample rate“ a všechno další bez ack). S pauzou 1 s mezi
+  zprávami proběhlo všechno potvrzeně.
+- **DAPM kodeku:** zdroj mixeru AIF1RX1 se v DAPM nepočítá, dokud není
+  aktivní stream rozhraní AIF1. Testovací karta (`troika-test-aif1`) proto
+  ručně označí widget „AIF1 Playback“ (active, ep source), vynutí AIF1RX1/2
+  a zavolá `snd_soc_dapm_mark_endpoints_dirty()`; teprve pak se zapne AIF2TX1
+  a zesilovač. Registry AIF1 kodeku podle původního systému: 0x500 = 0xb
+  (slave), 0x504 = 2 (I2S), 0x506 = 0x20, 0x507/0x508 = 0x1010.
+- **Výsledek:** po „AIF2TX1 Input 1“ = AIF1RX1 `GLOBAL_EN` zesilovače = 1
+  (přes ochranné DSP, `SPK PCM Source` = DSP), RDMA1 běží. Při tom hlásí jádro
+  jednou „irq 58 nobody cared“ (`cs35l41_irq` na GPA0-2 se zasekne a IRQ se
+  vypne; netýká se zvuku, vyřešit později).
+- **Dřívější „pády“** při zápisu mixeru jsem zpočátku četl jako restart
+  podle `uptime` „up 1 min“, ale `uptime` v busyboxu píše čas od startu
+  (`00:01:29 up 1 min`); šlo o prodlevu a časový limit `phone-sh.py`.
+  Skutečné zamrznutí způsobila jen chybná adresa v mé smyčce (33.35).
+- Slyšitelnost sinusu z přehrávače zatím neověřena (čeká na uživatele).
