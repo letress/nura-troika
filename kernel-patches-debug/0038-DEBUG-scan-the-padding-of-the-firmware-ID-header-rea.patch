@@ -1,7 +1,7 @@
-From b5928daa1706d19f2a7e04c760f22b2f905a8104 Mon Sep 17 00:00:00 2001
+From e088e57a6f6b1f4fd7aaf4dd637849413ba46cff Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:12:11 +0100
-Subject: [PATCH 38/38] DEBUG: scan the padding of the firmware ID header read
+Subject: [PATCH 38/46] DEBUG: scan the padding of the firmware ID header read
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

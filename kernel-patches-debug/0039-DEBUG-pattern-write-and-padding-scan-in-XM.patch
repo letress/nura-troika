@@ -1,0 +1,55 @@
+From 0b964010888435c9dd65fa29eeac2ba47f481436 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:26:36 +0100
+Subject: [PATCH 39/46] DEBUG: pattern write and padding scan in XM
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 23 ++++++++++++++---------
+ 1 file changed, 14 insertions(+), 9 deletions(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index f980d82..64c8450 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -56,23 +56,28 @@ static int selftest_set(const char *val, const struct kernel_param *kp)
+ 		kfree(rx);
+ 		return -ENOMEM;
+ 	}
+-	/* read the 40 byte firmware ID header with every possible padding */
++	/* write a known pattern into XM and scan the read padding */
+ 	{
++		static const u8 pat[12] = { 0x00, 0x11, 0x22, 0x33, 0x00, 0x44, 0x55, 0x66,
++					    0x00, 0x77, 0x88, 0x99 };
+ 		int e;
+ 
+-		for (e = 0; e <= 40; e++) {
+-			struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 6 + e + 40 };
+-			__be32 *w = (__be32 *)(rx + 6 + e);
++		addr = 0x02800000 + 0x2000;
++		memset(tx, 0, 256);
++		tx[0] = addr >> 24; tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
++		memcpy(tx + 6, pat, sizeof(pat));
++		r = spi_write(dbg_spi, tx, 6 + sizeof(pat));
++		dev_info(&dbg_spi->dev, "DEBUG: pattern write ret %d\n", r);
++
++		for (e = 0; e <= 12; e += 2) {
++			struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 6 + e + 24 };
+ 
+ 			memset(tx, 0, 256);
+-			addr = 0x02800000;
+ 			tx[0] = 0x80 | (addr >> 24); tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+ 			r = spi_sync_transfer(dbg_spi, &xf, 1);
+-			dev_info(&dbg_spi->dev, "DEBUG: hdr pad %2d: %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x\n",
+-				 e, be32_to_cpu(w[0]), be32_to_cpu(w[1]), be32_to_cpu(w[2]), be32_to_cpu(w[3]),
+-				 be32_to_cpu(w[4]), be32_to_cpu(w[5]), be32_to_cpu(w[6]), be32_to_cpu(w[7]),
+-				 be32_to_cpu(w[8]), be32_to_cpu(w[9]));
++			dev_info(&dbg_spi->dev, "DEBUG: pattern pad %2d ret %d: %*ph\n", e, r, 24, rx + 6 + e);
+ 		}
++		/* the same through a register: IRQ1_MASK1 neighbour must stay as it is */
+ 	}
+ 	kfree(tx);
+ 	kfree(rx);
+-- 
+2.56.0
+

@@ -1,0 +1,41 @@
+From 2c53747a740cefabd28632a15783e27b17371938 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:40:16 +0100
+Subject: [PATCH 44/46] DEBUG: DEVID reads at several SPI speeds
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index 34ce8bb..6c08f9d 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -56,6 +56,23 @@ static int selftest_set(const char *val, const struct kernel_param *kp)
+ 		kfree(rx);
+ 		return -ENOMEM;
+ 	}
++	{
++		static const u32 speeds[] = { 9600000, 4000000, 2000000, 1000000, 500000, 200000, 50000 };
++		u32 old = dbg_spi->max_speed_hz;
++		int c;
++
++		for (c = 0; c < ARRAY_SIZE(speeds); c++) {
++			u8 hdr[10] = { 0x80 };
++			u8 id[4];
++
++			dbg_spi->max_speed_hz = speeds[c];
++			spi_setup(dbg_spi);
++			r = spi_write_then_read(dbg_spi, hdr, sizeof(hdr), id, 4);
++			dev_info(&dbg_spi->dev, "DEBUG: speed %u Hz ret %d devid %*phN\n", speeds[c], r, 4, id);
++		}
++		dbg_spi->max_speed_hz = old;
++		spi_setup(dbg_spi);
++	}
+ 	/* four consecutive interrupt mask registers: dense burst write and read */
+ 	{
+ 		struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 6 + 4 + 24 };
+-- 
+2.56.0
+

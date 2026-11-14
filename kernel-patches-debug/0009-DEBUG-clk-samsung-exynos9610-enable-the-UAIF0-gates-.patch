@@ -1,7 +1,7 @@
-From df34258835b9b8523fcff15dbf658775d5a4a59a Mon Sep 17 00:00:00 2001
+From 0f9f3f4c899750bd0c0bfdc712c896acddebe853 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 02:44:43 +0100
-Subject: [PATCH 09/38] DEBUG: clk: samsung: exynos9610: enable the UAIF0 gates
+Subject: [PATCH 09/46] DEBUG: clk: samsung: exynos9610: enable the UAIF0 gates
  for the abox3 test
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -10,7 +10,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
  1 file changed, 44 insertions(+)
 
 diff --git a/drivers/clk/samsung/clk-exynos9610.c b/drivers/clk/samsung/clk-exynos9610.c
-index 331ffd1..aacbb52 100644
+index f3900ff..f5f22e5 100644
 --- a/drivers/clk/samsung/clk-exynos9610.c
 +++ b/drivers/clk/samsung/clk-exynos9610.c
 @@ -3772,3 +3772,47 @@ static int __init exynos9610_pd_status_debug(void)

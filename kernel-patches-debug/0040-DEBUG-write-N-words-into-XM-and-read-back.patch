@@ -1,0 +1,67 @@
+From dc6aee7dbe877f00b828472fc536d8a7c8ae1dfb Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:29:53 +0100
+Subject: [PATCH 40/46] DEBUG: write N words into XM and read back
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 38 +++++++++++++++++++---------------
+ 1 file changed, 21 insertions(+), 17 deletions(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index 64c8450..49b11ff 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -56,28 +56,32 @@ static int selftest_set(const char *val, const struct kernel_param *kp)
+ 		kfree(rx);
+ 		return -ENOMEM;
+ 	}
+-	/* write a known pattern into XM and scan the read padding */
++	/* write N known words into XM at separate addresses, read back with the register padding */
+ 	{
+-		static const u8 pat[12] = { 0x00, 0x11, 0x22, 0x33, 0x00, 0x44, 0x55, 0x66,
+-					    0x00, 0x77, 0x88, 0x99 };
+-		int e;
++		static const int counts[] = { 1, 2, 3, 4, 6, 12 };
++		int c, w, e;
+ 
+-		addr = 0x02800000 + 0x2000;
+-		memset(tx, 0, 256);
+-		tx[0] = addr >> 24; tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+-		memcpy(tx + 6, pat, sizeof(pat));
+-		r = spi_write(dbg_spi, tx, 6 + sizeof(pat));
+-		dev_info(&dbg_spi->dev, "DEBUG: pattern write ret %d\n", r);
+-
+-		for (e = 0; e <= 12; e += 2) {
+-			struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 6 + e + 24 };
++		for (c = 0; c < ARRAY_SIZE(counts); c++) {
++			int n = counts[c];
+ 
++			addr = 0x02800000 + 0x2000 + c * 0x100;
+ 			memset(tx, 0, 256);
+-			tx[0] = 0x80 | (addr >> 24); tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+-			r = spi_sync_transfer(dbg_spi, &xf, 1);
+-			dev_info(&dbg_spi->dev, "DEBUG: pattern pad %2d ret %d: %*ph\n", e, r, 24, rx + 6 + e);
++			tx[0] = addr >> 24; tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
++			for (w = 0; w < n; w++) {
++				tx[6 + 4 * w + 1] = 0x10 * (c + 1);
++				tx[6 + 4 * w + 2] = 0xa0 + w;
++				tx[6 + 4 * w + 3] = 0xb0 + w;
++			}
++			r = spi_write(dbg_spi, tx, 6 + 4 * n);
++			for (e = 4; e <= 4; e++) {
++				struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 6 + e + 52 };
++
++				memset(tx, 0, 256);
++				tx[0] = 0x80 | (addr >> 24); tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
++				spi_sync_transfer(dbg_spi, &xf, 1);
++				dev_info(&dbg_spi->dev, "DEBUG: wr %2d words ret %d: %*ph\n", n, r, 52, rx + 6 + e);
++			}
+ 		}
+-		/* the same through a register: IRQ1_MASK1 neighbour must stay as it is */
+ 	}
+ 	kfree(tx);
+ 	kfree(rx);
+-- 
+2.56.0
+

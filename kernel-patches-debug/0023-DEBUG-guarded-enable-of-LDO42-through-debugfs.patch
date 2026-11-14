@@ -1,7 +1,7 @@
-From 3510eea31efdaa0be26bda6887b1ad99c953dc50 Mon Sep 17 00:00:00 2001
+From 2b28ad5cc7749fda10b6a8e4b5cbebc948dff09c Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 00:39:07 +0100
-Subject: [PATCH 23/38] DEBUG: guarded enable of LDO42 through debugfs
+Subject: [PATCH 23/46] DEBUG: guarded enable of LDO42 through debugfs
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

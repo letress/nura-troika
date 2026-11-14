@@ -1,7 +1,7 @@
-From ba469abc523216522d47c70bc0a0d5d9f6a7dbfe Mon Sep 17 00:00:00 2001
+From 32354d50731f7af9acd3bb7798ac3cfb91de3240 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:52:14 +0100
-Subject: [PATCH 33/38] DEBUG: probe the read latency of the DSP memory
+Subject: [PATCH 33/46] DEBUG: probe the read latency of the DSP memory
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

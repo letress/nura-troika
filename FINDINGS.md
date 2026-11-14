@@ -4775,3 +4775,35 @@ chyb před sestavením obrazu je teď ruční.
   funkční čtení s `pad_bits` 16 (příčina latence 4 bajtů je dál neznámá).
 - **Pozorování, ne závěr:** skript `auto-test.sh` občas vidí zesilovač nenavázaný
   po startu (první `unbind` hlásí „No such device“); `bind` pak funguje.
+
+### 33.31 Příčina všeho: hodiny SPI běžely na 200 MHz (ABOX51/52, 2026-11-14)
+
+**Opravuje 33.29 a 33.30.** Výpis požadované a skutečné rychlosti
+(`s3c64xx_spi_config`) ukázal, že zdrojový kmitočet SPI zůstává 399,75 MHz
+bez ohledu na `spi-max-frequency`: `clk_set_rate()` na hradle
+`gout_peri_spi_0_ipclk` se do děliče `dout_clk_peri_spi0` nepřenese
+(chybělo `CLK_SET_RATE_PARENT`), sběrnice tedy běžela asi na 200 MHz místo
+4 MHz. Z toho plynuly všechny podivnosti: odpověď čipu o 4 bajty později než
+udává `pad_bits`, ztráta dvou slov ze tří v dávkách, zkomolená hlavička
+firmwaru. Rychlost se při testech 50 kHz až 9,6 MHz neměnila, proto je „latence“
+vypadala konstantní. Pokus se starým chováním a vlastním paddingem je v historii
+ABOX23 až ABOX50; ten padding byl jen artefakt a z testovací větve je pryč.
+
+Opravy (čistá větev, patche v `kernel-patches/`):
+
+- 0101 `spi: s3c64xx: Deselect the hardware chip select after a message`
+- 0102 `spi: s3c64xx: Limit transfers to the FIFO size without DMA` (bez DMA se
+  celý buffer zapisoval do FIFO o 64 bajtech)
+- 0103 `clk: samsung: exynos9610: Pass SPI rate requests to the dividers`
+  (`CLK_SET_RATE_PARENT` u hradel IPCLK SPI0 až SPI2)
+
+Výsledek (ABOX52): zdroj 7,995 MHz, SPI 3,9975 MHz, čtení bez paddingu navíc,
+`Cirrus Logic CS35L41 (35a40), Revision: B0`. Firmware ochrany se nahraje čistě:
+`Firmware: 400a4 vendor: 0x2 v0.2.0, 1 algorithms`, tuning
+`Moto_Robusta2 ... Qisheng_Speaker_Music` (`.bin` v0.2.0); ovládací prvky
+`DSP1 Protection ...` čtou hodnoty z tuningu (např. `CSPL_ENABLE`,
+`ATTENUATION`). DSP zatím neběží (poběží při proudu zvuku). Ochrana je tedy
+nahraná, ale zvuk dál nehraje: chybí cesta zvuku z ABOX UAIF0 do zesilovače.
+
+Stále platí: LDO42 se zapíná `acpmdbg_ldo42`, zapnutí je potřeba po vypnutí
+napájení. Hlášky `Subsystem ID not found` zůstávají (jen volba názvu firmwaru).

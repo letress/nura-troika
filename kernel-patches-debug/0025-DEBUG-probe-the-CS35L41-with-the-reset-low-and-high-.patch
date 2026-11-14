@@ -1,7 +1,7 @@
-From 6f306da3d44c9d5099feb19dccdbad873fc0ea4e Mon Sep 17 00:00:00 2001
+From 16d709134cebc833b7e2a3bdbc6dc8ad324c1e00 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 00:49:20 +0100
-Subject: [PATCH 25/38] DEBUG: probe the CS35L41 with the reset low and high
+Subject: [PATCH 25/46] DEBUG: probe the CS35L41 with the reset low and high
  after the OTP timeout
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

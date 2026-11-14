@@ -1,0 +1,49 @@
+From 19ddb88096dc3c2e6628583fb4578f3cd227c623 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:33:43 +0100
+Subject: [PATCH 41/46] DEBUG: XM burst test at several SPI speeds
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index 49b11ff..d06bebc 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -58,11 +58,15 @@ static int selftest_set(const char *val, const struct kernel_param *kp)
+ 	}
+ 	/* write N known words into XM at separate addresses, read back with the register padding */
+ 	{
+-		static const int counts[] = { 1, 2, 3, 4, 6, 12 };
++		static const u32 speeds[] = { 4000000, 1000000, 200000, 50000 };
+ 		int c, w, e;
++		u32 old_speed = dbg_spi->max_speed_hz;
+ 
+-		for (c = 0; c < ARRAY_SIZE(counts); c++) {
+-			int n = counts[c];
++		for (c = 0; c < ARRAY_SIZE(speeds); c++) {
++			int n = 12;
++
++			dbg_spi->max_speed_hz = speeds[c];
++			spi_setup(dbg_spi);
+ 
+ 			addr = 0x02800000 + 0x2000 + c * 0x100;
+ 			memset(tx, 0, 256);
+@@ -79,9 +83,11 @@ static int selftest_set(const char *val, const struct kernel_param *kp)
+ 				memset(tx, 0, 256);
+ 				tx[0] = 0x80 | (addr >> 24); tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+ 				spi_sync_transfer(dbg_spi, &xf, 1);
+-				dev_info(&dbg_spi->dev, "DEBUG: wr %2d words ret %d: %*ph\n", n, r, 52, rx + 6 + e);
++				dev_info(&dbg_spi->dev, "DEBUG: wr %u Hz ret %d: %*ph\n", speeds[c], r, 52, rx + 6 + e);
+ 			}
+ 		}
++		dbg_spi->max_speed_hz = old_speed;
++		spi_setup(dbg_spi);
+ 	}
+ 	kfree(tx);
+ 	kfree(rx);
+-- 
+2.56.0
+

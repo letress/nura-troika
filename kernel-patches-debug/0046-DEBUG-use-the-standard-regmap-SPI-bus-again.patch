@@ -1,0 +1,184 @@
+From 2461630bbe371c6aa849507f7d1ad05f3259051b Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:49:57 +0100
+Subject: [PATCH 46/46] DEBUG: use the standard regmap SPI bus again
+
+The extra read padding was an effect of the SPI clock running at about
+200 MHz; it is not needed with the clock fixed.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 150 +--------------------------------
+ 1 file changed, 1 insertion(+), 149 deletions(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index 6c08f9d..f9b6bf7 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -27,153 +27,6 @@ static const struct spi_device_id cs35l41_id_spi[] = {
+ 
+ MODULE_DEVICE_TABLE(spi, cs35l41_id_spi);
+ 
+-/*
+- * DEBUG: on this board the amplifier answers a read 4 bytes later than the
+- * 16 bits of padding of the register map say, writes keep the 16 bits. Reads
+- * therefore get 4 more bytes of padding than the register map adds.
+- */
+-#define CS35L41_SPI_READ_EXTRA_PAD	4
+-
+-static unsigned int reg_extra = CS35L41_SPI_READ_EXTRA_PAD;
+-static unsigned int dsp_extra = 22;
+-static unsigned int dump_raw;
+-module_param(dump_raw, uint, 0644);
+-static struct spi_device *dbg_spi;
+-
+-/* DEBUG: write a known pattern into XM and read the raw MISO stream back */
+-static int selftest_set(const char *val, const struct kernel_param *kp)
+-{
+-	u8 *tx, *rx;
+-	u32 addr;
+-	int r;
+-
+-	if (!dbg_spi)
+-		return -ENODEV;
+-	tx = kzalloc(256, GFP_KERNEL);
+-	rx = kzalloc(256, GFP_KERNEL);
+-	if (!tx || !rx) {
+-		kfree(tx);
+-		kfree(rx);
+-		return -ENOMEM;
+-	}
+-	{
+-		static const u32 speeds[] = { 9600000, 4000000, 2000000, 1000000, 500000, 200000, 50000 };
+-		u32 old = dbg_spi->max_speed_hz;
+-		int c;
+-
+-		for (c = 0; c < ARRAY_SIZE(speeds); c++) {
+-			u8 hdr[10] = { 0x80 };
+-			u8 id[4];
+-
+-			dbg_spi->max_speed_hz = speeds[c];
+-			spi_setup(dbg_spi);
+-			r = spi_write_then_read(dbg_spi, hdr, sizeof(hdr), id, 4);
+-			dev_info(&dbg_spi->dev, "DEBUG: speed %u Hz ret %d devid %*phN\n", speeds[c], r, 4, id);
+-		}
+-		dbg_spi->max_speed_hz = old;
+-		spi_setup(dbg_spi);
+-	}
+-	/* four consecutive interrupt mask registers: dense burst write and read */
+-	{
+-		struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 6 + 4 + 24 };
+-		static const u32 vals[4] = { 0xfffffff1, 0xfffffff2, 0xfffffff3, 0xfffffff4 };
+-		int w;
+-
+-		addr = 0x00010110;
+-		memset(tx, 0, 256);
+-		tx[0] = addr >> 24; tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+-		for (w = 0; w < 4; w++) {
+-			tx[6 + 4 * w] = vals[w] >> 24; tx[7 + 4 * w] = vals[w] >> 16;
+-			tx[8 + 4 * w] = vals[w] >> 8; tx[9 + 4 * w] = vals[w];
+-		}
+-		r = spi_write(dbg_spi, tx, 6 + 16);
+-		memset(tx, 0, 256);
+-		tx[0] = 0x80 | (addr >> 24); tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+-		spi_sync_transfer(dbg_spi, &xf, 1);
+-		dev_info(&dbg_spi->dev, "DEBUG: reg burst ret %d: %*ph\n", r, 24, rx + 10);
+-		/* restore the reset value of the masks */
+-		memset(tx, 0, 256);
+-		tx[0] = addr >> 24; tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+-		memset(tx + 6, 0xff, 16);
+-		spi_write(dbg_spi, tx, 6 + 16);
+-	}
+-	kfree(tx);
+-	kfree(rx);
+-
+-	return 0;
+-}
+-
+-static const struct kernel_param_ops selftest_ops = { .set = selftest_set };
+-module_param_cb(selftest, &selftest_ops, NULL, 0200);
+-module_param(reg_extra, uint, 0644);
+-module_param(dsp_extra, uint, 0644);
+-
+-static int cs35l41_spi_write(void *context, const void *data, size_t count)
+-{
+-	return spi_write(to_spi_device(context), data, count);
+-}
+-
+-static int cs35l41_spi_gather_write(void *context, const void *reg, size_t reg_len,
+-				    const void *val, size_t val_len)
+-{
+-	struct spi_transfer t[2] = { { .tx_buf = reg, .len = reg_len, },
+-				     { .tx_buf = val, .len = val_len, }, };
+-	struct spi_message m;
+-
+-	spi_message_init(&m);
+-	spi_message_add_tail(&t[0], &m);
+-	spi_message_add_tail(&t[1], &m);
+-
+-	return spi_sync(to_spi_device(context), &m);
+-}
+-
+-static int cs35l41_spi_read(void *context, const void *reg, size_t reg_len,
+-			    void *val, size_t val_len)
+-{
+-	u8 hdr[32] = { };
+-	/* DEBUG: the DSP memories (0x02000000 and up) answer even later */
+-	unsigned int extra = (((const u8 *)reg)[0] & 0x7f) >= 0x02 ? dsp_extra : reg_extra;
+-	int ret;
+-
+-	if (reg_len + extra > sizeof(hdr))
+-		return -EINVAL;
+-
+-	memcpy(hdr, reg, reg_len);
+-
+-	if (dump_raw && extra == dsp_extra && val_len >= 12) {
+-		u8 *rx = kzalloc(160, GFP_KERNEL);
+-		struct spi_transfer xf = { .tx_buf = hdr, .rx_buf = rx, .len = 100 };
+-
+-		dump_raw--;
+-		if (rx) {
+-			int r = spi_sync_transfer(to_spi_device(context), &xf, 1);
+-
+-			dev_info(context, "DEBUG: raw dsp %*phN ret %d len %zu:\n%*ph\n", (int)reg_len, reg,
+-				 r, val_len, 100, rx);
+-			kfree(rx);
+-		}
+-	}
+-
+-	ret = spi_write_then_read(to_spi_device(context), hdr, reg_len + extra, val, val_len);
+-	if (val_len > 4) {
+-		static int n;
+-
+-		if (n++ < 12)
+-			dev_info(context, "DEBUG: bulk read %*phN len %zu: %*ph\n",
+-				 (int)reg_len, reg, val_len, (int)min_t(size_t, val_len, 48), val);
+-	}
+-	return ret;
+-}
+-
+-static const struct regmap_bus cs35l41_regmap_spi_bus = {
+-	.write = cs35l41_spi_write,
+-	.gather_write = cs35l41_spi_gather_write,
+-	.read = cs35l41_spi_read,
+-	.read_flag_mask = 0x80,
+-	.reg_format_endian_default = REGMAP_ENDIAN_BIG,
+-	.val_format_endian_default = REGMAP_ENDIAN_BIG,
+-};
+-
+ static int cs35l41_spi_probe(struct spi_device *spi)
+ {
+ 	const struct regmap_config *regmap_config = &cs35l41_regmap_spi;
+@@ -191,8 +44,7 @@ static int cs35l41_spi_probe(struct spi_device *spi)
+ 		return ret;
+ 
+ 	spi_set_drvdata(spi, cs35l41);
+-	dbg_spi = spi;
+-	cs35l41->regmap = devm_regmap_init(&spi->dev, &cs35l41_regmap_spi_bus, &spi->dev, regmap_config);
++	cs35l41->regmap = devm_regmap_init_spi(spi, regmap_config);
+ 	if (IS_ERR(cs35l41->regmap))
+ 		return dev_err_probe(cs35l41->dev, PTR_ERR(cs35l41->regmap),
+ 				     "Failed to allocate register map\n");
+-- 
+2.56.0
+

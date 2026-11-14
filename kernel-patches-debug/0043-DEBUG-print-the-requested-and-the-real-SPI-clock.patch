@@ -1,0 +1,32 @@
+From 7e45e892840e7fd17088b91ed82eaaa0c49e37cf Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:40:07 +0100
+Subject: [PATCH 43/46] DEBUG: print the requested and the real SPI clock
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/spi/spi-s3c64xx.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/spi/spi-s3c64xx.c b/drivers/spi/spi-s3c64xx.c
+index 62500b1..2ea456e 100644
+--- a/drivers/spi/spi-s3c64xx.c
++++ b/drivers/spi/spi-s3c64xx.c
+@@ -768,6 +768,14 @@ static int s3c64xx_spi_config(struct s3c64xx_spi_driver_data *sdd)
+ 		ret = clk_set_rate(sdd->src_clk, sdd->cur_speed * div);
+ 		if (ret)
+ 			return ret;
++		{
++			static int n;
++
++			if (n++ < 60)
++				dev_info(&sdd->pdev->dev, "DEBUG: spi clock request %u Hz, src rate %lu, speed %lu\n",
++					 sdd->cur_speed, clk_get_rate(sdd->src_clk),
++					 clk_get_rate(sdd->src_clk) / div);
++		}
+ 		sdd->cur_speed = clk_get_rate(sdd->src_clk) / div;
+ 	} else {
+ 		/* Configure Clock */
+-- 
+2.56.0
+

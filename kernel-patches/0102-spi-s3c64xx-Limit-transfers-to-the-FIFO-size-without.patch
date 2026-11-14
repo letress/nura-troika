@@ -1,0 +1,34 @@
+From 50a720f24628ba103c75412eefeb67bde952b6be Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:22:42 +0100
+Subject: [PATCH 102/103] spi: s3c64xx: Limit transfers to the FIFO size
+ without DMA
+
+A controller used without DMA writes a whole transmit buffer into a FIFO
+that holds only fifo_depth bytes, so larger transfers lost data. Let the
+SPI core split them.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/spi/spi-s3c64xx.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/spi/spi-s3c64xx.c b/drivers/spi/spi-s3c64xx.c
+index b706e9b..9f444fb 100644
+--- a/drivers/spi/spi-s3c64xx.c
++++ b/drivers/spi/spi-s3c64xx.c
+@@ -808,8 +808,10 @@ static int s3c64xx_spi_prepare_message(struct spi_controller *host,
+ static size_t s3c64xx_spi_max_transfer_size(struct spi_device *spi)
+ {
+ 	struct spi_controller *ctlr = spi->controller;
++	struct s3c64xx_spi_driver_data *sdd = spi_controller_get_devdata(ctlr);
+ 
+-	return ctlr->can_dma ? S3C64XX_SPI_PACKET_CNT_MASK : SIZE_MAX;
++	/* Without DMA the data goes through the FIFO, which cannot hold more */
++	return ctlr->can_dma ? S3C64XX_SPI_PACKET_CNT_MASK : sdd->fifo_depth;
+ }
+ 
+ static int s3c64xx_spi_transfer_one(struct spi_controller *host,
+-- 
+2.56.0
+

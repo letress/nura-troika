@@ -1,7 +1,7 @@
-From 3218e5de4823e3e8b4630f2f424344968422b2c9 Mon Sep 17 00:00:00 2001
+From 05f26be8b8614bf4ba28022dad2fe291952c8cfb Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:20:48 +0100
-Subject: [PATCH 28/38] DEBUG: SPI self loopback test of the controller
+Subject: [PATCH 28/46] DEBUG: SPI self loopback test of the controller
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---
@@ -10,10 +10,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
  2 files changed, 18 insertions(+)
 
 diff --git a/drivers/spi/spi-s3c64xx.c b/drivers/spi/spi-s3c64xx.c
-index 85f61a4..f34fa1b 100644
+index 414c1ee..62500b1 100644
 --- a/drivers/spi/spi-s3c64xx.c
 +++ b/drivers/spi/spi-s3c64xx.c
-@@ -1619,6 +1619,7 @@ static const struct s3c64xx_spi_port_config exynos9610_spi_port_config = {
+@@ -1621,6 +1621,7 @@ static const struct s3c64xx_spi_port_config exynos9610_spi_port_config = {
  	.high_speed	= true,
  	.clk_from_cmu	= true,
  	.has_usi_reset	= true,

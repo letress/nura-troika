@@ -1,7 +1,7 @@
-From eba6712294ca4d90bd1e4442042c61ede7b4455e Mon Sep 17 00:00:00 2001
+From 1483d50de1665e374f4778ba866a89f8a327380c Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:43:34 +0100
-Subject: [PATCH 30/38] DEBUG: test card linking the CS35L41 to a dummy CPU DAI
+Subject: [PATCH 30/46] DEBUG: test card linking the CS35L41 to a dummy CPU DAI
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

@@ -1,0 +1,30 @@
+From 2bfd11a3928330b6be0c9bdb10afc6d748293cbb Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:42:59 +0100
+Subject: [PATCH 45/46] DEBUG: print the SPI clock only when the request
+ changes
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/spi/spi-s3c64xx.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/spi/spi-s3c64xx.c b/drivers/spi/spi-s3c64xx.c
+index 2ea456e..47e27d1 100644
+--- a/drivers/spi/spi-s3c64xx.c
++++ b/drivers/spi/spi-s3c64xx.c
+@@ -769,9 +769,9 @@ static int s3c64xx_spi_config(struct s3c64xx_spi_driver_data *sdd)
+ 		if (ret)
+ 			return ret;
+ 		{
+-			static int n;
++			static unsigned int last;
+ 
+-			if (n++ < 60)
++			if (last != sdd->cur_speed && (last = sdd->cur_speed))
+ 				dev_info(&sdd->pdev->dev, "DEBUG: spi clock request %u Hz, src rate %lu, speed %lu\n",
+ 					 sdd->cur_speed, clk_get_rate(sdd->src_clk),
+ 					 clk_get_rate(sdd->src_clk) / div);
+-- 
+2.56.0
+

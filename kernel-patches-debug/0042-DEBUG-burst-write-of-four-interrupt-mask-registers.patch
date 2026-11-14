@@ -1,0 +1,77 @@
+From 6217e1f4ce4b90d5994f34feb131e64d338d0b89 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 13:37:06 +0100
+Subject: [PATCH 42/46] DEBUG: burst write of four interrupt mask registers
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-spi.c | 51 ++++++++++++++--------------------
+ 1 file changed, 21 insertions(+), 30 deletions(-)
+
+diff --git a/sound/soc/codecs/cs35l41-spi.c b/sound/soc/codecs/cs35l41-spi.c
+index d06bebc..34ce8bb 100644
+--- a/sound/soc/codecs/cs35l41-spi.c
++++ b/sound/soc/codecs/cs35l41-spi.c
+@@ -56,38 +56,29 @@ static int selftest_set(const char *val, const struct kernel_param *kp)
+ 		kfree(rx);
+ 		return -ENOMEM;
+ 	}
+-	/* write N known words into XM at separate addresses, read back with the register padding */
++	/* four consecutive interrupt mask registers: dense burst write and read */
+ 	{
+-		static const u32 speeds[] = { 4000000, 1000000, 200000, 50000 };
+-		int c, w, e;
+-		u32 old_speed = dbg_spi->max_speed_hz;
+-
+-		for (c = 0; c < ARRAY_SIZE(speeds); c++) {
+-			int n = 12;
+-
+-			dbg_spi->max_speed_hz = speeds[c];
+-			spi_setup(dbg_spi);
+-
+-			addr = 0x02800000 + 0x2000 + c * 0x100;
+-			memset(tx, 0, 256);
+-			tx[0] = addr >> 24; tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+-			for (w = 0; w < n; w++) {
+-				tx[6 + 4 * w + 1] = 0x10 * (c + 1);
+-				tx[6 + 4 * w + 2] = 0xa0 + w;
+-				tx[6 + 4 * w + 3] = 0xb0 + w;
+-			}
+-			r = spi_write(dbg_spi, tx, 6 + 4 * n);
+-			for (e = 4; e <= 4; e++) {
+-				struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 6 + e + 52 };
+-
+-				memset(tx, 0, 256);
+-				tx[0] = 0x80 | (addr >> 24); tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
+-				spi_sync_transfer(dbg_spi, &xf, 1);
+-				dev_info(&dbg_spi->dev, "DEBUG: wr %u Hz ret %d: %*ph\n", speeds[c], r, 52, rx + 6 + e);
+-			}
++		struct spi_transfer xf = { .tx_buf = tx, .rx_buf = rx, .len = 6 + 4 + 24 };
++		static const u32 vals[4] = { 0xfffffff1, 0xfffffff2, 0xfffffff3, 0xfffffff4 };
++		int w;
++
++		addr = 0x00010110;
++		memset(tx, 0, 256);
++		tx[0] = addr >> 24; tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
++		for (w = 0; w < 4; w++) {
++			tx[6 + 4 * w] = vals[w] >> 24; tx[7 + 4 * w] = vals[w] >> 16;
++			tx[8 + 4 * w] = vals[w] >> 8; tx[9 + 4 * w] = vals[w];
+ 		}
+-		dbg_spi->max_speed_hz = old_speed;
+-		spi_setup(dbg_spi);
++		r = spi_write(dbg_spi, tx, 6 + 16);
++		memset(tx, 0, 256);
++		tx[0] = 0x80 | (addr >> 24); tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
++		spi_sync_transfer(dbg_spi, &xf, 1);
++		dev_info(&dbg_spi->dev, "DEBUG: reg burst ret %d: %*ph\n", r, 24, rx + 10);
++		/* restore the reset value of the masks */
++		memset(tx, 0, 256);
++		tx[0] = addr >> 24; tx[1] = addr >> 16; tx[2] = addr >> 8; tx[3] = addr;
++		memset(tx + 6, 0xff, 16);
++		spi_write(dbg_spi, tx, 6 + 16);
+ 	}
+ 	kfree(tx);
+ 	kfree(rx);
+-- 
+2.56.0
+
