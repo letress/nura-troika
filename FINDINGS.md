@@ -4998,3 +4998,25 @@ Co se muselo najít:
   nepoužívá přerušení (polluje 5 ms), jediný kanál a jediná frekvence,
   čistá karta místo testovací, automatické výchozí hodnoty mixeru a DSP
   zesilovače (zatím `ctl-wr`), patche a konfigurace do balíčku.
+
+### 33.39 Karta `troika` s výchozími hodnotami; zvuk přes ALSA slyšet (ABOX92, 2026-11-14)
+
+Nový `sound/soc/samsung/exynos9610-troika.c` (DT `motorola,troika-sound`,
+Kconfig `SND_SOC_EXYNOS9610_TROIKA`) nahrazuje testovací kartu. Spoje:
+`RDMA1` (ABOX ↔ AIF1 kodeku, I2S, kodek odběratel) a `codec-left-amp` (AIF2 ↔
+CS35L41, codec-to-codec, 48 kHz, 16 bit, mono). V `late_probe` nastaví FLL1
+z 32 kHz na MCLK2, SYSCLK 98,304 MHz pro AIF1 i AIF2, OPCLK 12,288 MHz a
+hodiny zesilovače z BCLK 1,536 MHz; po `snd_soc_dapm_new_widgets()` (DAPM
+voliče vznikají až tam) nastaví výchozí ovládací prvky: předběh DSP
+zesilovače, `SPK PCM Source` = DSP, `SPK Analog PCM Volume` 0, `SPK Digital
+PCM Volume` 657 (−20 dB), `AIF2TX1 Input 1 Volume` 32, zdroj AIF1RX1.
+`/proc/asound/cards`: karta `troika`, PCM `pcmC0D0p`.
+Test: `pcm-sine /dev/snd/pcmC0D0p 8000 6` bez jakéhokoli ručního nastavení
+(jen LDO42 a `bind` zesilovače, viz níže) – uživatel zvuk slyšel.
+
+**Blokátor pro skutečný systém:** LDO42 (napájení kodeku, zesilovače a pinu
+DBVDD) je po studeném startu vypnutý a v testech ho zapíná ladicí soubor
+`acpmdbg_ldo42` (jen test větev, ruční zásah). Pro balíček potřebuje regulátor
+(ACPM/S2MPU09) nebo jinou cestu; podle pravidel projektu to nesmím řešit bez
+souhlasu. Dál: firmware ABOX, CS35L41 a ochrany do balíčku firmwaru, přerušení
+ABOX, čistá větev kernelu (DT bez DEBUG), patche a konfigurace do balíčku.

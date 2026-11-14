@@ -2262,3 +2262,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-14: sinus z RDMA1 → UAIF0 → Madera AIF1 → AIF2 → CS35L41 teče (GLOBAL_EN=1), čeká na poslech; piny gpb0 funkce 2, konfigurace mixeru IPC, DAPM zdroj AIF1; out/troika-test-ABOX77.img; FINDINGS 33.36
 - 2026-11-14: ABOX → UAIF0 → kodek → CS35L41: sinus z přehrávače SLYŠET (ABOX77); zbývá ovladač ABOX/ASoC karta do balíčku; FINDINGS 33.37
 - 2026-11-14: ovladač ABOX jako ASoC komponenta (exynos9610-abox.c), přehrávání přes ALSA (pcm-sine) funguje; out/troika-test-ABOX90.img; FINDINGS 33.38
+- 2026-11-14: karta troika (exynos9610-troika.c) s výchozími hodnotami, zvuk přes ALSA slyšet; out/troika-test-ABOX92.img; blokátor: LDO42 po studeném startu (regulátor); FINDINGS 33.39
