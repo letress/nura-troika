@@ -22,9 +22,10 @@ src="${2:?chybí ZDROJ}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 . "$root/tools/env.sh"
 
-image="$root/build/linux/arch/arm64/boot/Image"
-dtb="$root/build/linux/arch/arm64/boot/dts/exynos/exynos9610-troika.dtb"
-release="$root/build/linux/include/config/kernel.release"
+build="${TROIKA_BUILD:-$root/build/linux}"
+image="$build/arch/arm64/boot/Image"
+dtb="$build/arch/arm64/boot/dts/exynos/exynos9610-troika.dtb"
+release="$build/include/config/kernel.release"
 uni="$root/uniLoader-src"
 out="$root/out"
 

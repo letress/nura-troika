@@ -2263,3 +2263,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-14: ABOX → UAIF0 → kodek → CS35L41: sinus z přehrávače SLYŠET (ABOX77); zbývá ovladač ABOX/ASoC karta do balíčku; FINDINGS 33.37
 - 2026-11-14: ovladač ABOX jako ASoC komponenta (exynos9610-abox.c), přehrávání přes ALSA (pcm-sine) funguje; out/troika-test-ABOX90.img; FINDINGS 33.38
 - 2026-11-14: karta troika (exynos9610-troika.c) s výchozími hodnotami, zvuk přes ALSA slyšet; out/troika-test-ABOX92.img; blokátor: LDO42 po studeném startu (regulátor); FINDINGS 33.39
+- 2026-11-14: image pro zkoušku zvuku v Phoshi: out/troika-test-SND1.img (kernel 7.3.3-troika z build/linux-gui: konfigurace balíčku + zvuk zabudovaný, firmware ABOX a CS35L41 vložený do kernelu přes EXTRA_FIRMWARE; `TROIKA_BUILD=build/linux-gui tools/make-local-pmos-bootimg.sh SND1 out/troika-test-GUI2.img`); LDO42 zatím ručně (`echo 1 > /sys/kernel/debug/acpmdbg_ldo42`, pak `echo spi6.0 > /sys/bus/spi/drivers/cs35l41/bind`)
