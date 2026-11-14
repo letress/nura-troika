@@ -1,7 +1,7 @@
-From 6217e1f4ce4b90d5994f34feb131e64d338d0b89 Mon Sep 17 00:00:00 2001
+From 157f863ad13681db2e27dbf05547a09f89df6450 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:37:06 +0100
-Subject: [PATCH 42/46] DEBUG: burst write of four interrupt mask registers
+Subject: [PATCH 42/63] DEBUG: burst write of four interrupt mask registers
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

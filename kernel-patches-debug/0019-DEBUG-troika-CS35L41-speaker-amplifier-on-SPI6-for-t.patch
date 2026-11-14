@@ -1,7 +1,7 @@
-From 234a4c9d45b504526ad423e53a76c1a57ef219cf Mon Sep 17 00:00:00 2001
+From ac932adf3039a1eb63e5493c5f34d60cb92d4359 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 16:03:33 +0100
-Subject: [PATCH 19/46] DEBUG: troika: CS35L41 speaker amplifier on SPI6 for
+Subject: [PATCH 19/63] DEBUG: troika: CS35L41 speaker amplifier on SPI6 for
  the first read
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

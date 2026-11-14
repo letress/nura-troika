@@ -1,0 +1,49 @@
+From cf534f40c8f341bb9ea7b98d4f15ad79d05ca53c Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 14:28:36 +0100
+Subject: [PATCH] arm64: dts: exynos9610: Add the SPI9 controller
+
+The controller of the audio codec on the Motorola One Action. The
+vendor tree gives it a FIFO of 256 bytes; the driver keeps using 64.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 67c9646..680230d 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -26,6 +26,7 @@ aliases {
+ 		pinctrl4 = &pinctrl_top;
+ 		pinctrl5 = &pinctrl_shub;
+ 		spi6 = &spi_6;
++		spi9 = &spi_9;
+ 	};
+ 
+ 	cpus {
+@@ -586,6 +587,20 @@ spi_6: spi@13900000 {
+ 			status = "disabled";
+ 		};
+ 
++		spi_9: spi@13940000 {
++			compatible = "samsung,exynos9610-spi";
++			reg = <0x13940000 0x100>;
++			interrupts = <GIC_SPI 256 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&cmu_peri CLK_GOUT_PERI_SPI_2_PCLK>,
++				 <&cmu_peri CLK_GOUT_PERI_SPI_2_IPCLK>;
++			clock-names = "spi", "spi_busclk0";
++			pinctrl-names = "default";
++			pinctrl-0 = <&spi9_bus>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			status = "disabled";
++		};
++
+ 		pinctrl_top: pinctrl@139b0000 {
+ 			compatible = "samsung,exynos9610-pinctrl";
+ 			reg = <0x139b0000 0x1000>;
+-- 
+2.56.0
+

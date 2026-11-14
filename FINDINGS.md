@@ -4807,3 +4807,39 @@ nahraná, ale zvuk dál nehraje: chybí cesta zvuku z ABOX UAIF0 do zesilovače.
 
 Stále platí: LDO42 se zapíná `acpmdbg_ldo42`, zapnutí je potřeba po vypnutí
 napájení. Hlášky `Subsystem ID not found` zůstávají (jen volba názvu firmwaru).
+
+### 33.32 Cesta zvuku k reproduktoru a tón z kodeku (ABOX53 až ABOX69, 2026-11-14)
+
+**Oprava 31.1/33.19:** zesilovač **nesedí přímo na ABOX**. Vendorová karta
+(`live.dts` 10477–10492, `exynos9610_madera.c`) vede zvuk
+ABOX UAIF0 → kodek CS47L35 AIF1 → míchání v kodeku → CS47L35 AIF2 → CS35L41
+(`codec-left-amp`, I2S, 48 kHz, 16 bit, mono, BCLK 1,536 MHz, zesilovač bere
+hodiny z BCLK). Po ABOX stačí tedy udělat zbytek řetězu; pro první slyšitelný
+test jde ABOX obejít tónem z generátoru v kodeku (Tone Generator 1 → AIF2TX1).
+
+Hotovo (clean větev, patch 0104): `arm64: dts: exynos9610: Add the SPI9
+controller` (`spi_9`, `0x13940000`, SPI 256, hodiny SPI_2). Zbytek jen v test větvi:
+
+- **CS47L35 se probudí až s `codec_en`:** pin `gpg1-1` (vendorový pinctrl
+  SPI9: výstup, vysoká úroveň, pull-up) napájí kodek; bez něj čte `ffff`. V DT
+  je to `gpio-hog`. Pak: `CS47L35 silicon revision 1`. Vendor má u kodeku
+  `samsung,spi-feedback-delay` 1 (a rozhraní 11 MHz).
+- **Hodiny Madery bez `xclkout`:** FLL1 se zachytí z 32 kHz na MCLK2
+  (`IRQ1_RAW_STATUS_2` bit `FLL1_LOCK`), SYSCLK 98,304 MHz. Kodek bere 32 kHz z
+  desky (v DT ho nepopisuje ani vendor); varování `Missing MCLK2` je jen DT.
+- **Testovací karta** (`troika-test-card.c`): spoj kodek AIF2 ↔ CS35L41 jako
+  `codec-to-codec` s předponou `SPK` u zesilovače (jinak se kryjí názvy prvků
+  DSP), a debugfs soubory pro stav kodeku a zesilovače.
+- **Bezpečnost:** výchozí `SPK PCM Source` je `ASP` (mimo DSP, tedy bez
+  ochrany); před tónem se přepíná na `DSP`, hlasitost mixeru na minimum
+  (−32 dB) a `SPK Digital PCM Volume` na 497 (asi −40 dB).
+- **Problém:** při zapnutí tónu zesilovač nenaběhne (`Enable(1) failed: -110`,
+  `PUP_DONE` nepřijde), takže nic nehraje (a nic se neponičí). Stav zesilovače:
+  `IRQ1_RAW_STATUS3` má `PLL_UNLOCK` (bit 4), `PLL_LOCK` ne; `SP_ENABLES` RX1+RX2
+  zapnuté. Kodek hlásí AIF2 jako master, BCLK 1,536 MHz, formát I2S, TX1 zapnut.
+  Ruční vynucení BCLK a znovunastavení zdroje hodin zesilovače (SCLK nebo
+  MCLK=OPCLK 12,288 MHz) PLL nezamkne. Možné příčiny: BCLK nedojde na
+  piny zesilovače, jiné zapojení, nebo další krok, který vendorová karta dělá
+  a já ne (OPCLK, `GPIO5` jako IO). Nezjištěno.
+- **Další krok:** srovnat se stavem v Lineage za hraní hudby (výpis registrů
+  Madery a zesilovače).

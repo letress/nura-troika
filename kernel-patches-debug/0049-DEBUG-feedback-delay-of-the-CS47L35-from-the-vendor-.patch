@@ -1,0 +1,28 @@
+From a1255d19dc60c850e1de209722a1f4e9e71f2d8a Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 14:32:59 +0100
+Subject: [PATCH 49/63] DEBUG: feedback delay of the CS47L35 from the vendor
+ tree
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index ebb4945..2ee48a9 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -424,5 +424,9 @@ audio_codec: codec@0 {
+ 		#gpio-cells = <2>;
+ 		reset-gpios = <&gpg3 2 GPIO_ACTIVE_HIGH>;
+ 		#sound-dai-cells = <1>;
++
++		controller-data {
++			samsung,spi-feedback-delay = <1>;
++		};
+ 	};
+ };
+-- 
+2.56.0
+

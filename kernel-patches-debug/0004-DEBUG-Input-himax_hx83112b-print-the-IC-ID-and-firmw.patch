@@ -1,7 +1,7 @@
-From 4100d8ec13b5c8d676a89422f145b8d68e1faca0 Mon Sep 17 00:00:00 2001
+From a4781197e55e9fb990eff6e0fc1a9a4f554371d3 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 21:02:11 +0100
-Subject: [PATCH 04/46] DEBUG: Input: himax_hx83112b - print the IC ID and
+Subject: [PATCH 04/63] DEBUG: Input: himax_hx83112b - print the IC ID and
  firmware settings
 
 Not for upstream.

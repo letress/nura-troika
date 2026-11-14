@@ -1,7 +1,7 @@
-From 19ddb88096dc3c2e6628583fb4578f3cd227c623 Mon Sep 17 00:00:00 2001
+From 30f34f09b49ba10110eac6b7403416aa5681e93c Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:33:43 +0100
-Subject: [PATCH 41/46] DEBUG: XM burst test at several SPI speeds
+Subject: [PATCH 41/63] DEBUG: XM burst test at several SPI speeds
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

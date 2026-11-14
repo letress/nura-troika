@@ -1,7 +1,7 @@
-From 0b964010888435c9dd65fa29eeac2ba47f481436 Mon Sep 17 00:00:00 2001
+From 4981ad647191946fdf4c1309fce7921cab342663 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:26:36 +0100
-Subject: [PATCH 39/46] DEBUG: pattern write and padding scan in XM
+Subject: [PATCH 39/63] DEBUG: pattern write and padding scan in XM
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

@@ -1,7 +1,7 @@
-From 86f19a7746b31fedd58481caf46d42877ffdc575 Mon Sep 17 00:00:00 2001
+From 48b500fa8229122a1776d63a1d20135c2ad40875 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 20:16:00 +0100
-Subject: [PATCH 07/46] DEBUG: firmware: exynos-acpm: debugfs file to request
+Subject: [PATCH 07/63] DEBUG: firmware: exynos-acpm: debugfs file to request
  the two lowest G3D rates
 
 Co-Authored-By: Claude <noreply@anthropic.com>

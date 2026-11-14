@@ -1,0 +1,26 @@
+From 1809ced45cffb8b6095f9166150f90a9c2d67ba0 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 14:29:16 +0100
+Subject: [PATCH 48/63] DEBUG: select the CS47L35 sound driver with the MFD
+ driver
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/mfd/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/mfd/Kconfig b/drivers/mfd/Kconfig
+index e4fd457..b23e95b 100644
+--- a/drivers/mfd/Kconfig
++++ b/drivers/mfd/Kconfig
+@@ -382,6 +382,7 @@ config MFD_CS47L15
+ config MFD_CS47L35
+ 	bool "Cirrus Logic CS47L35"
+ 	select PINCTRL_CS47L35
++	imply SND_SOC_CS47L35
+ 	depends on MFD_MADERA
+ 	help
+ 	  Support for Cirrus Logic CS47L35 Smart Codec
+-- 
+2.56.0
+

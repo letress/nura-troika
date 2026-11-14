@@ -1,0 +1,42 @@
+From 81893f018b71da9b45e8c7a2c6c85da481a20bcf Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 14:46:35 +0100
+Subject: [PATCH 54/63] DEBUG: print the Madera clock state in the test card
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/troika-test-card.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index 4f27048..f8e1b46 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -6,7 +6,9 @@
+  * comes from a signal generator inside the codec, there is no driver for the
+  * ABOX yet. Everything is switched on from user space through the controls.
+  */
++#include <linux/delay.h>
+ #include <linux/interrupt.h>
++#include <linux/mfd/madera/registers.h>
+ #include <linux/mfd/madera/core.h>
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
+@@ -78,6 +80,14 @@ static int troika_test_late_probe(struct snd_soc_card *card)
+ 	if (ret)
+ 		return ret;
+ 
++	msleep(50);
++	dev_info(card->dev, "DEBUG: SYSTEM_CLOCK_1 %04x FLL1_CONTROL_1 %04x IRQ1_RAW_STATUS_2 %04x AIF2_BCLK_CTRL %04x AIF2_RATE_CTRL %04x\n",
++		 snd_soc_component_read(madera, MADERA_SYSTEM_CLOCK_1),
++		 snd_soc_component_read(madera, MADERA_FLL1_CONTROL_1),
++		 snd_soc_component_read(madera, MADERA_IRQ1_RAW_STATUS_2),
++		 snd_soc_component_read(madera, MADERA_AIF2_BCLK_CTRL),
++		 snd_soc_component_read(madera, MADERA_AIF2_RATE_CTRL));
++
+ 	/* the amplifier takes its clock from BCLK, like the vendor card */
+ 	ret = snd_soc_component_set_sysclk(amp_dai->component, CS35L41_CLKID_SCLK, 0,
+ 					   TEST_BCLK, SND_SOC_CLOCK_IN);
+-- 
+2.56.0
+

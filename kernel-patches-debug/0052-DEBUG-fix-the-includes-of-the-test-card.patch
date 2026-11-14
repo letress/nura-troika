@@ -1,0 +1,26 @@
+From b9364bae9984a4f6c9f1ab6316ca3f84629418c3 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 14:39:18 +0100
+Subject: [PATCH 52/63] DEBUG: fix the includes of the test card
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/troika-test-card.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index abecc17..bc990b7 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -6,6 +6,8 @@
+  * comes from a signal generator inside the codec, there is no driver for the
+  * ABOX yet. Everything is switched on from user space through the controls.
+  */
++#include <linux/interrupt.h>
++#include <linux/mfd/madera/core.h>
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
+ #include <sound/cs35l41.h>
+-- 
+2.56.0
+

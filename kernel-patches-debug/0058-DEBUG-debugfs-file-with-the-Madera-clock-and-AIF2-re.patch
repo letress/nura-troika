@@ -1,0 +1,69 @@
+From 27acad92bb4162dafa263a0a2f820d233abca5f0 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 15:01:11 +0100
+Subject: [PATCH 58/63] DEBUG: debugfs file with the Madera clock and AIF2
+ registers
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/troika-test-card.c | 25 +++++++++++++++++++++++++
+ 1 file changed, 25 insertions(+)
+
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index f8e1b46..0997eea 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -6,11 +6,13 @@
+  * comes from a signal generator inside the codec, there is no driver for the
+  * ABOX yet. Everything is switched on from user space through the controls.
+  */
++#include <linux/debugfs.h>
+ #include <linux/delay.h>
+ #include <linux/interrupt.h>
+ #include <linux/mfd/madera/registers.h>
+ #include <linux/mfd/madera/core.h>
+ #include <linux/module.h>
++#include <linux/seq_file.h>
+ #include <linux/platform_device.h>
+ #include <sound/cs35l41.h>
+ #include <sound/pcm.h>
+@@ -55,6 +57,26 @@ static const struct snd_soc_dapm_route troika_test_routes[] = {
+ 	{ "Speaker", NULL, "SPK SPK" },
+ };
+ 
++static struct snd_soc_component *dbg_madera;
++
++static int troika_test_regs_show(struct seq_file *m, void *unused)
++{
++	static const unsigned int regs[] = { 0x101, 0x171, 0x172, 0x173, 0x174, 0x175, 0x176,
++					     0x177, 0x178, 0x179, 0x17a, 0x17b, 0x17c, 0x17d, 0x17e,
++					     0x17f, 0x1880, 0x1881, 0x1882 };
++	unsigned int r;
++
++	if (!dbg_madera)
++		return 0;
++	for (r = 0x540; r <= 0x560; r++)
++		seq_printf(m, "%04x %04x\n", r, snd_soc_component_read(dbg_madera, r));
++	for (r = 0; r < ARRAY_SIZE(regs); r++)
++		seq_printf(m, "%04x %04x\n", regs[r], snd_soc_component_read(dbg_madera, regs[r]));
++
++	return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(troika_test_regs);
++
+ static int troika_test_late_probe(struct snd_soc_card *card)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = snd_soc_get_pcm_runtime(card, &troika_test_link);
+@@ -63,6 +85,9 @@ static int troika_test_late_probe(struct snd_soc_card *card)
+ 	struct snd_soc_component *madera = madera_dai->component;
+ 	int ret;
+ 
++	dbg_madera = madera;
++	debugfs_create_file("troika-test-madera", 0400, NULL, NULL, &troika_test_regs_fops);
++
+ 	/* FLL1 from the 32 kHz clock on MCLK2, SYSCLK from FLL1 */
+ 	ret = snd_soc_component_set_pll(madera, MADERA_FLL1_REFCLK, MADERA_FLL_SRC_MCLK2,
+ 					TEST_FLL_REF, TEST_SYSCLK);
+-- 
+2.56.0
+

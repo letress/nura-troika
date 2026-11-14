@@ -81,7 +81,12 @@ static int contains(const char *hay, const char *needle)
 
 /* Jen tyto prvky; přidává se po jednom podle potřeby. */
 static const char *const allowed[] = {
-	"DSP1 Preload Switch",
+	"SPK DSP1 Preload Switch",
+	"SPK PCM Source",		/* 1 = DSP (protection), 0 = ASP bypasses it */
+	"SPK Digital PCM Volume",
+	"SPK Analog PCM Volume",
+	"AIF2TX1 Input 1 Volume",
+	"AIF2TX1 Input 1",		/* 0 = None, 1 = Tone Generator 1 */
 	0,
 };
 

@@ -1,7 +1,7 @@
-From abe513b1e8849ba0a1670b2125a35ef27f2e1b7b Mon Sep 17 00:00:00 2001
+From f6bb8a2169409ba4e39e2340ceeab0fcb41cb235 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:48:57 +0100
-Subject: [PATCH 32/46] DEBUG: longer read padding for the DSP memories of the
+Subject: [PATCH 32/63] DEBUG: longer read padding for the DSP memories of the
  CS35L41
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

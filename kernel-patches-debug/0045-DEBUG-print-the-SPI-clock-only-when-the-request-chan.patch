@@ -1,7 +1,7 @@
-From 2bfd11a3928330b6be0c9bdb10afc6d748293cbb Mon Sep 17 00:00:00 2001
+From e15e74b7851f358cc1da8bbab752e54aa969d454 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:42:59 +0100
-Subject: [PATCH 45/46] DEBUG: print the SPI clock only when the request
+Subject: [PATCH 45/63] DEBUG: print the SPI clock only when the request
  changes
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

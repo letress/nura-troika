@@ -1,7 +1,7 @@
-From 6d6bfd84022130502561956d51170f2ad894f022 Mon Sep 17 00:00:00 2001
+From 381648ae49e316a436ae0aac7a85a57abc65fdc1 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:00:32 +0100
-Subject: [PATCH 35/46] DEBUG: raw dump of a DSP memory read
+Subject: [PATCH 35/63] DEBUG: raw dump of a DSP memory read
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

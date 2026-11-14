@@ -1,7 +1,7 @@
-From 6d3ef1691a720258be9bc20708545f1f958447e9 Mon Sep 17 00:00:00 2001
+From 76fe9a94e79e2102ac83a87fdf641b03e99b2068 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 16:22:04 +0100
-Subject: [PATCH 21/46] DEBUG: CS35L41 feedback delay from the vendor tree and
+Subject: [PATCH 21/63] DEBUG: CS35L41 feedback delay from the vendor tree and
  a raw ID print
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

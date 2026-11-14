@@ -1,7 +1,7 @@
-From 2461630bbe371c6aa849507f7d1ad05f3259051b Mon Sep 17 00:00:00 2001
+From 09a53c320d77c08fb85ef8ef8e350fb9fa793db2 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:49:57 +0100
-Subject: [PATCH 46/46] DEBUG: use the standard regmap SPI bus again
+Subject: [PATCH 46/63] DEBUG: use the standard regmap SPI bus again
 
 The extra read padding was an effect of the SPI clock running at about
 200 MHz; it is not needed with the clock fixed.

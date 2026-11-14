@@ -4,8 +4,9 @@
  * Bez libc, aby šel sestavit toolchainem pro kernel; na telefonu s Androidem
  * není tinymix ani amixer.
  *
- *   ctl-rd [HLEDANÝ_TEXT]   vypíše prvky karty 0, jejichž název obsahuje text
- *                           (bez textu všechny), u výčtových i vybranou položku
+ *   ctl-rd [HLEDANÝ_TEXT] [items]  vypíše prvky karty 0, jejichž název obsahuje text
+ *                           (bez textu všechny), u výčtových i vybranou položku;
+ *                           s druhým argumentem i všechny položky výčtu
  */
 
 #define SYS_openat	56
@@ -143,6 +144,21 @@ void start_c(long *sp)
 				put(" (");
 				put((const char *)(info + 88));
 				put(")");
+			}
+			if (argc > 2) {
+				unsigned int it;
+
+				put("\n");
+				for (it = 0; it < items; it++) {
+					*(unsigned int *)(info + 84) = it;
+					if (sys(SYS_ioctl, fd, IOCTL_INFO, (long)info) < 0)
+						continue;
+					put("  ");
+					put_num(it);
+					put(" ");
+					put((const char *)(info + 88));
+					put("\n");
+				}
 			}
 		} else {
 			put_num(*(long *)(val + 72));

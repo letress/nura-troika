@@ -1,7 +1,7 @@
-From 78d5ed8e762fd2627455ee475a16f091506fe37b Mon Sep 17 00:00:00 2001
+From 7c3ab258a2c56f20f9ab653a41f2f77005c807f4 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 11:43:56 +0100
-Subject: [PATCH 26/46] DEBUG: try the SPI modes and low speeds when CS35L41
+Subject: [PATCH 26/63] DEBUG: try the SPI modes and low speeds when CS35L41
  does not answer
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

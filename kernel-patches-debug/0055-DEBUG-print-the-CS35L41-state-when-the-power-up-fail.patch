@@ -1,0 +1,44 @@
+From 81538d6c42fe9b11f28f71b4f83f0ccb847bdc76 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 14:49:40 +0100
+Subject: [PATCH 55/63] DEBUG: print the CS35L41 state when the power-up fails
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l41-lib.c | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/codecs/cs35l41-lib.c b/sound/soc/codecs/cs35l41-lib.c
+index b0fa807..5b51f1d 100644
+--- a/sound/soc/codecs/cs35l41-lib.c
++++ b/sound/soc/codecs/cs35l41-lib.c
+@@ -1269,8 +1269,25 @@ int cs35l41_global_enable(struct device *dev, struct regmap *regmap, enum cs35l4
+ 		ret = regmap_read_poll_timeout(regmap, CS35L41_IRQ1_STATUS1,
+ 					int_status, int_status & pup_pdn_mask,
+ 					1000, 100000);
+-		if (ret)
++		if (ret) {
++			unsigned int v[12] = { };
++
++			regmap_read(regmap, CS35L41_IRQ1_STATUS1, &v[0]);
++			regmap_read(regmap, CS35L41_IRQ1_STATUS2, &v[1]);
++			regmap_read(regmap, CS35L41_IRQ1_STATUS3, &v[2]);
++			regmap_read(regmap, CS35L41_IRQ1_STATUS4, &v[3]);
++			regmap_read(regmap, CS35L41_IRQ1_RAW_STATUS1, &v[4]);
++			regmap_read(regmap, CS35L41_IRQ1_RAW_STATUS2, &v[5]);
++			regmap_read(regmap, CS35L41_IRQ1_RAW_STATUS3, &v[6]);
++			regmap_read(regmap, CS35L41_IRQ1_RAW_STATUS4, &v[7]);
++			regmap_read(regmap, CS35L41_PWR_CTRL1, &v[8]);
++			regmap_read(regmap, CS35L41_PLL_CLK_CTRL, &v[9]);
++			regmap_read(regmap, CS35L41_GLOBAL_CLK_CTRL, &v[10]);
++			regmap_read(regmap, CS35L41_SP_ENABLES, &v[11]);
++			dev_err(dev, "DEBUG: status %08x %08x %08x %08x raw %08x %08x %08x %08x pwr1 %08x pll %08x gclk %08x spen %08x\n",
++				v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11]);
+ 			dev_err(dev, "Enable(%d) failed: %d\n", enable, ret);
++		}
+ 
+ 		/* Clear PUP/PDN status */
+ 		regmap_write(regmap, CS35L41_IRQ1_STATUS1, pup_pdn_mask);
+-- 
+2.56.0
+

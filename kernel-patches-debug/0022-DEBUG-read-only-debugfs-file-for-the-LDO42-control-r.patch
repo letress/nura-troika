@@ -1,7 +1,7 @@
-From 0a3b33cd5f1bee1d49db4b60d563ce89fc10cb6e Mon Sep 17 00:00:00 2001
+From a01ab70c5b0d3d37593f4a15a4ea668878441159 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 22:52:31 +0100
-Subject: [PATCH 22/46] DEBUG: read-only debugfs file for the LDO42 control
+Subject: [PATCH 22/63] DEBUG: read-only debugfs file for the LDO42 control
  register
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

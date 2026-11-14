@@ -1,7 +1,7 @@
-From af8fc093c2f25fba2d1618fb5c690e09cd5e1439 Mon Sep 17 00:00:00 2001
+From a43c1d4a0e2cc9fab0274b617155d8d0f625c8dd Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 16:07:46 +0100
-Subject: [PATCH 20/46] DEBUG: spi-s3c64xx: dump the controller registers on an
+Subject: [PATCH 20/63] DEBUG: spi-s3c64xx: dump the controller registers on an
  I/O error
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

@@ -1,7 +1,7 @@
-From 34fee27ad1e8ff78f23a8acf344cf94df10ced0f Mon Sep 17 00:00:00 2001
+From 61069276666cb46c6bbbf7fed4bb60dcca6eb190 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:06:37 +0100
-Subject: [PATCH 37/46] DEBUG: print more of the self test stream
+Subject: [PATCH 37/63] DEBUG: print more of the self test stream
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

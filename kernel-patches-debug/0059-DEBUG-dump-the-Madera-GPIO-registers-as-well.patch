@@ -1,0 +1,26 @@
+From d7f1ba9691cde7950670a5edf147e5747563ba50 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 15:04:34 +0100
+Subject: [PATCH 59/63] DEBUG: dump the Madera GPIO registers as well
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/troika-test-card.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index 0997eea..24f7307 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -70,6 +70,8 @@ static int troika_test_regs_show(struct seq_file *m, void *unused)
+ 		return 0;
+ 	for (r = 0x540; r <= 0x560; r++)
+ 		seq_printf(m, "%04x %04x\n", r, snd_soc_component_read(dbg_madera, r));
++	for (r = 0x1700; r <= 0x1740; r++)
++		seq_printf(m, "%04x %04x\n", r, snd_soc_component_read(dbg_madera, r));
+ 	for (r = 0; r < ARRAY_SIZE(regs); r++)
+ 		seq_printf(m, "%04x %04x\n", regs[r], snd_soc_component_read(dbg_madera, regs[r]));
+ 
+-- 
+2.56.0
+

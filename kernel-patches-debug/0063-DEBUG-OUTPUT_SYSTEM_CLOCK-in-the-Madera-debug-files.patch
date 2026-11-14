@@ -1,0 +1,35 @@
+From aa5fa9872e450bc9a122427cea6d82ef29bc0daa Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 15:20:33 +0100
+Subject: [PATCH 63/63] DEBUG: OUTPUT_SYSTEM_CLOCK in the Madera debug files
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/troika-test-card.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index 2660da5..ae91ca1 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -104,7 +104,7 @@ static ssize_t troika_test_amp_write(struct file *file, const char __user *buf,
+ static ssize_t troika_test_mwr_write(struct file *file, const char __user *buf,
+ 				     size_t len, loff_t *off)
+ {
+-	static const unsigned int allowed[] = { 0x101, 0x540, 0x559 };
++	static const unsigned int allowed[] = { 0x101, 0x149, 0x540, 0x559 };
+ 	char tmp[32] = { };
+ 	unsigned int reg, val, i;
+ 
+@@ -137,7 +137,7 @@ static const struct file_operations troika_test_amp_fops = {
+ 
+ static int troika_test_regs_show(struct seq_file *m, void *unused)
+ {
+-	static const unsigned int regs[] = { 0x101, 0x171, 0x172, 0x173, 0x174, 0x175, 0x176,
++	static const unsigned int regs[] = { 0x101, 0x149, 0x171, 0x172, 0x173, 0x174, 0x175, 0x176,
+ 					     0x177, 0x178, 0x179, 0x17a, 0x17b, 0x17c, 0x17d, 0x17e,
+ 					     0x17f, 0x1880, 0x1881, 0x1882 };
+ 	unsigned int r;
+-- 
+2.56.0
+

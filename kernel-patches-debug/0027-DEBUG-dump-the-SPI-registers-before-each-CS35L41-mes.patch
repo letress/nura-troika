@@ -1,7 +1,7 @@
-From 306cfc73543850645080af97a5f160f80e056c32 Mon Sep 17 00:00:00 2001
+From 9c111537b537ebc53989283c29d3faffc15831d3 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:13:07 +0100
-Subject: [PATCH 27/46] DEBUG: dump the SPI registers before each CS35L41
+Subject: [PATCH 27/63] DEBUG: dump the SPI registers before each CS35L41
  message
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

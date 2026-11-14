@@ -1,0 +1,126 @@
+From 7679784818971fedc2d17f590369a1b1ea9f83fa Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 14:37:31 +0100
+Subject: [PATCH 51/63] DEBUG: test card Madera AIF2 to CS35L41
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/troika-test-card.c | 85 ++++++++++++++++++++++++++---
+ 1 file changed, 76 insertions(+), 9 deletions(-)
+
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index 4b28e97..abecc17 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -1,32 +1,99 @@
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+- * DEBUG: minimal test card for the CS35L41 of the Motorola One Action.
+- * The amplifier is linked to the dummy CPU DAI, so the ALSA controls of the
+- * amplifier and its DSP exist and the protection firmware can be loaded.
+- * No audio can flow: there is no driver for the ABOX yet.
++ * DEBUG: minimal test card for the speaker path of the Motorola One Action:
++ * CS47L35 AIF2 -> CS35L41 over a codec-to-codec link, like the "codec-left-amp"
++ * link of the vendor card (48 kHz, 16 bit, mono, BCLK 1.536 MHz). The audio
++ * comes from a signal generator inside the codec, there is no driver for the
++ * ABOX yet. Everything is switched on from user space through the controls.
+  */
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
++#include <sound/cs35l41.h>
++#include <sound/pcm.h>
+ #include <sound/soc.h>
+ 
++#include "madera.h"
++
++#define TEST_SYSCLK	98304000
++#define TEST_FLL_REF	32768
++#define TEST_RATE	48000
++#define TEST_BCLK	(TEST_RATE * 16 * 2)
++
++static struct snd_soc_pcm_stream amp_params = {
++	.formats = SNDRV_PCM_FMTBIT_S16_LE,
++	.rate_min = TEST_RATE,
++	.rate_max = TEST_RATE,
++	.channels_min = 1,
++	.channels_max = 1,
++};
++
+ SND_SOC_DAILINK_DEFS(amp,
+-	DAILINK_COMP_ARRAY(COMP_DUMMY()),
++	DAILINK_COMP_ARRAY(COMP_CODEC("cs47l35-codec", "cs47l35-aif2")),
+ 	DAILINK_COMP_ARRAY(COMP_CODEC("spi6.0", "cs35l41-pcm")),
+ 	DAILINK_COMP_ARRAY(COMP_DUMMY()));
+ 
+ static struct snd_soc_dai_link troika_test_link = {
+-	.name = "amp",
+-	.stream_name = "amp",
+-	.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
+-		   SND_SOC_DAIFMT_CBC_CFC,
++	.name = "codec-left-amp",
++	.stream_name = "codec-left-amp",
++	.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBC_CFC,
++	.c2c_params = &amp_params,
++	.num_c2c_params = 1,
++	.ignore_suspend = 1,
++	.ignore_pmdown_time = 1,
+ 	SND_SOC_DAILINK_REG(amp),
+ };
+ 
++static const struct snd_soc_dapm_widget troika_test_widgets[] = {
++	SND_SOC_DAPM_SPK("Speaker", NULL),
++};
++
++static const struct snd_soc_dapm_route troika_test_routes[] = {
++	{ "Speaker", NULL, "SPK" },
++};
++
++static int troika_test_late_probe(struct snd_soc_card *card)
++{
++	struct snd_soc_pcm_runtime *rtd = snd_soc_get_pcm_runtime(card, &troika_test_link);
++	struct snd_soc_dai *madera_dai = snd_soc_rtd_to_cpu(rtd, 0);
++	struct snd_soc_dai *amp_dai = snd_soc_rtd_to_codec(rtd, 0);
++	struct snd_soc_component *madera = madera_dai->component;
++	int ret;
++
++	/* FLL1 from the 32 kHz clock on MCLK2, SYSCLK from FLL1 */
++	ret = snd_soc_component_set_pll(madera, MADERA_FLL1_REFCLK, MADERA_FLL_SRC_MCLK2,
++					TEST_FLL_REF, TEST_SYSCLK);
++	dev_info(card->dev, "FLL1 from MCLK2: %d\n", ret);
++	if (ret)
++		return ret;
++
++	ret = snd_soc_component_set_sysclk(madera, MADERA_CLK_SYSCLK_1, MADERA_CLK_SRC_FLL1,
++					   TEST_SYSCLK, SND_SOC_CLOCK_IN);
++	dev_info(card->dev, "SYSCLK from FLL1: %d\n", ret);
++	if (ret)
++		return ret;
++
++	ret = snd_soc_dai_set_sysclk(madera_dai, MADERA_CLK_SYSCLK_1, 0, 0);
++	if (ret)
++		return ret;
++
++	/* the amplifier takes its clock from BCLK, like the vendor card */
++	ret = snd_soc_component_set_sysclk(amp_dai->component, CS35L41_CLKID_SCLK, 0,
++					   TEST_BCLK, SND_SOC_CLOCK_IN);
++	dev_info(card->dev, "amplifier clock from BCLK: %d\n", ret);
++
++	return ret;
++}
++
+ static struct snd_soc_card troika_test_card = {
+ 	.name = "troika-test",
+ 	.owner = THIS_MODULE,
+ 	.dai_link = &troika_test_link,
+ 	.num_links = 1,
++	.dapm_widgets = troika_test_widgets,
++	.num_dapm_widgets = ARRAY_SIZE(troika_test_widgets),
++	.dapm_routes = troika_test_routes,
++	.num_dapm_routes = ARRAY_SIZE(troika_test_routes),
++	.late_probe = troika_test_late_probe,
+ };
+ 
+ static int troika_test_probe(struct platform_device *pdev)
+-- 
+2.56.0
+

@@ -1,7 +1,7 @@
-From 05f26be8b8614bf4ba28022dad2fe291952c8cfb Mon Sep 17 00:00:00 2001
+From 12751bd5a490670a804047cf924e45593b4d2ccc Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:20:48 +0100
-Subject: [PATCH 28/46] DEBUG: SPI self loopback test of the controller
+Subject: [PATCH 28/63] DEBUG: SPI self loopback test of the controller
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

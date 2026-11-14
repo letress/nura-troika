@@ -1,0 +1,97 @@
+From a1adf508a052539cbca284afb488c2c363138c98 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 15:17:17 +0100
+Subject: [PATCH 62/63] DEBUG: Madera pin defaults of the vendor tree, OPCLK
+ and an MCLK option for the amplifier
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/exynos/exynos9610-troika.dts     | 35 +++++++++++++++++++
+ sound/soc/codecs/troika-test-card.c           | 14 ++++++--
+ 2 files changed, 46 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index f0e39f4..889f5d3 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -424,10 +424,45 @@ audio_codec: codec@0 {
+ 		#gpio-cells = <2>;
+ 		reset-gpios = <&gpg3 2 GPIO_ACTIVE_HIGH>;
+ 		#sound-dai-cells = <1>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&codec_pins>;
+ 
+ 		controller-data {
+ 			samsung,spi-feedback-delay = <1>;
+ 		};
++
++		/* pin defaults of the vendor tree: audio interfaces and OPCLK on GPIO6 */
++		codec_pins: pin-settings {
++			aif1-pins {
++				groups = "aif1";
++				function = "aif1";
++				bias-bus-hold;
++			};
++
++			aif2-pins {
++				groups = "aif2";
++				function = "aif2";
++				bias-bus-hold;
++			};
++
++			aif3-pins {
++				groups = "aif3";
++				function = "aif3";
++				bias-bus-hold;
++			};
++
++			gpio6-pins {
++				groups = "gpio6";
++				function = "opclk";
++				bias-pull-up;
++				output-low;
++			};
++
++			gpio5-pins {
++				groups = "gpio5";
++				function = "io";
++			};
++		};
+ 	};
+ };
+ 
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index ff5b05c..2660da5 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -89,9 +89,13 @@ static ssize_t troika_test_amp_write(struct file *file, const char __user *buf,
+ 
+ 	if (!dbg_amp)
+ 		return -ENODEV;
+-	ret = snd_soc_component_set_sysclk(dbg_amp, CS35L41_CLKID_SCLK, 0, TEST_BCLK,
+-					   SND_SOC_CLOCK_IN);
+-	pr_info("troika-test: amplifier clock again: %d\n", ret);
++	if (len && buf[0] == 'm')
++		ret = snd_soc_component_set_sysclk(dbg_amp, CS35L41_CLKID_MCLK, 0, 12288000,
++						   SND_SOC_CLOCK_IN);
++	else
++		ret = snd_soc_component_set_sysclk(dbg_amp, CS35L41_CLKID_SCLK, 0, TEST_BCLK,
++						   SND_SOC_CLOCK_IN);
++	pr_info("troika-test: amplifier clock again (%c): %d\n", len ? buf[0] : '-', ret);
+ 
+ 	return len;
+ }
+@@ -182,6 +186,10 @@ static int troika_test_late_probe(struct snd_soc_card *card)
+ 	if (ret)
+ 		return ret;
+ 
++	/* OPCLK 12.288 MHz as in the vendor card ("cirrus,opclk") */
++	ret = snd_soc_component_set_sysclk(madera, MADERA_CLK_OPCLK, 0, 12288000, SND_SOC_CLOCK_OUT);
++	dev_info(card->dev, "OPCLK 12.288 MHz: %d\n", ret);
++
+ 	msleep(50);
+ 	dev_info(card->dev, "DEBUG: SYSTEM_CLOCK_1 %04x FLL1_CONTROL_1 %04x IRQ1_RAW_STATUS_2 %04x AIF2_BCLK_CTRL %04x AIF2_RATE_CTRL %04x\n",
+ 		 snd_soc_component_read(madera, MADERA_SYSTEM_CLOCK_1),
+-- 
+2.56.0
+

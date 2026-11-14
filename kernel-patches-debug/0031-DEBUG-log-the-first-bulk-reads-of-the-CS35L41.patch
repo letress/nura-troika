@@ -1,7 +1,7 @@
-From 8ebdda75743cee93ea31c2e114c60581e735ba5a Mon Sep 17 00:00:00 2001
+From 5ef758a2f883f495336fb4d63cfb99f4d50a1c2a Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:46:02 +0100
-Subject: [PATCH 31/46] DEBUG: log the first bulk reads of the CS35L41
+Subject: [PATCH 31/63] DEBUG: log the first bulk reads of the CS35L41
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

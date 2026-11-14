@@ -1,7 +1,7 @@
-From dc6aee7dbe877f00b828472fc536d8a7c8ae1dfb Mon Sep 17 00:00:00 2001
+From 8f53042316e6c99066d7862e9a67b78f0e990f1d Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:29:53 +0100
-Subject: [PATCH 40/46] DEBUG: write N words into XM and read back
+Subject: [PATCH 40/63] DEBUG: write N words into XM and read back
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

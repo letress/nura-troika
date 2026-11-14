@@ -1,0 +1,77 @@
+From a7b4c15c37eb43e16d13ac215567d3703a68ae52 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 15:08:50 +0100
+Subject: [PATCH 60/63] DEBUG: debugfs file for the amplifier clock state
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/troika-test-card.c | 46 +++++++++++++++++++++++++++++
+ 1 file changed, 46 insertions(+)
+
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index 24f7307..f951c8b 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -58,6 +58,50 @@ static const struct snd_soc_dapm_route troika_test_routes[] = {
+ };
+ 
+ static struct snd_soc_component *dbg_madera;
++static struct snd_soc_component *dbg_amp;
++
++/* read: amplifier PLL state; write 1: configure the amplifier clock again */
++static int troika_test_amp_show(struct seq_file *m, void *unused)
++{
++	if (!dbg_amp)
++		return 0;
++	seq_printf(m, "raw3 %08x pll_clk_ctrl %08x gclk %08x spen %08x spfmt %08x sprate %08x\n",
++		   snd_soc_component_read(dbg_amp, CS35L41_IRQ1_RAW_STATUS3),
++		   snd_soc_component_read(dbg_amp, CS35L41_PLL_CLK_CTRL),
++		   snd_soc_component_read(dbg_amp, CS35L41_GLOBAL_CLK_CTRL),
++		   snd_soc_component_read(dbg_amp, CS35L41_SP_ENABLES),
++		   snd_soc_component_read(dbg_amp, CS35L41_SP_FORMAT),
++		   snd_soc_component_read(dbg_amp, CS35L41_SP_RATE_CTRL));
++
++	return 0;
++}
++
++static int troika_test_amp_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, troika_test_amp_show, NULL);
++}
++
++static ssize_t troika_test_amp_write(struct file *file, const char __user *buf,
++				     size_t len, loff_t *off)
++{
++	int ret;
++
++	if (!dbg_amp)
++		return -ENODEV;
++	ret = snd_soc_component_set_sysclk(dbg_amp, CS35L41_CLKID_SCLK, 0, TEST_BCLK,
++					   SND_SOC_CLOCK_IN);
++	pr_info("troika-test: amplifier clock again: %d\n", ret);
++
++	return len;
++}
++
++static const struct file_operations troika_test_amp_fops = {
++	.open = troika_test_amp_open,
++	.read = seq_read,
++	.write = troika_test_amp_write,
++	.llseek = seq_lseek,
++	.release = single_release,
++};
+ 
+ static int troika_test_regs_show(struct seq_file *m, void *unused)
+ {
+@@ -88,6 +132,8 @@ static int troika_test_late_probe(struct snd_soc_card *card)
+ 	int ret;
+ 
+ 	dbg_madera = madera;
++	dbg_amp = amp_dai->component;
++	debugfs_create_file("troika-test-amp", 0600, NULL, NULL, &troika_test_amp_fops);
+ 	debugfs_create_file("troika-test-madera", 0400, NULL, NULL, &troika_test_regs_fops);
+ 
+ 	/* FLL1 from the 32 kHz clock on MCLK2, SYSCLK from FLL1 */
+-- 
+2.56.0
+

@@ -1,0 +1,32 @@
+From 773dcf4454f12f17b0ba41dc035f27a731617e04 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 14:56:57 +0100
+Subject: [PATCH 57/63] DEBUG: drop the SPI clock print, it flooded the log
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/spi/spi-s3c64xx.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/drivers/spi/spi-s3c64xx.c b/drivers/spi/spi-s3c64xx.c
+index 47e27d1..62500b1 100644
+--- a/drivers/spi/spi-s3c64xx.c
++++ b/drivers/spi/spi-s3c64xx.c
+@@ -768,14 +768,6 @@ static int s3c64xx_spi_config(struct s3c64xx_spi_driver_data *sdd)
+ 		ret = clk_set_rate(sdd->src_clk, sdd->cur_speed * div);
+ 		if (ret)
+ 			return ret;
+-		{
+-			static unsigned int last;
+-
+-			if (last != sdd->cur_speed && (last = sdd->cur_speed))
+-				dev_info(&sdd->pdev->dev, "DEBUG: spi clock request %u Hz, src rate %lu, speed %lu\n",
+-					 sdd->cur_speed, clk_get_rate(sdd->src_clk),
+-					 clk_get_rate(sdd->src_clk) / div);
+-		}
+ 		sdd->cur_speed = clk_get_rate(sdd->src_clk) / div;
+ 	} else {
+ 		/* Configure Clock */
+-- 
+2.56.0
+

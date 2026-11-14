@@ -1,7 +1,7 @@
-From b48fbbb9994b918ee1f1d35f96bc56bbc4a43d8f Mon Sep 17 00:00:00 2001
+From e41a4c0bdc9fe07192b86fb90a5c9686118a08d6 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 15:05:28 +0100
-Subject: [PATCH 17/46] DEBUG: abox-sysmmu-test: debugfs log shows the firmware
+Subject: [PATCH 17/63] DEBUG: abox-sysmmu-test: debugfs log shows the firmware
  log buffer
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

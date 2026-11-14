@@ -1,0 +1,48 @@
+From 91be99876160f528aa19ca0ce41d8411a25dff3f Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 14:40:29 +0100
+Subject: [PATCH 53/63] DEBUG: prefix the amplifier in the test card
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/troika-test-card.c | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index bc990b7..4f27048 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -50,7 +50,7 @@ static const struct snd_soc_dapm_widget troika_test_widgets[] = {
+ };
+ 
+ static const struct snd_soc_dapm_route troika_test_routes[] = {
+-	{ "Speaker", NULL, "SPK" },
++	{ "Speaker", NULL, "SPK SPK" },
+ };
+ 
+ static int troika_test_late_probe(struct snd_soc_card *card)
+@@ -86,11 +86,21 @@ static int troika_test_late_probe(struct snd_soc_card *card)
+ 	return ret;
+ }
+ 
++/* the same prefix as the vendor card, the DSP controls of both codecs would clash */
++static struct snd_soc_codec_conf troika_test_conf[] = {
++	{
++		.dlc = COMP_CODEC_CONF("spi6.0"),
++		.name_prefix = "SPK",
++	},
++};
++
+ static struct snd_soc_card troika_test_card = {
+ 	.name = "troika-test",
+ 	.owner = THIS_MODULE,
+ 	.dai_link = &troika_test_link,
+ 	.num_links = 1,
++	.codec_conf = troika_test_conf,
++	.num_configs = ARRAY_SIZE(troika_test_conf),
+ 	.dapm_widgets = troika_test_widgets,
+ 	.num_dapm_widgets = ARRAY_SIZE(troika_test_widgets),
+ 	.dapm_routes = troika_test_routes,
+-- 
+2.56.0
+

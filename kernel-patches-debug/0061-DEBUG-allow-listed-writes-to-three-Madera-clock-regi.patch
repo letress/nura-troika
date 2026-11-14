@@ -1,0 +1,68 @@
+From 8bb85cd9ea18e4065a6064fd85ace3fe07688e39 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 15:12:09 +0100
+Subject: [PATCH 61/63] DEBUG: allow-listed writes to three Madera clock
+ registers
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/troika-test-card.c | 29 +++++++++++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
+
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index f951c8b..ff5b05c 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -13,6 +13,7 @@
+ #include <linux/mfd/madera/core.h>
+ #include <linux/module.h>
+ #include <linux/seq_file.h>
++#include <linux/uaccess.h>
+ #include <linux/platform_device.h>
+ #include <sound/cs35l41.h>
+ #include <sound/pcm.h>
+@@ -95,6 +96,33 @@ static ssize_t troika_test_amp_write(struct file *file, const char __user *buf,
+ 	return len;
+ }
+ 
++/* write "REG VALUE" (hex) to a few Madera clock registers, nothing else */
++static ssize_t troika_test_mwr_write(struct file *file, const char __user *buf,
++				     size_t len, loff_t *off)
++{
++	static const unsigned int allowed[] = { 0x101, 0x540, 0x559 };
++	char tmp[32] = { };
++	unsigned int reg, val, i;
++
++	if (!dbg_madera || len >= sizeof(tmp) || copy_from_user(tmp, buf, len))
++		return -EINVAL;
++	if (sscanf(tmp, "%x %x", &reg, &val) != 2)
++		return -EINVAL;
++	for (i = 0; i < ARRAY_SIZE(allowed); i++)
++		if (reg == allowed[i])
++			break;
++	if (i == ARRAY_SIZE(allowed))
++		return -EPERM;
++	pr_info("troika-test: madera %04x <- %04x\n", reg, val);
++	snd_soc_component_write(dbg_madera, reg, val);
++
++	return len;
++}
++
++static const struct file_operations troika_test_mwr_fops = {
++	.write = troika_test_mwr_write,
++};
++
+ static const struct file_operations troika_test_amp_fops = {
+ 	.open = troika_test_amp_open,
+ 	.read = seq_read,
+@@ -134,6 +162,7 @@ static int troika_test_late_probe(struct snd_soc_card *card)
+ 	dbg_madera = madera;
+ 	dbg_amp = amp_dai->component;
+ 	debugfs_create_file("troika-test-amp", 0600, NULL, NULL, &troika_test_amp_fops);
++	debugfs_create_file("troika-test-madera-wr", 0200, NULL, NULL, &troika_test_mwr_fops);
+ 	debugfs_create_file("troika-test-madera", 0400, NULL, NULL, &troika_test_regs_fops);
+ 
+ 	/* FLL1 from the 32 kHz clock on MCLK2, SYSCLK from FLL1 */
+-- 
+2.56.0
+
