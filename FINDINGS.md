@@ -5057,3 +5057,24 @@ zablokují). Konfigurace balíčku nemá `EXYNOS_IOMMU` (ABOX potřebuje ->
 (čte ffff, časování `codec_en`; ruční `bind` spi9.0 pomůže). Karta se na
 startu neregistruje (parametr `snd_soc_exynos9610_troika.enable`), registruje
 se ručně po zapnutí LDO42.
+
+### 33.41 Zvuk v Phoshi je srozumitelný a dost hlasitý (SND8, 2026-11-15)
+
+Příčina „modemu“ byla v bitových hodinách UAIF0: vendorový ovladač je při
+`hw_params` nastaví na `rate × kanály × šířka` (48000 × 2 × 16 = 1,536 MHz,
+`clk_set_rate(DOUT_CLK_AUD_UAIF0, …)`), moje verze nechávala 24,576 MHz a
+kodek dostával 16× rychlejší rámce. Oprava: v DT hodiny `bclk` (děliče
+`CLK_DOUT_CLK_AUD_UAIF0`) a hradla `CLK_GOUT_CLK_DISPAUD_ABOX_BCLK_UAIF0` a
+`…_CLK_AUD_UAIF0_CLK`, v ovladači `clk_set_rate` při `hw_params`. Uživatel
+v Phoshi: `speaker-test -D hw:0,0 -t wav` je srozumitelné, nejdřív jen levý
+kanál (zesilovač je mono, do mixeru šel jen AIF1RX1), pak oba po přimíchání
+`AIF2TX1 Input 2` = AIF1RX2.
+
+Hlasitost: v původním systému (výpis registrů při hraní) je `SPK Digital PCM
+Volume` na 0 dB (hodnota 817), `SPK Analog PCM Volume` 17 (registr
+`AMP_GAIN_CTRL` 0x233: GAIN_PCM 17) a vstup mixeru 0 dB. Moje původní výchozí
+hodnoty (657, 0, −6 dB) byly o víc než 30 dB tišší. Rozsahy: digitální 1…913
+(−102…+12 dB, 817 = 0 dB), mixer 0…48 (32 = 0 dB, krok 1 dB). Uživatel potvrdil:
+digitální 817, analogové 17, vstupy mixeru 29 (−3 dB, protože mono součet L+R)
+dává dostatečnou hlasitost. Tyto hodnoty jsou teď výchozí v kartě `troika`
+(včetně `AIF2TX1 Input 2` = AIF1RX2).
