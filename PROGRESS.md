@@ -2271,3 +2271,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-15: studený start (LDO42 zapnut regulátorem) a přesné bitové hodiny 1536001 Hz ověřeny v Phoshi (SND11); FINDINGS 33.43; další: čistá větev, patche a balíček
 - 2026-11-15: baterie: palivoměr S2MU106 (i2c_0 0x3b), read-only ovladač, test BAT2 (4,247 V, 91 %); patche 0105-0106; FINDINGS 34.1
 - 2026-11-15: Bluetooth funguje (scsc_bt, hci0, adresa F8:1F:32:43:E6:27, inquiry našel 2 zařízení); test BT1; FINDINGS 34.2; do balíčku zatím ne
+- 2026-11-15: fotoaparát: rozbor senzorů (4×, hsi2c_12..15), co chybí v mainline (CSIS, ovladače senzorů, ISP); FINDINGS 34.3; nic nespuštěno

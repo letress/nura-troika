@@ -5173,3 +5173,41 @@ BLUETOOTH.md`). Přenesený ovladač `scsc_bt` (zdroje už v `build/scsc/bt` z
 - **Do balíčku:** `scsc_bt.ko` do archivu `scsc-wlbt-troika.tar.gz`, `BT_LE=y`
   v konfiguraci, `bt.hcf` do firmware balíčku, zápis `bt_addr` při startu,
   `bluez`; pkgrel navýšit až v balíčkovém kole.
+
+### 34.3 Fotoaparát: rozbor (jen ze zdrojů, nic nespuštěno)
+
+Zdroj: `refs/downstream-kernel/arch/arm64/boot/dts/exynos/exynos9610-troika-camera.dtsi`.
+Čtyři senzory, každý na vlastní sběrnici I2C (USI `hsi2c_12` až `hsi2c_15`)
+s EEPROM s kalibrací na 0x50:
+
+| pozice | modul | senzor (I2C) | ostatní | napájení a řízení (GPIO) |
+|---|---|---|---|---|
+| zadní hlavní (0) | `sensor-module-12a10` | `cis-12a10` @0x36 | aktuátor `lc898217` @0x72, EEPROM @0x50 | MCLK `gpc2-0`, reset `gpc1-0`, AVDD_EN `gpg2-6`, DVDD_EN `gpg2-4`, IOVDD_EN `gpg2-5` |
+| zadní 2 (2) | `sensor-module-5e9` | `cis-5e9` @0x2d | – | MCLK `gpg3-5`, reset `gpc1-1`, IOVDD_EN `gpg2-5` |
+| přední (1) | `sensor-module-12a10ff` | `cis-12a10ff` @0x10 | EEPROM @0x50 | MCLK `gpc2-1`, reset `gpc1-3`, AVDD_EN `gpg2-3`, DVDD_EN `gpg2-4`, IOVDD_EN `gpg2-5` |
+| zadní 3 (4) | `sensor-module-16885c` | `cis-16885c` @0x10 | EEPROM @0x50 | MCLK `gpc2-2`, reset `gpc1-2`, AVDD_EN `gpm24-0`, DVDD_EN `gpg2-7`, IOVDD_EN `gpg2-5` |
+
+Blesk: `samsung,sensor-flash-s2mu106` (dva kanály, LED v čipu S2MU106). ID
+senzorů ve firmwaru: 208 (12a10), 209 (12a10ff), 41 (5e9), 210 (16885c). Podle
+původního DT je obraz 12 Mpx.
+
+**Co chybí v mainline:**
+- **Zpracování obrazu:** vendorový FIMC-IS je ISP řízený firmwarem se
+  zdrojovými blobem (`fimc_is`, DMA VC0 `0x14480100`…); v mainline není nic
+  pro Exynos9610 (jen `exynos4-is`, `exynos-gsc`, `s5p-g2d`, `s5p-jpeg` pro
+  staré SoC). Nejdřív by byl potřeba přijímač MIPI CSI-2 (CSIS) s D-PHY a
+  DMA; pak by šlo používat libcamera se softwarovým ISP.
+- **Senzory:** v `drivers/media/i2c` není ovladač pro `12a10`/`12a10ff`
+  (OmniVision OV12A10), `5e9`, `16885c`; aktuátor `lc898217` také ne (jsou
+  `dw9714`, `dw9719`, `dw9768`, `dw9807`, `ak7375`). Registrové mapy by se
+  musely psát podle vendorových `fimc-is-cis-*.c` (jsou ve zdrojích výrobce).
+- **Napájení senzorů:** přes čtyři až pět GPIO „*_EN“ spínačů a regulátory
+  (AVDD/DVDD/IOVDD); podle pravidel projektu na to nesmím sahat bez
+  výslovného souhlasu s konkrétními piny, takže jsem na senzory nesahal
+  ani čtením. MCLK pro senzory jde z pinů `gpc2-*` / `gpg3-5` (funkce hodin
+  výstupu, ne CMU).
+
+**Odhad práce:** velká (CSIS + D-PHY + DMA ovladač, ISP bez firmwaru, 3–4
+ovladače senzorů, řízení napájení). Doporučení: nejdřív jeden senzor
+(zadní hlavní) přes CSIS s libcamera a softwarovým ISP; k tomu potřebuji
+souhlas s konkrétními GPIO a hodinami. Nic z toho není v balíčku.
