@@ -1,0 +1,303 @@
+From a8823ac7196be3d94cacb0a505fae3bbb6dc18b1 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 04:01:45 +0100
+Subject: [PATCH] drm/panel: Add the Himax HX83112A panel of the Motorola One
+ Action
+
+The 1080x2520 DSI video mode panel with the init sequence, reset timing and
+timings of the vendor driver and the stock device tree. The DSI host of the
+SoC has no mainline driver yet, so this is only compile tested.
+
+Signed-off-by: letress <vikypl@gmail.com>
+---
+ drivers/gpu/drm/panel/Kconfig                 |  11 +
+ drivers/gpu/drm/panel/Makefile                |   1 +
+ .../drm/panel/panel-himax-hx83112a-troika.c   | 242 ++++++++++++++++++
+ 3 files changed, 254 insertions(+)
+ create mode 100644 drivers/gpu/drm/panel/panel-himax-hx83112a-troika.c
+
+diff --git a/drivers/gpu/drm/panel/Kconfig b/drivers/gpu/drm/panel/Kconfig
+index cbdf7b8..9aea7e7 100644
+--- a/drivers/gpu/drm/panel/Kconfig
++++ b/drivers/gpu/drm/panel/Kconfig
+@@ -219,6 +219,17 @@ config DRM_PANEL_HIMAX_HX8279
+ 	  7.0" 1200x1920 IPS LCD panel that uses a MIPI-DSI interface
+ 	  and others.
+ 
++config DRM_PANEL_HIMAX_HX83112A_TROIKA
++	tristate "Himax HX83112A panel of the Motorola One Action"
++	depends on OF
++	depends on DRM_MIPI_DSI
++	depends on BACKLIGHT_CLASS_DEVICE
++	select DRM_KMS_HELPER
++	help
++	  Say Y if you want to enable support for the 1080x2520 DSI video
++	  mode panel with the Himax HX83112A driver IC of the Motorola One
++	  Action. The DSI host of the SoC has no mainline driver yet.
++
+ config DRM_PANEL_HIMAX_HX83102
+ 	tristate "Himax HX83102-based panels"
+ 	depends on OF
+diff --git a/drivers/gpu/drm/panel/Makefile b/drivers/gpu/drm/panel/Makefile
+index 3b523cf..2ef31f0 100644
+--- a/drivers/gpu/drm/panel/Makefile
++++ b/drivers/gpu/drm/panel/Makefile
+@@ -22,6 +22,7 @@ obj-$(CONFIG_DRM_PANEL_FEIXIN_K101_IM2BA02) += panel-feixin-k101-im2ba02.o
+ obj-$(CONFIG_DRM_PANEL_FEIYANG_FY07024DI26A30D) += panel-feiyang-fy07024di26a30d.o
+ obj-$(CONFIG_DRM_PANEL_FOCALTECH_OTA7290B) += panel-focaltech-ota7290b.o
+ obj-$(CONFIG_DRM_PANEL_HIMAX_HX8279) += panel-himax-hx8279.o
++obj-$(CONFIG_DRM_PANEL_HIMAX_HX83112A_TROIKA) += panel-himax-hx83112a-troika.o
+ obj-$(CONFIG_DRM_PANEL_HIMAX_HX83102) += panel-himax-hx83102.o
+ obj-$(CONFIG_DRM_PANEL_HIMAX_HX83112A) += panel-himax-hx83112a.o
+ obj-$(CONFIG_DRM_PANEL_HIMAX_HX83112B) += panel-himax-hx83112b.o
+diff --git a/drivers/gpu/drm/panel/panel-himax-hx83112a-troika.c b/drivers/gpu/drm/panel/panel-himax-hx83112a-troika.c
+new file mode 100644
+index 0000000..32866eb
+--- /dev/null
++++ b/drivers/gpu/drm/panel/panel-himax-hx83112a-troika.c
+@@ -0,0 +1,242 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Panel of the Motorola One Action (troika): 1080x2520 LCD with the Himax
++ * HX83112A driver IC, DSI video mode on 4 lanes.
++ *
++ * The values are those of the vendor panel driver (hix83112a_*.c of the
++ * Motorola kernel, dpu20/panels) and of the live device tree of the stock
++ * system (node hix83112a): mode, 4 lanes, init sequence, reset timing. The
++ * vendor's DSI host (DSIM of the Exynos9610) has no mainline driver yet, so
++ * this driver is compile-tested only. The touch controller sits in the same IC
++ * (himax,hx83112a on I2C4) and is described separately.
++ */
++
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/module.h>
++#include <linux/of.h>
++
++#include <drm/drm_mipi_dsi.h>
++#include <drm/drm_modes.h>
++#include <drm/drm_panel.h>
++#include <drm/drm_probe_helper.h>
++
++struct hx83112a {
++	struct drm_panel panel;
++	struct mipi_dsi_device *dsi;
++	struct gpio_desc *reset;
++};
++
++static inline struct hx83112a *to_hx83112a(struct drm_panel *panel)
++{
++	return container_of(panel, struct hx83112a, panel);
++}
++
++/* reset as in dsim_reset_panel(): high, 5 ms, low, 5 ms, high, 50 ms */
++static void hx83112a_reset(struct hx83112a *ctx)
++{
++	gpiod_set_value_cansleep(ctx->reset, 0);
++	usleep_range(5000, 6000);
++	gpiod_set_value_cansleep(ctx->reset, 1);
++	usleep_range(5000, 6000);
++	gpiod_set_value_cansleep(ctx->reset, 0);
++	usleep_range(50000, 60000);
++}
++
++/* hix83112a_lcd_init(): SEQ_CMD_0 .. SEQ_CMD_16, then sleep out */
++static int hx83112a_on(struct hx83112a *ctx)
++{
++	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
++
++	ctx->dsi->mode_flags |= MIPI_DSI_MODE_LPM;
++
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0x51, 0x00, 0x00);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0x53, 0x24);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0x55, 0x01);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	/* SEQ_PASSWORD: unlock the extension commands */
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xb9, 0x83, 0x11, 0x2a);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xb2, 0x00, 0x02, 0x00, 0x90, 0xd8, 0x00,
++				     0x08, 0x19, 0xee, 0x11, 0x01, 0x00, 0x15, 0xa3, 0x07);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xe7, 0x0e, 0x0e, 0x1e, 0x69, 0x1c, 0x69,
++				     0x00, 0x50, 0x02, 0x02, 0x00, 0x00, 0x02, 0x02, 0x02,
++				     0x05, 0x14, 0x14, 0x32, 0xb9, 0x23, 0xb9, 0x08);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xe9, 0xc3);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xcb, 0xd1, 0xdd);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xe9, 0x3f);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	/* SEQ_OTP_DISABLE */
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xcf, 0x00, 0x14, 0x00, 0xc0);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xbb, 0x00);
++	mipi_dsi_msleep(&dsi_ctx, 5);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xbd, 0x01);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xe9, 0xc4);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xbf, 0x0f);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xe9, 0x3f);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xbd, 0x00);
++	mipi_dsi_msleep(&dsi_ctx, 1);
++
++	mipi_dsi_dcs_exit_sleep_mode_multi(&dsi_ctx);
++	mipi_dsi_msleep(&dsi_ctx, 125);
++
++	return dsi_ctx.accum_err;
++}
++
++static int hx83112a_prepare(struct drm_panel *panel)
++{
++	struct hx83112a *ctx = to_hx83112a(panel);
++	int ret;
++
++	hx83112a_reset(ctx);
++
++	ret = hx83112a_on(ctx);
++	if (ret < 0) {
++		gpiod_set_value_cansleep(ctx->reset, 1);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int hx83112a_enable(struct drm_panel *panel)
++{
++	struct hx83112a *ctx = to_hx83112a(panel);
++	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
++
++	mipi_dsi_dcs_set_display_on_multi(&dsi_ctx);
++	mipi_dsi_msleep(&dsi_ctx, 20);
++
++	return dsi_ctx.accum_err;
++}
++
++static int hx83112a_disable(struct drm_panel *panel)
++{
++	struct hx83112a *ctx = to_hx83112a(panel);
++	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
++
++	mipi_dsi_dcs_set_display_off_multi(&dsi_ctx);
++	mipi_dsi_msleep(&dsi_ctx, 20);
++
++	return dsi_ctx.accum_err;
++}
++
++static int hx83112a_unprepare(struct drm_panel *panel)
++{
++	struct hx83112a *ctx = to_hx83112a(panel);
++	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
++
++	mipi_dsi_dcs_enter_sleep_mode_multi(&dsi_ctx);
++	mipi_dsi_msleep(&dsi_ctx, 125);
++	gpiod_set_value_cansleep(ctx->reset, 1);
++
++	return dsi_ctx.accum_err;
++}
++
++/*
++ * 1080x2520 at 55 Hz: hbp 18, hfp 34, hsa 8, vbp 5, vfp 27, vsa 5 (live device
++ * tree, timing,h-porch and timing,v-porch in the order hbp, hfp, hsa and vbp,
++ * vfp, vsa of the vendor parser). The pixel clock follows from the totals.
++ */
++static const struct drm_display_mode hx83112a_mode = {
++	.clock = (1080 + 34 + 8 + 18) * (2520 + 27 + 5 + 5) * 55 / 1000,
++	.hdisplay = 1080,
++	.hsync_start = 1080 + 34,
++	.hsync_end = 1080 + 34 + 8,
++	.htotal = 1080 + 34 + 8 + 18,
++	.vdisplay = 2520,
++	.vsync_start = 2520 + 27,
++	.vsync_end = 2520 + 27 + 5,
++	.vtotal = 2520 + 27 + 5 + 5,
++	.width_mm = 64,
++	.height_mm = 148,
++	.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
++};
++
++static int hx83112a_get_modes(struct drm_panel *panel, struct drm_connector *connector)
++{
++	return drm_connector_helper_get_modes_fixed(connector, &hx83112a_mode);
++}
++
++static const struct drm_panel_funcs hx83112a_panel_funcs = {
++	.prepare = hx83112a_prepare,
++	.enable = hx83112a_enable,
++	.disable = hx83112a_disable,
++	.unprepare = hx83112a_unprepare,
++	.get_modes = hx83112a_get_modes,
++};
++
++static int hx83112a_probe(struct mipi_dsi_device *dsi)
++{
++	struct device *dev = &dsi->dev;
++	struct hx83112a *ctx;
++	int ret;
++
++	ctx = devm_drm_panel_alloc(dev, struct hx83112a, panel, &hx83112a_panel_funcs,
++				   DRM_MODE_CONNECTOR_DSI);
++	if (IS_ERR(ctx))
++		return PTR_ERR(ctx);
++
++	/* the reset line is active low; start with the panel in reset */
++	ctx->reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(ctx->reset))
++		return dev_err_probe(dev, PTR_ERR(ctx->reset), "no reset GPIO\n");
++
++	ctx->dsi = dsi;
++	mipi_dsi_set_drvdata(dsi, ctx);
++
++	dsi->lanes = 4;
++	dsi->format = MIPI_DSI_FMT_RGB888;
++	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST;
++
++	ret = drm_panel_of_backlight(&ctx->panel);
++	if (ret)
++		return dev_err_probe(dev, ret, "cannot get the backlight\n");
++	drm_panel_add(&ctx->panel);
++
++	ret = mipi_dsi_attach(dsi);
++	if (ret < 0) {
++		drm_panel_remove(&ctx->panel);
++		return dev_err_probe(dev, ret, "cannot attach to the DSI host\n");
++	}
++
++	return 0;
++}
++
++static void hx83112a_remove(struct mipi_dsi_device *dsi)
++{
++	struct hx83112a *ctx = mipi_dsi_get_drvdata(dsi);
++
++	mipi_dsi_detach(dsi);
++	drm_panel_remove(&ctx->panel);
++}
++
++static const struct of_device_id hx83112a_of_match[] = {
++	{ .compatible = "motorola,troika-hx83112a" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, hx83112a_of_match);
++
++static struct mipi_dsi_driver hx83112a_driver = {
++	.probe = hx83112a_probe,
++	.remove = hx83112a_remove,
++	.driver = {
++		.name = "panel-himax-hx83112a-troika",
++		.of_match_table = hx83112a_of_match,
++	},
++};
++module_mipi_dsi_driver(hx83112a_driver);
++
++MODULE_DESCRIPTION("Himax HX83112A panel of the Motorola One Action");
++MODULE_LICENSE("GPL");
+-- 
+2.56.0
+

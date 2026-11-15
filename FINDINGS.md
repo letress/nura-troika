@@ -5211,3 +5211,33 @@ původního DT je obraz 12 Mpx.
 ovladače senzorů, řízení napájení). Doporučení: nejdřív jeden senzor
 (zadní hlavní) přes CSIS s libcamera a softwarovým ISP; k tomu potřebuji
 souhlas s konkrétními GPIO a hodinami. Nic z toho není v balíčku.
+
+### 34.4 Displej: stav po bootloaderu, panel a co chybí (2026-11-15)
+
+Zdroje: živý DT (`device-info/live.dts` 7381–7400, 9680–9740), vendorový ovladač
+`drivers/video/fbdev/exynos/dpu20` (`dsim_drv.c`, `panels/hix83112a_*`) a čtení
+registrů za běhu (jen čtení, uživatel povolil; `device-info/display-regs-bootloader.txt`).
+
+- **Zapojení:** DECON `0x148B0000` (SPI 199/200/203, TE `gpd0-0`) → DSIM
+  `0x148E0000` (SPI 204, D-PHY `phy_m4s4top_dsi0` s izolací v PMU `0x070C`,
+  IOMMU `sysmmu_dpu`) → panel s řadičem Himax HX83112A (stejné IC má dotykovou
+  vrstvu, I2C4 0x48). Reset panelu `gpg1-4` (výstup, vysoká úroveň v klidu).
+- **Panel (uzel `hix83112a` v DT):** 1080×2520, video režim, 4 pruhy, 55 Hz,
+  hbp 18, hfp 34, hsa 8, vbp 5, vfp 27, vsa 5 (pořadí dle parseru v `dsim_drv.c`),
+  HS hodiny 0x504 = 1284 Mbit/s na pruh, PMSK 4/395/1/0, escape 10 MHz, rozměr
+  64×148 mm, bez DSC a MIC. Registry DSIM po bootloaderu to potvrzují (0x30 =
+  2520, 0x38 = 1080, 0x3c = 0x09d80438; porch registry 0x40 – 0x48 odpovídají
+  těmto hodnotám).
+- **Panelový ovladač (patch 0107, `panel-himax-hx83112a-troika.c`, jen
+  přeložen, protože nemá DSI hostitele):** `drm_panel` s resetem (vysoko 5 ms nízko
+  5 ms vysoko 50 ms), inicializací `SEQ_CMD_0..16` včetně odemčení `B9 83 11 2A`,
+  `sleep out` + 125 ms, `display on` + 20 ms, režim z živého DT, podsvícení přes
+  `drm_panel_of_backlight`. Hodnoty jsou z vendorových zdrojů.
+- **Co chybí k nativnímu displeji (velké):** (1) DSI hostitel DSIM Exynos9 (v
+  mainline jen starší exynos_drm_dsi), (2) řadič DECON s DPP (`decon_f`, okna,
+  IDMA, SysMMU `sysmmu_dpu`), (3) MIPI D-PHY a izolace v PMU, (4) napájení
+  panelu (nechává zapnuté bootloader, v DT žádný regulátor), (5) připojení
+  `backlight` (už hotové ovladačem SGM37603A) a hodin `CMU_DISPAUD`.
+  Doporučení: DECON + DSIM do jednoho DRM ovladače podle `dpu20`
+  (`decon_reg.c`, `dsim_reg.c`) začít testem „převzít“ displej od bootloaderu
+  (stejný režim, žádná změna časování) a až potom psát celou sekvenci zapnutí.
