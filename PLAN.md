@@ -11,6 +11,22 @@ fyzická akce, zvuk, pozorování displeje). Platí stálá pravidla: nic neflas
 záloha jen ke čtení, žádné hodnoty hardwaru bez zdroje, žádné změny regulátorů a
 napájení bez výslovného souhlasu, před slyšitelným testem potvrzení „Jsem tu a poslouchám“.
 
+## Stav po noční přípravě (2026-11-16)
+
+Podrobně ve FINDINGS 35. Shrnutí:
+
+- **cpufreq:** kód a DT hotové a přeložené (commity v `troika-clk-test`: `0174b8f`, `5189340`,
+  `f34b4ba`). Nezkoušeno na telefonu. Kernel pro zkušební obraz se staví s nízkou
+  prioritou v `build/linux-cpu` (governor `userspace`); po jeho dokončení stačí
+  `TROIKA_BUILD=$PWD/build/linux-cpu tools/make-clk-test-bootimg.sh CPU1`.
+- **Uspání:** rozbor hotový (stavy cpuidle z vendorového DT, vlastní `exynos-pm` v původním
+  kernelu); kód nepsán, protože další krok je rizikový a chce dohled.
+- **SD karta:** data řadiče, pinů a regulátorů (LDO2 reg 0x3A, LDO35 reg 0x5C) doložena;
+  DT nenapsáno do souhlasu se zapnutím regulátorů; zbývá přiřadit hodiny `ciu`.
+- **Fotoaparát:** senzor 12a10 = OmniVision OV12A10, v mainline není; kód nepsán.
+- **Modem:** studie hotová, doporučení „zatím nejít“.
+- Na telefon se přes noc nic nezapisovalo (testovací obraz CPU1 se nespouštěl).
+
 ## 0. Ověření balíčku (první krok)
 
 Po `build`, `install` a `export` se projde `boot.img` ([A]) a ty ho spustíš
