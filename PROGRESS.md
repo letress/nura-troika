@@ -2273,3 +2273,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-15: Bluetooth funguje (scsc_bt, hci0, adresa F8:1F:32:43:E6:27, inquiry našel 2 zařízení); test BT1; FINDINGS 34.2; do balíčku zatím ne
 - 2026-11-15: fotoaparát: rozbor senzorů (4×, hsi2c_12..15), co chybí v mainline (CSIS, ovladače senzorů, ISP); FINDINGS 34.3; nic nespuštěno
 - 2026-11-15: displej: stav po bootloaderu přečten (registry DSIM/DECON), panelový ovladač Himax HX83112A (patch 0107, jen přeložen); DECON+DSIM zatím nejsou; FINDINGS 34.4
+- 2026-11-15: I2C1 (PMIC S2MU106 0x3d odpovídá, nabíječ 0x41 ne); patch 0108; FINDINGS 34.6

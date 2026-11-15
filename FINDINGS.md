@@ -5250,3 +5250,13 @@ v živém DT je u jiné sběrnice než palivoměr (řádek 6185), pro nabíječ 
 potřeba najít správný uzel I2C. Stav nabíjení se zatím odvozuje ze znaménka proudu
 palivoměru. Ladicí patche (`kernel-patches-debug/`) jsou přegenerované
 (`troika-clk..troika-clk-test`).
+
+### 34.6 I2C1: PMIC S2MU106 odpovídá, nabíječ S2MCS02 ne (jen čtení)
+
+Sběrnice `i2c_1` (`0x13840000`, SPI 248) je v živém DT sběrnicí PMIC `s2mu106@3d`
+(MUIC, nabíječ, haptika, blesk) a nabíječe `s2mcs02-charger@41` (patch 0108).
+Test BAT3: čip 0x3d odpovídá (registry 0x00 = 0x40, 0x01 = 0x00, 0x02 = 0x01), čip
+0x41 na čtení ID a stavu (0x5e, 0x5f, 0x07–0x09, 0x0e, 0x0f) neodpovídá: druhý
+nabíječ je nejspíš bez napájení, dokud se nenabíjí rychle. Nic se nezapisovalo. K
+řízení nabíjení (S2MU106) by byl potřeba ovladač podle `s2mu106_charger.c`
+výrobce; zatím neřešeno.
