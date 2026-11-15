@@ -1,7 +1,7 @@
 From 7ec79dd1292e6edf7ba693d7def1d91772c91759 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:30 +0100
-Subject: [PATCH 31/96] clk: samsung: exynos9610: Fix the CMU_APM mux parents
+Subject: [PATCH 031/112] clk: samsung: exynos9610: Fix the CMU_APM mux parents
  and add the DLL clock
 
 Three problems with the muxes in CMU_APM:
@@ -55,6 +55,3 @@ index 0c2767e..7853e87 100644
  	.clk_regs		= apm_clk_regs,
  	.nr_clk_regs		= ARRAY_SIZE(apm_clk_regs),
  	.nr_clk_ids		= CLKS_NR_APM,
--- 
-2.56.0
-

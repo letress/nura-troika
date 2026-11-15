@@ -1,8 +1,8 @@
 From 07be2ead150132ffe581d14b800090829689840f Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 04:53:59 +0100
-Subject: [PATCH] arm64: dts: exynos9610-troika: Do not let the panel node
- block the framebuffer
+Subject: [PATCH 097/112] arm64: dts: exynos9610-troika: Do not let the panel
+ node block the framebuffer
 
 The panel node added to give simpledrm the physical size has no driver.
 fw_devlink treats the panel phandle of the framebuffer as a supplier
@@ -32,6 +32,3 @@ index 1503b2f..89f80d4 100644
  		width-mm = <64>;
  		height-mm = <148>;
  	};
--- 
-2.56.0
-

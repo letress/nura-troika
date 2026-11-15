@@ -6,6 +6,7 @@
 #
 #   tools/make-local-pmos-bootimg.sh JMÉNO ZDROJ
 #
+#   TROIKA_DTB=exynos9610-troika-dpu  jiný DTB z build/.../dts/exynos (výchozí exynos9610-troika)
 #   JMÉNO  výstup bude out/troika-test-JMÉNO.img
 #   ZDROJ  boot image z exportu, např. out/troika-test-GUI2.img
 #
@@ -24,7 +25,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 
 build="${TROIKA_BUILD:-$root/build/linux}"
 image="$build/arch/arm64/boot/Image"
-dtb="$build/arch/arm64/boot/dts/exynos/exynos9610-troika.dtb"
+dtb="$build/arch/arm64/boot/dts/exynos/${TROIKA_DTB:-exynos9610-troika}.dtb"
 release="$build/include/config/kernel.release"
 uni="$root/uniLoader-src"
 out="$root/out"

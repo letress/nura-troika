@@ -40,22 +40,21 @@ Verified on the phone (details, values and sources in [`FINDINGS.md`](FINDINGS.m
 | USB (device mode) | works, networking over USB and SSH |
 | Touchscreen (Himax HX83112A) | works |
 | Buttons, reboot, power off, reboot to bootloader | works |
-| Display | bootloader framebuffer (simpledrm); no native panel driver yet |
+| Display | KMS driver for DECON window 0 that takes over the panel from the bootloader (frame buffer flips, vblank, blanking through the backlight); panel power, mode changes and the DSI link are not driven natively yet |
 | Backlight (SGM37603A) | works, brightness from Phosh, off with the screen |
 | Phosh desktop | works, Mali-G72 GPU through Panfrost |
 | GPU frequency | 260–764 MHz controlled through the ACPM firmware, thermal throttling from 88 °C |
 | Temperatures (TMU) | three sensors readable, zones with a protective shutdown at 105 °C |
 | Wi-Fi | works (Samsung SCSC driver, out of tree), WPA2 on 5 GHz, scanning, connecting, internet |
+| Audio (speaker) | works in Phosh: ABOX audio unit with the vendor firmware, CS47L35 codec, CS35L41 amplifier, LDO42 through the ACPM firmware; the firmware sometimes reports a fault and is restarted |
+| Bluetooth | works (Samsung SCSC driver, out of tree, BlueZ): scanning, pairing, audio over A2DP |
+| Battery status | voltage, current and charge level read from the fuel gauge (read only) |
 
 ## What does not work or is not finished
 
-- **Audio** – all sound goes through the SoC's audio unit (ABOX), for which
-  mainline has nothing. Analysed, documented and partly brought up (address
-  translation done); without the unit's firmware playback is not possible.
-  See chapters 31 and 33 of [`FINDINGS.md`](FINDINGS.md).
-- **Bluetooth**, **cameras**, **modem/SIM**, **SD card**, **suspend**,
+- **Cameras**, **modem/SIM**, **SD card**, **suspend**,
   **CPU frequency scaling** (fixed bootloader frequencies for now),
-  **charging and battery status**.
+  **charging** (the charger chip does not answer on I2C).
 - **Wi-Fi:** the MAC address is passed on by the bootloader and applied by a
   udev rule (not yet verified), the regulatory database is missing; WPA3 and
   long-term operation are unverified.

@@ -1,0 +1,209 @@
+From 17c9d030c4450579cd68d8c38c9eb8ae2623576d Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 22:04:32 +0100
+Subject: [PATCH 109/112] regulator: Add a driver for the LDO42 of the
+ Exynos9610 PMIC behind the ACPM
+
+The S2MPU09 PMIC of the Exynos9610 is reached through the ACPM firmware; LDO42
+powers the audio codec and the speaker amplifier of the Motorola One Action and
+is off after a cold start. The driver switches its enable bits through the
+ACPM PMIC read/update operations.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ drivers/regulator/Kconfig           |   8 ++
+ drivers/regulator/Makefile          |   1 +
+ drivers/regulator/exynos-acpm-ldo.c | 153 ++++++++++++++++++++++++++++
+ 3 files changed, 162 insertions(+)
+ create mode 100644 drivers/regulator/exynos-acpm-ldo.c
+
+diff --git a/drivers/regulator/Kconfig b/drivers/regulator/Kconfig
+index 89789ac..9777fbf 100644
+--- a/drivers/regulator/Kconfig
++++ b/drivers/regulator/Kconfig
+@@ -1460,6 +1460,14 @@ config REGULATOR_S2MPA01
+ 	 This driver controls Samsung S2MPA01 voltage output regulator
+ 	 via I2C bus. S2MPA01 has 10 Bucks and 26 LDO outputs.
+ 
++config REGULATOR_EXYNOS_ACPM_LDO
++	tristate "LDO of the Exynos9610 PMIC through the ACPM firmware"
++	depends on EXYNOS_ACPM_PROTOCOL || COMPILE_TEST
++	help
++	  This enables an always-on LDO of the S2MPU09 PMIC of the Exynos9610
++	  that is switched by asking the ACPM firmware to update its control
++	  register. It cannot be switched off and does not change the voltage.
++
+ config REGULATOR_S2MPS11
+ 	tristate "Samsung S2MPS11/13/14/15/S2MPU02/05 voltage regulator"
+ 	depends on MFD_SEC_CORE || COMPILE_TEST
+diff --git a/drivers/regulator/Makefile b/drivers/regulator/Makefile
+index 5a764ce..ba7317c 100644
+--- a/drivers/regulator/Makefile
++++ b/drivers/regulator/Makefile
+@@ -217,6 +217,7 @@ obj-$(CONFIG_REGULATOR_WM831X) += wm831x-isink.o
+ obj-$(CONFIG_REGULATOR_WM831X) += wm831x-ldo.o
+ obj-$(CONFIG_REGULATOR_WM8350) += wm8350-regulator.o
+ obj-$(CONFIG_REGULATOR_WM8400) += wm8400-regulator.o
++obj-$(CONFIG_REGULATOR_EXYNOS_ACPM_LDO) += exynos-acpm-ldo.o
+ obj-$(CONFIG_REGULATOR_WM8994) += wm8994-regulator.o
+ 
+ ccflags-$(CONFIG_REGULATOR_DEBUG) += -DDEBUG
+diff --git a/drivers/regulator/exynos-acpm-ldo.c b/drivers/regulator/exynos-acpm-ldo.c
+new file mode 100644
+index 0000000..7caf8da
+--- /dev/null
++++ b/drivers/regulator/exynos-acpm-ldo.c
+@@ -0,0 +1,153 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * One LDO of the Samsung S2MPU09 PMIC of the Exynos9610, switched through the
++ * ACPM firmware.
++ *
++ * The firmware owns the I2C bus of the PMIC; the kernel asks it to read and
++ * to update a register (FUNC_READ and FUNC_UPDATE of the vendor acpm_mfd.h).
++ * The driver only touches the enable bits of one control register and does
++ * not set the voltage: before it switches the LDO on it checks that the rest
++ * of the register still holds the voltage code the bootloader left, which the
++ * device tree names. There is no disable operation; the regulator is meant to
++ * be always on, as the vendor device tree has it, because other devices may
++ * share the rail.
++ */
++
++#include <linux/firmware/samsung/exynos-acpm-protocol.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/regulator/driver.h>
++#include <linux/regulator/of_regulator.h>
++
++struct acpm_ldo {
++	struct device *dev;
++	struct acpm_handle *acpm;
++	u32 chan;		/* ACPM IPC channel of the PMIC */
++	u32 type;		/* PMIC address as the firmware numbers it */
++	u32 reg;		/* control register */
++	u32 enable_mask;	/* enable bits of the control register */
++	u32 voltage_code;	/* the other bits: the voltage left by the bootloader */
++};
++
++static int acpm_ldo_read(struct acpm_ldo *ldo, u8 *val)
++{
++	return ldo->acpm->ops->pmic.read_reg(ldo->acpm, ldo->chan, ldo->type,
++					     ldo->reg, 0, val);
++}
++
++static int acpm_ldo_is_enabled(struct regulator_dev *rdev)
++{
++	struct acpm_ldo *ldo = rdev_get_drvdata(rdev);
++	u8 val;
++	int ret;
++
++	ret = acpm_ldo_read(ldo, &val);
++	if (ret)
++		return ret;
++
++	return (val & ldo->enable_mask) == ldo->enable_mask;
++}
++
++static int acpm_ldo_enable(struct regulator_dev *rdev)
++{
++	struct acpm_ldo *ldo = rdev_get_drvdata(rdev);
++	u8 val;
++	int ret;
++
++	ret = acpm_ldo_read(ldo, &val);
++	if (ret)
++		return ret;
++	if ((val & ~ldo->enable_mask) != ldo->voltage_code) {
++		dev_err(ldo->dev, "voltage code %#x differs from the expected %#x, not enabling\n",
++			val & ~ldo->enable_mask, ldo->voltage_code);
++		return -EINVAL;
++	}
++
++	if ((val & ldo->enable_mask) == ldo->enable_mask)
++		return 0;
++
++	dev_info(ldo->dev, "switching on (register %#x)\n", val);
++
++	return ldo->acpm->ops->pmic.update_reg(ldo->acpm, ldo->chan, ldo->type,
++					       ldo->reg, 0, ldo->enable_mask,
++					       ldo->enable_mask);
++}
++
++static const struct regulator_ops acpm_ldo_ops = {
++	.enable		= acpm_ldo_enable,
++	.is_enabled	= acpm_ldo_is_enabled,
++	.list_voltage	= regulator_list_voltage_linear,
++};
++
++static int acpm_ldo_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct device_node *np = dev->of_node;
++	struct regulator_config config = { };
++	struct regulator_desc *desc;
++	struct regulator_init_data *init;
++	struct regulator_dev *rdev;
++	struct acpm_ldo *ldo;
++	u32 uv;
++	int ret;
++
++	ldo = devm_kzalloc(dev, sizeof(*ldo), GFP_KERNEL);
++	desc = devm_kzalloc(dev, sizeof(*desc), GFP_KERNEL);
++	if (!ldo || !desc)
++		return -ENOMEM;
++	ldo->dev = dev;
++
++	ldo->acpm = devm_acpm_get_by_phandle(dev);
++	if (IS_ERR(ldo->acpm))
++		return dev_err_probe(dev, PTR_ERR(ldo->acpm), "no ACPM handle\n");
++
++	ret = of_property_read_u32(np, "samsung,acpm-channel", &ldo->chan);
++	ret |= of_property_read_u32(np, "samsung,pmic-type", &ldo->type);
++	ret |= of_property_read_u32(np, "samsung,register", &ldo->reg);
++	ret |= of_property_read_u32(np, "samsung,enable-mask", &ldo->enable_mask);
++	ret |= of_property_read_u32(np, "samsung,voltage-code", &ldo->voltage_code);
++	ret |= of_property_read_u32(np, "regulator-min-microvolt", &uv);
++	if (ret)
++		return dev_err_probe(dev, -EINVAL, "missing properties\n");
++
++	/* a fixed voltage: the driver does not change it */
++	desc->name = dev_name(dev);
++	desc->type = REGULATOR_VOLTAGE;
++	desc->owner = THIS_MODULE;
++	desc->ops = &acpm_ldo_ops;
++	desc->n_voltages = 1;
++	desc->min_uV = uv;
++
++	init = of_get_regulator_init_data(dev, np, desc);
++	if (!init)
++		return -EINVAL;
++
++	config.dev = dev;
++	config.init_data = init;
++	config.driver_data = ldo;
++	config.of_node = np;
++	rdev = devm_regulator_register(dev, desc, &config);
++	if (IS_ERR(rdev))
++		return dev_err_probe(dev, PTR_ERR(rdev), "cannot register the regulator\n");
++
++	return 0;
++}
++
++static const struct of_device_id acpm_ldo_of_match[] = {
++	{ .compatible = "samsung,exynos9610-acpm-ldo" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, acpm_ldo_of_match);
++
++static struct platform_driver acpm_ldo_driver = {
++	.probe = acpm_ldo_probe,
++	.driver = {
++		.name = "exynos9610-acpm-ldo",
++		.of_match_table = acpm_ldo_of_match,
++	},
++};
++module_platform_driver(acpm_ldo_driver);
++
++MODULE_DESCRIPTION("LDO of the Exynos9610 PMIC switched through the ACPM firmware");
++MODULE_LICENSE("GPL");

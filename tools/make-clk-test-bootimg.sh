@@ -18,7 +18,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 
 build="${TROIKA_BUILD:-$root/build/linux}"
 image="$build/arch/arm64/boot/Image"
-dtb="$build/arch/arm64/boot/dts/exynos/exynos9610-troika.dtb"
+dtb="$build/arch/arm64/boot/dts/exynos/${TROIKA_DTB:-exynos9610-troika}.dtb"
 stock_dtb="$root/device-info/bootimg_a/second"
 busybox="$root/dl/busybox-static/bin/busybox.static"
 uni="$root/uniLoader-src"

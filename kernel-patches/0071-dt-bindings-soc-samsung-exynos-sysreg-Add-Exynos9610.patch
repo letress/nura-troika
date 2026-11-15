@@ -1,7 +1,7 @@
 From 9584e25032ce6f662a264f0cbbde849bcd25a6bd Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 13:50:14 +0100
-Subject: [PATCH 71/96] dt-bindings: soc: samsung: exynos-sysreg: Add
+Subject: [PATCH 071/112] dt-bindings: soc: samsung: exynos-sysreg: Add
  Exynos9610 CMGP
 
 Co-Authored-By: Claude <noreply@anthropic.com>
@@ -29,6 +29,3 @@ index eb4194c..754be43 100644
                - samsung,exynos9610-core-sysreg
                - samsung,exynos9610-cpucl0-sysreg
                - samsung,exynos9610-dispaud-sysreg
--- 
-2.56.0
-

@@ -1,7 +1,7 @@
 From 3557a7b4b01a34de9f105474a1de45129b8b81d1 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 18:53:53 +0100
-Subject: [PATCH 86/96] dt-bindings: thermal: Add the TMU of the Samsung
+Subject: [PATCH 086/112] dt-bindings: thermal: Add the TMU of the Samsung
  Exynos9610
 
 The Exynos9610 has one TMU controller with three temperature probes, in
@@ -78,6 +78,3 @@ index 0000000..ad61ef0
 +        clocks = <&cmu_peri CLK_GOUT_PERI_BUSIF_TMU_PCLK>;
 +        #thermal-sensor-cells = <1>;
 +    };
--- 
-2.56.0
-

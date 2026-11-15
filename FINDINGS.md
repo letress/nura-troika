@@ -5274,3 +5274,32 @@ Do balíčků (nezkoušeno jako balíček, jen zdroje): jádro pkgrel 9 (archiv 
 `scsc_bt`, `CONFIG_BT_LE=y`, patche po 0108), zařízení pkgrel 9 (`bt-addr.sh` + modprobe
 `install` hook zapíše `bt_addr` před načtením, `modules-load.d` načte `scsc_bt`), firmware
 pkgrel 1 (`bt.hcf`, součet z kopie ze zálohy; velikost 178 B sedí s hlavičkou na GitHubu).
+
+### 34.8 Displej: nativní KMS ovladač DECON, převzetí od bootloaderu (2026-11-15)
+
+Stav po bootloaderu přečten v testovacím obrazu (jen čtení): okno 0 DECON je zapnuté,
+`DATA_PATH_CONTROL_1` (0x218) = 2 → okno 0 čte z kanálu 2 (IDMA_G0 = `DPU_CH2DMA(2)`), DMA
+čtení na `0x14881000` (adresa bufferu `+0x40` = `0xed000000`, `IDMA_SRC_SIZE` = 2520×1080,
+`IN_CON` formát ARGB), DPP na `0x14891000`. Všechny registry z vendorových `regs-decon.h`
+a `regs-dpp.h` (`dpu20/cal_9610`). `IDMA_SRC_SIZE` je rozměr celého bufferu (šířka = řádkový
+krok v pixelech), `IDMA_IMG_SIZE` zobrazená část.
+
+Ovladač `drivers/gpu/drm/exynos9610/exynos9610_dpu.c` (patch 0111, DT 0112): jedna rovina
+XRGB8888, CRTC s vblankem z přerušení DECON (SPI 199, bit 12 FRAME_START), konektor DSI-1
+s pevným režimem z `panel-timing` v DT, podsvícení se vypíná a zapíná s CRTC. Přepnutí snímku:
+zápis `IDMA_SRC_SIZE`, adresy `IDMA_IN_BASE_ADDR_Y` a požadavek `SHADOW_REG_UPDATE_REQ` okna 0.
+Časování, hodiny, napájení, DSIM a panel se nemění (hodiny drží `clk_ignore_unused`).
+
+Zkoušeno: konzole a barevný test (správné pořadí R, G, B) v testovacím obrazu, Phosh s
+Panfrostem (GPU renderuje do bufferů z CMA, kmsro), plynulé animace, zhasnutí a rozsvícení
+tlačítkem napájení, jas. Chyby po cestě: `Swapchain failed test` (kontrola kroku bufferu –
+IDMA zvládá libovolný krok přes `IDMA_SRC_SIZE`), `CREATE_DUMB: Out of memory` (CMA 32 MiB
+nestačilo, nyní 128 MiB).
+
+Nezvládá: napájení panelu a DSIM (panel se nevypíná, jen podsvícení), změnu režimu, DSI příkazy
+(panelový ovladač Himax, patch 0107, zůstává bez hostitele).
+
+Zvuk: ABOX po nahlášené chybě firmwaru už nešel spustit (každé otevření `-EIO`); nově se
+firmware zastaví a nahraje znovu při dalším otevření (commit e202d34). Při startu se dále
+objevuje `irq 68: nobody cared ... cs35l41_irq` (linka přerušení zesilovače zůstává aktivní, kernel
+ji po 100 000 pokusech vypne; zvuk to neruší, příčina nezjištěna, ovladač přerušení vyžaduje).

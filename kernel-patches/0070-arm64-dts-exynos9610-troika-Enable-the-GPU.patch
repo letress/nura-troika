@@ -1,7 +1,7 @@
 From a540e3d2b225dc48dbf11ed197ef558e710d8990 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 03:29:30 +0100
-Subject: [PATCH 70/96] arm64: dts: exynos9610-troika: Enable the GPU
+Subject: [PATCH 070/112] arm64: dts: exynos9610-troika: Enable the GPU
 
 The vendor kernel scales the GPU through the ACPM firmware, which sets
 the clock and the voltage of the supply together (ACPM_DVFS_G3D in the
@@ -34,6 +34,3 @@ index 67b2316..28592c4 100644
  &oscclk {
  	clock-frequency = <26000000>;
  };
--- 
-2.56.0
-

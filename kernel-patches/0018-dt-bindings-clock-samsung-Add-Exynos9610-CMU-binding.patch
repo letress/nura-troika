@@ -1,7 +1,7 @@
 From ba2b27ba4fa38be903d9bf1362d067b60fb4492b Mon Sep 17 00:00:00 2001
 From: Alexandru Chimac <alex@chimac.ro>
 Date: Wed, 22 Jul 2026 23:44:02 +0300
-Subject: [PATCH 18/96] dt-bindings: clock: samsung: Add Exynos9610 CMU
+Subject: [PATCH 018/112] dt-bindings: clock: samsung: Add Exynos9610 CMU
  bindings
 
 This clock management unit has a topmost block (CMU_TOP)
@@ -1085,6 +1085,3 @@ index 0000000..1169373
 +#define CLK_GOUT_USB_US_D_ACLK				22
 +
 +#endif
--- 
-2.56.0
-

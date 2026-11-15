@@ -1,8 +1,8 @@
 From 8eecfc7fc9322e0bcdc4b4818f637f6b54f3e42b Mon Sep 17 00:00:00 2001
 From: Alexandru Chimac <alex@chimac.ro>
 Date: Wed, 22 Jul 2026 23:44:03 +0300
-Subject: [PATCH 19/96] dt-bindings: soc: exynos-sysreg: Add Exynos9610 SYSREG
- bindings
+Subject: [PATCH 019/112] dt-bindings: soc: exynos-sysreg: Add Exynos9610
+ SYSREG bindings
 
 Add bindings for SYSREG nodes (required for ACG), compatible with the
 standard syscon driver.
@@ -50,6 +50,3 @@ index fcdb9ff..eb4194c 100644
                - samsung,exynos990-peric0-sysreg
                - samsung,exynos990-peric1-sysreg
      then:
--- 
-2.56.0
-

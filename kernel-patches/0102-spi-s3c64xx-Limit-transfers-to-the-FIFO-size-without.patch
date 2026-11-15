@@ -1,7 +1,7 @@
 From 50a720f24628ba103c75412eefeb67bde952b6be Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:22:42 +0100
-Subject: [PATCH 102/103] spi: s3c64xx: Limit transfers to the FIFO size
+Subject: [PATCH 102/112] spi: s3c64xx: Limit transfers to the FIFO size
  without DMA
 
 A controller used without DMA writes a whole transmit buffer into a FIFO
@@ -29,6 +29,3 @@ index b706e9b..9f444fb 100644
  }
  
  static int s3c64xx_spi_transfer_one(struct spi_controller *host,
--- 
-2.56.0
-

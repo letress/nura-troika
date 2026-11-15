@@ -1,0 +1,260 @@
+From 5ccd9d984db59ef6dc8087aa14ac7d2f23317c69 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 22:04:33 +0100
+Subject: [PATCH 112/112] arm64: dts: exynos9610: troika: Add the sound card,
+ the LDO42 regulator and the display controller
+
+The display controller replaces the simple-framebuffer of the bootloader.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ .../boot/dts/exynos/exynos9610-troika.dts     | 225 ++++++++++++++++++
+ 1 file changed, 225 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 469e02f..1e63421 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -290,6 +290,21 @@ &usi_cmgp0_i2c {
+ / {
+ 	reserved-memory {
+ 		/* The vendor kernel has no fixed address for it either. */
++		/* Memory the ABOX firmware expects behind its IOMMU */
++		abox_fw_reserved: abox-fw {
++			size = <0x00c00000>;
++			alignment = <0x0 0x00100000>;
++			alloc-ranges = <0x0 0x80000000 0x3c800000>;
++			no-map;
++		};
++
++		abox_buf_reserved: abox-buf {
++			size = <0x00100000>;
++			alignment = <0x0 0x00100000>;
++			alloc-ranges = <0x0 0x80000000 0x3c800000>;
++			no-map;
++		};
++
+ 		wlbt_reserved: wifi {
+ 			size = <0x1000000>;
+ 			alignment = <0x0 0x1000000>;
+@@ -315,6 +330,43 @@ wb2ap_femctrl_wlbt_01: wb2ap-femctrl-wlbt-01-pins {
+ 	};
+ };
+ 
++&framebuffer0 {
++	status = "disabled";
++};
++
++&soc {
++	/*
++	 * Display controller (DECON0, window 0 with its read DMA). The
++	 * bootloader leaves the panel running; the driver only flips frame
++	 * buffers. It replaces the simple-framebuffer of the bootloader.
++	 *
++	 * Timing of the panel (hix83112a, see the vendor DT): hbp 18, hfp 34,
++	 * hsa 8, vbp 5, vfp 27, vsa 5 at 55 Hz; the clock is derived from them
++	 * (1140 x 2557 x 55 Hz).
++	 */
++	display: display@148b0000 {
++		compatible = "samsung,exynos9610-dpu";
++		reg = <0x148b0000 0x2000>, <0x14881000 0x1000>;
++		reg-names = "decon", "idma";
++		interrupts = <GIC_SPI 199 IRQ_TYPE_LEVEL_HIGH>;
++		width-mm = <64>;
++		height-mm = <148>;
++		backlight = <&backlight>;
++
++		panel-timing {
++			clock-frequency = <160323900>;
++			hactive = <1080>;
++			vactive = <2520>;
++			hback-porch = <18>;
++			hfront-porch = <34>;
++			hsync-len = <8>;
++			vback-porch = <5>;
++			vfront-porch = <27>;
++			vsync-len = <5>;
++		};
++	};
++};
++
+ &soc {
+ 	wlbt_baaw: syscon@12050000 {
+ 		compatible = "samsung,exynos9610-wlbt-baaw", "syscon";
+@@ -360,3 +412,176 @@ wifi: wifi@119c0000 {
+ 		samsung,boot_cfg-syscon-phandle = <&wlbt_boot>;
+ 	};
+ };
++
++/* The System MMU of the ABOX audio unit */
++&soc {
++	sysmmu_abox: sysmmu@14920000 {
++		compatible = "samsung,exynos-sysmmu";
++		reg = <0x14920000 0x9000>;
++		interrupts = <GIC_SPI 216 IRQ_TYPE_LEVEL_HIGH>;
++		clocks = <&cmu_dispaud CLK_GOUT_DISPAUD_ABOX_ACLK>;
++		clock-names = "sysmmu";
++		#iommu-cells = <0>;
++	};
++};
++
++/ {
++	sound {
++		compatible = "motorola,troika-sound";
++	};
++};
++
++&soc {
++	abox: audio-controller@14a50000 {
++		compatible = "samsung,exynos9610-abox";
++		reg = <0x14a50000 0x10000>, <0x14b00000 0x35000>,
++		      <0x14af1000 0x1000>, <0x14af2000 0x1004>;
++		reg-names = "sfr", "sram", "gicd", "gicc";
++		interrupts = <GIC_SPI 198 IRQ_TYPE_LEVEL_HIGH>;
++		clocks = <&cmu_dispaud CLK_GOUT_DISPAUD_ABOX_CCLK_ASB>,
++			 <&cmu_dispaud CLK_GOUT_DISPAUD_ABOX_CCLK_CA7>,
++			 <&cmu_dispaud CLK_DOUT_CLK_AUD_UAIF0>,
++			 <&cmu_dispaud CLK_GOUT_CLK_DISPAUD_ABOX_BCLK_UAIF0>,
++			 <&cmu_dispaud CLK_GOUT_CLK_DISPAUD_CLK_AUD_UAIF0_CLK>;
++		clock-names = "asb", "ca7", "bclk", "bclk_gate", "uaif0_clk";
++		samsung,pmu-syscon = <&pmu_system_controller>;
++		iommus = <&sysmmu_abox>;
++		memory-region = <&abox_fw_reserved>, <&abox_buf_reserved>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&aud_i2s0_bus>;
++		#sound-dai-cells = <0>;
++	};
++};
++
++/*
++ * LDO42 of the S2MPU09 PMIC (vdd_ldo42, "always-on" in the vendor tree). It
++ * powers the audio codec and the amplifier and is off after a cold start. The
++ * values are those of the vendor driver: the PMIC is reached through the ACPM
++ * channel 2 (acpm-ipc-channel of the s2mpu09mfd node), its address is
++ * I2C_ADDR_PMIC = 1, the control register is S2MPU09_PMIC_REG_L42CTRL (0x63)
++ * with the enable bits 7:6 (S2MPU09_ENABLE_MASK) and the voltage code 0x2c in
++ * the rest (700 mV + 44 * 25 mV = 1.8 V, left by the bootloader).
++ */
++/ {
++	ldo42: regulator-ldo42 {
++		compatible = "samsung,exynos9610-acpm-ldo";
++		samsung,acpm-ipc = <&acpm>;
++		samsung,acpm-channel = <2>;
++		samsung,pmic-type = <1>;
++		samsung,register = <0x63>;
++		samsung,enable-mask = <0xc0>;
++		samsung,voltage-code = <0x2c>;
++		regulator-name = "vdd_ldo42";
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++		regulator-always-on;
++	};
++};
++
++/*
++ * Speaker amplifier on SPI6, values from the live device tree of the stock
++ * system. Its supply V_SYS is on from boot and not described.
++ */
++&spi_6 {
++	pinctrl-0 = <&spi6_bus &spi6_cs_func>;
++	status = "okay";
++
++	speaker_amp: amplifier@0 {
++		compatible = "cirrus,cs35l41";
++		reg = <0>;
++		spi-max-frequency = <9600000>;
++		interrupt-parent = <&gpa0>;
++		interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
++		reset-gpios = <&gpg3 3 GPIO_ACTIVE_HIGH>;
++		VA-supply = <&ldo42>;
++		#sound-dai-cells = <1>;
++		cirrus,boost-type = <0>;
++		cirrus,boost-peak-milliamp = <4500>;
++		cirrus,boost-ind-nanohenry = <1000>;
++		cirrus,boost-cap-microfarad = <15>;
++
++		controller-data {
++			samsung,spi-feedback-delay = <1>;
++		};
++	};
++};
++
++/*
++ * Audio codec CS47L35 (Madera) on SPI9, values from the live device tree of
++ * the stock system. Its supply V_SYS is on from boot and not described. No clock is described yet: the vendor system feeds it a 26 MHz
++ * reference from xclkout.
++ */
++&spi_9 {
++	pinctrl-0 = <&spi9_bus &spi9_cs_func>;
++	status = "okay";
++
++	audio_codec: codec@0 {
++		compatible = "cirrus,cs47l35";
++		reg = <0>;
++		spi-max-frequency = <11000000>;
++		interrupt-parent = <&gpa0>;
++		interrupts = <6 IRQ_TYPE_LEVEL_LOW>;
++		interrupt-controller;
++		#interrupt-cells = <2>;
++		gpio-controller;
++		#gpio-cells = <2>;
++		reset-gpios = <&gpg3 2 GPIO_ACTIVE_HIGH>;
++		AVDD-supply = <&ldo42>;
++		DBVDD1-supply = <&ldo42>;
++		DBVDD2-supply = <&ldo42>;
++		CPVDD1-supply = <&ldo42>;
++		#sound-dai-cells = <1>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&codec_pins>;
++
++		controller-data {
++			samsung,spi-feedback-delay = <1>;
++		};
++
++		/* pin defaults of the vendor tree: audio interfaces and OPCLK on GPIO6 */
++		codec_pins: pin-settings {
++			aif1-pins {
++				groups = "aif1";
++				function = "aif1";
++				bias-bus-hold;
++			};
++
++			aif2-pins {
++				groups = "aif2";
++				function = "aif2";
++				bias-bus-hold;
++			};
++
++			aif3-pins {
++				groups = "aif3";
++				function = "aif3";
++				bias-bus-hold;
++			};
++
++			gpio6-pins {
++				groups = "gpio6";
++				function = "opclk";
++				bias-pull-up;
++				output-low;
++			};
++
++			gpio5-pins {
++				groups = "gpio5";
++				function = "io";
++			};
++		};
++	};
++};
++
++/*
++ * gpg1-1 "codec_en" of the vendor tree: output, high, pull-up. It is part of
++ * the pinctrl of the codec SPI controller there and powers the codec.
++ */
++&gpg1 {
++	codec-en-hog {
++		gpio-hog;
++		gpios = <1 GPIO_ACTIVE_HIGH>;
++		output-high;
++		line-name = "codec-en";
++	};
++};

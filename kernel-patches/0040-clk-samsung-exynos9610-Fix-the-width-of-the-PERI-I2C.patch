@@ -1,8 +1,8 @@
 From 0715dcedb6593464dd4252ac8cc848757dbd6918 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:32 +0100
-Subject: [PATCH 40/96] clk: samsung: exynos9610: Fix the width of the PERI I2C
- divider
+Subject: [PATCH 040/112] clk: samsung: exynos9610: Fix the width of the PERI
+ I2C divider
 
 dout_clk_peri_i2c is registered with an 8 bit ratio. In the vendor
 kernel's clock tables
@@ -27,6 +27,3 @@ index dc7265f..82fbb3a 100644
  	DIV(CLK_DOUT_CLK_PERI_SPI0, "dout_clk_peri_spi0", "gout_clk_peri_spi0",
  	    CLK_CON_DIV_DIV_CLK_PERI_SPI0, 0, 8),
  	DIV(CLK_DOUT_CLK_PERI_SPI1, "dout_clk_peri_spi1", "gout_clk_peri_spi1",
--- 
-2.56.0
-

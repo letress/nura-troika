@@ -1,8 +1,8 @@
 From c1e113c9e2324f2e778c79b47ba8041721441d21 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:17:35 +0100
-Subject: [PATCH] spi: s3c64xx: Deselect the hardware chip select after a
- message
+Subject: [PATCH 101/112] spi: s3c64xx: Deselect the hardware chip select after
+ a message
 
 A controller that drives its own chip select pin in manual mode selected
 the device at the first transfer and never released it again, because the
@@ -48,6 +48,3 @@ index 33ad866..b706e9b 100644
  	host->transfer_one = s3c64xx_spi_transfer_one;
  	host->max_transfer_size = s3c64xx_spi_max_transfer_size;
  	host->num_chipselect = sci->num_cs;
--- 
-2.56.0
-

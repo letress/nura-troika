@@ -1,8 +1,8 @@
 From a8823ac7196be3d94cacb0a505fae3bbb6dc18b1 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 04:01:45 +0100
-Subject: [PATCH] drm/panel: Add the Himax HX83112A panel of the Motorola One
- Action
+Subject: [PATCH 107/112] drm/panel: Add the Himax HX83112A panel of the
+ Motorola One Action
 
 The 1080x2520 DSI video mode panel with the init sequence, reset timing and
 timings of the vendor driver and the stock device tree. The DSI host of the
@@ -298,6 +298,3 @@ index 0000000..32866eb
 +
 +MODULE_DESCRIPTION("Himax HX83112A panel of the Motorola One Action");
 +MODULE_LICENSE("GPL");
--- 
-2.56.0
-

@@ -2275,3 +2275,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-15: displej: stav po bootloaderu přečten (registry DSIM/DECON), panelový ovladač Himax HX83112A (patch 0107, jen přeložen); DECON+DSIM zatím nejsou; FINDINGS 34.4
 - 2026-11-15: I2C1 (PMIC S2MU106 0x3d odpovídá, nabíječ 0x41 ne); patch 0108; FINDINGS 34.6
 - 2026-11-15: Bluetooth ověřen ve Phoshi (hci0, hledání, připojení, zvuk přes BT); zdroje balíčků jádro/zařízení pkgrel 9, firmware 1; FINDINGS 34.7; balíček zatím nesestaven
+- 2026-11-15: nativní displej (KMS ovladač DECON, převzetí od bootloaderu; FINDINGS 34.8) a čistá větev `troika-clk` se zvukem (ABOX, LDO42), displejem, baterií a BT (patche 0109–0113); zdroje balíčků jádro/zařízení pkgrel 9, firmware pkgrel 2; ověřeno v netbootu (obraz CLEAN2: displej, zvuk, baterie), balíček zatím nesestaven; testovací větev přejmenována na `troika-clk-test-legacy`, `troika-clk-test` = čistá větev

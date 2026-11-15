@@ -1,7 +1,7 @@
 From e3d8129da611e6a150095548b9a48a00cba385ba Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:43:29 +0100
-Subject: [PATCH 30/96] clk: samsung: exynos9610: Add the SHUB bus gate to
+Subject: [PATCH 030/112] clk: samsung: exynos9610: Add the SHUB bus gate to
  CMU_APM
 
 dout_cmu_shub_bus has "gout_cmu_shub_bus" as its parent, but no such
@@ -41,6 +41,3 @@ index 76cd458..0c2767e 100644
  	GATE(CLK_GOUT_CLK_APM_CMU_PCLK, "gout_clk_apm_cmu_pclk", "dout_clk_apm_bus",
  	     CLK_CON_GAT_CLK_APM_CMU_PCLK, 21, 0, 0),
  	GATE(CLK_GOUT_CLK_APM_OSCCLK_CLK, "gat_clk_apm_oscclk_clk", "oscclk",
--- 
-2.56.0
-
