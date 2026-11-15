@@ -5260,3 +5260,17 @@ Test BAT3: čip 0x3d odpovídá (registry 0x00 = 0x40, 0x01 = 0x00, 0x02 = 0x01)
 nabíječ je nejspíš bez napájení, dokud se nenabíjí rychle. Nic se nezapisovalo. K
 řízení nabíjení (S2MU106) by byl potřeba ovladač podle `s2mu106_charger.c`
 výrobce; zatím neřešeno.
+
+### 34.7 Bluetooth ve Phoshi a v balíčku (2026-11-15)
+
+Zkouška ve Phoshi (netboot `PHOSH1`, moduly rádia ze stejného sestavení vložené ručně,
+`out/bt-phosh-test/`): `hci0` vznikne, adresa F8:1F:32:43:E6:27 (z `androidboot.btmacaddr`),
+`bluetoothctl show`: Powered, výrobce 0x0075, HCI 9. Uživatel potvrdil: zařízení se ve Phoshi
+zobrazují, připojení funguje a přenos zvuku (A2DP) také. Hlášky `unexpected event for opcode
+0x0000` při startu a jednorázové `BT_READ_OP_HCI_EVT_ERROR` neřešeny. `insmod` bez závislostí
+selže na symbolech `hci_*` (modul `bluetooth` není načtený); v balíčku to řeší `modules.dep`.
+
+Do balíčků (nezkoušeno jako balíček, jen zdroje): jádro pkgrel 9 (archiv `scsc-wlbt-troika` se
+`scsc_bt`, `CONFIG_BT_LE=y`, patche po 0108), zařízení pkgrel 9 (`bt-addr.sh` + modprobe
+`install` hook zapíše `bt_addr` před načtením, `modules-load.d` načte `scsc_bt`), firmware
+pkgrel 1 (`bt.hcf`, součet z kopie ze zálohy; velikost 178 B sedí s hlavičkou na GitHubu).

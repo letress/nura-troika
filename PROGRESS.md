@@ -2274,3 +2274,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-15: fotoaparát: rozbor senzorů (4×, hsi2c_12..15), co chybí v mainline (CSIS, ovladače senzorů, ISP); FINDINGS 34.3; nic nespuštěno
 - 2026-11-15: displej: stav po bootloaderu přečten (registry DSIM/DECON), panelový ovladač Himax HX83112A (patch 0107, jen přeložen); DECON+DSIM zatím nejsou; FINDINGS 34.4
 - 2026-11-15: I2C1 (PMIC S2MU106 0x3d odpovídá, nabíječ 0x41 ne); patch 0108; FINDINGS 34.6
+- 2026-11-15: Bluetooth ověřen ve Phoshi (hci0, hledání, připojení, zvuk přes BT); zdroje balíčků jádro/zařízení pkgrel 9, firmware 1; FINDINGS 34.7; balíček zatím nesestaven
