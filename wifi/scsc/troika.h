@@ -3,7 +3,7 @@
  * Nastavení ovladače Samsung SCSC pro Motorola One Action (troika). Vychází
  * z gta4xl.h portu gta4xl; liší se umístěním firmwaru, názvem konfigurace
  * rádia (adresář v /vendor/etc/wifi/mx140/conf původního systému) a tím, že
- * Bluetooth se zatím nesestavuje a společná konfigurace common.hcf se
+ * Bluetooth se sestavuje jako scsc_bt (adresa ze souboru bt_addr) a společná konfigurace common.hcf se
  * nečeká (firmware 6906 ji v obrazu vendor nemá).
  */
 #ifndef TROIKA_SCSC_CONFIG_H
@@ -25,5 +25,9 @@
 #define CONFIG_SCSC_CORE_TOOL_LOCATION "/usr/bin"
 #define CONFIG_SCSC_WLAN_MAC_ADDRESS_FILENAME "motorola/troika/mac.txt"
 #define CONFIG_SCSC_WLBT_CONFIG_PLATFORM "leman_s620_troika_dualfem"
+#define CONFIG_SCSC_BT 1
+#define CONFIG_SCSC_BT_BLUEZ 1
+#define CONFIG_SCSC_BT_ADDRESS_IN_FILE 1
+#define CONFIG_SCSC_BT_ADDRESS_FILENAME "motorola/troika/bt_addr"
 #define CONFIG_SCSC_BUILD_TYPE "upstream-port"
 #endif

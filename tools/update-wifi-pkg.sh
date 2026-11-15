@@ -15,7 +15,6 @@ pkg="$root/pmaports/device/testing/linux-motorola-troika-mainline"
 rm -rf "$root/wifi/scsc"
 cp -r "$root/build/scsc" "$root/wifi/scsc"
 rm -f "$root/wifi/scsc/gta4xl.h"
-# Bez Bluetooth: zatím se nesestavuje (wifi/Makefile).
 tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
 	--transform 's,^scsc,scsc-wlbt-troika,' -C "$root/wifi" -cf - scsc |
 	gzip -9n > "$pkg/scsc-wlbt-troika.tar.gz"
