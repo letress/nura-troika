@@ -2268,3 +2268,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-15: pozice zvuku z přerušení ABOX (ne z RDMA_STATUS), pauza po BOOT_DONE; test ABOXG5 prošel; Phosh test s reálným zvukem čeká; FINDINGS 33.40
 - 2026-11-15: zvuk v Phoshi srozumitelný a dostatečně hlasitý (bitové hodiny UAIF0, mono mix, hlasitost jako v původním systému); výchozí hodnoty v kartě; out/troika-test-SND9.img; FINDINGS 33.41
 - 2026-11-15: regulátor LDO42 přes ACPM (exynos-acpm-ldo.c), karta troika se registruje sama, opakování startu firmwaru ABOX; netboot out/troika-test-SND10.img; FINDINGS 33.42
+- 2026-11-15: studený start (LDO42 zapnut regulátorem) a přesné bitové hodiny 1536001 Hz ověřeny v Phoshi (SND11); FINDINGS 33.43; další: čistá větev, patche a balíček

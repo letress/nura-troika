@@ -5103,3 +5103,16 @@ v SRAM kolem 0x3958, příčina neznámá, odhadem asi 30 % startů), proto ovla
 chybu pozná (zpráva 0xfa), přeruší čekání a start zopakuje až 4×
 (`abox_try_start`). Test ABOXG9: 3 ze 3 tichých přehrání 8 s bez ručního
 zásahu.
+
+### 33.43 Studený start a přesné hodiny ověřeny (SND11, 2026-11-15)
+
+- **Studený start:** po úplném vypnutí telefonu hlásí jádro v 0,99 s
+  `exynos9610-acpm-ldo regulator-ldo42: switching on (register 0x2c)`: LDO42 byl
+  vypnutý (registr drží jen kód napětí 0x2c, bity 7:6 nulové) a ovladač ho
+  zapnul sám. Kodek i zesilovač pak naběhly bez ručního zásahu, karta `troika`
+  vznikla při startu.
+- **Bitové hodiny:** v `clk_summary` dodával dělič `audif` 49 152 002 Hz (PLL
+  1 179 648 040 Hz, 40 Hz nad ideálem), takže dělič `uaif0` pro přesných
+  1 536 000 Hz zaokrouhlil nahoru na 33 a dal 1 489 455 Hz (o 3 % míň, kodek
+  čekal 48 kHz). Ovladač teď žádá o 0,1 % víc (dělič 32) a výsledek je
+  `bit clock 1536001 Hz`.
