@@ -5078,3 +5078,28 @@ hodnoty (657, 0, −6 dB) byly o víc než 30 dB tišší. Rozsahy: digitální 
 digitální 817, analogové 17, vstupy mixeru 29 (−3 dB, protože mono součet L+R)
 dává dostatečnou hlasitost. Tyto hodnoty jsou teď výchozí v kartě `troika`
 (včetně `AIF2TX1 Input 2` = AIF1RX2).
+
+### 33.42 Regulátor LDO42 přes ACPM, karta bez ručních kroků (ABOXG7–G9, 2026-11-15)
+
+Na pokyn uživatele („Regulátor LDO42 přes ACPM“): nový ovladač
+`drivers/regulator/exynos-acpm-ldo.c` (`samsung,exynos9610-acpm-ldo`, Kconfig
+`REGULATOR_EXYNOS_ACPM_LDO`). Přes `acpm_handle->ops->pmic.read_reg/update_reg`
+(stejné zprávy jako ladicí soubor `acpmdbg_ldo42`: kanál 2, adresa PMIC 1,
+registr 0x63, zapisuje jen bity 7:6) zapíná LDO42. Hodnoty jsou v DT
+(`samsung,acpm-channel`, `pmic-type`, `register`, `enable-mask`, `voltage-code`
+0x2c = 700 mV + 44 × 25 mV = 1,8 V); před zapnutím ověří, že zbytek registru
+drží právě ten kód, jinak odmítne. Napětí nemění a **vypínat neumí**
+(`regulator-always-on` jako ve vendorovém DT, rail může sdílet další zařízení).
+DT: `vdd_ldo42` 1,8 V a zdroje `VA-supply` (CS35L41) a `AVDD`, `DBVDD1`,
+`DBVDD2`, `CPVDD1` (CS47L35). Výsledek v ABOXG7: `vdd_ldo42 enabled 1800000`,
+kodek se rozpozná (`CS47L35 silicon revision 1`, už ne `ffff`, protože jeho
+probe počká na regulátor). Studený start (LDO42 vypnutý) zatím nezkoušen, ovladač
+při něm vypíše `switching on`.
+
+Karta `troika` se registruje při startu sama (parametr `enable` jsem odstranil;
+zasekávání netbootu způsobovala stará spojení NBD, ne karta). Firmware ABOX
+občas po startu ohlásí chybu (`ABOX_REPORT_FAULT` 0xfa, „undefined exception“
+v SRAM kolem 0x3958, příčina neznámá, odhadem asi 30 % startů), proto ovladač
+chybu pozná (zpráva 0xfa), přeruší čekání a start zopakuje až 4×
+(`abox_try_start`). Test ABOXG9: 3 ze 3 tichých přehrání 8 s bez ručního
+zásahu.

@@ -2267,3 +2267,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-14: netboot v Phoshi se nespouštěl, protože zdrojový image GUI2 měl jiné UUID oddílů než aktuální netboot image (pmbootstrap export z 13. 11.): `ERROR: failed to mount subpartitions`. Správný zdroj pro `tools/make-local-pmos-bootimg.sh` je out/troika-test-PKG8.img (UUID e33cc373…/111af3fa…). Image se zvukem: out/troika-test-SND4.img (build/linux-gui)
 - 2026-11-15: pozice zvuku z přerušení ABOX (ne z RDMA_STATUS), pauza po BOOT_DONE; test ABOXG5 prošel; Phosh test s reálným zvukem čeká; FINDINGS 33.40
 - 2026-11-15: zvuk v Phoshi srozumitelný a dostatečně hlasitý (bitové hodiny UAIF0, mono mix, hlasitost jako v původním systému); výchozí hodnoty v kartě; out/troika-test-SND9.img; FINDINGS 33.41
+- 2026-11-15: regulátor LDO42 přes ACPM (exynos-acpm-ldo.c), karta troika se registruje sama, opakování startu firmwaru ABOX; netboot out/troika-test-SND10.img; FINDINGS 33.42
