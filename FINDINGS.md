@@ -5404,3 +5404,13 @@ Doplnění k 34.3 (zdroje `refs/downstream-kernel/.../fimc-is2/sensor/module_fra
   záloze k dispozici ke čtení), uživatelský protokol (RIL nebo vlastní implementace) a audio
   hovorů přes ABOX. Každý z kroků je velký; výsledek studie: **zatím nejít**, dokud nejsou ostatní
   části (cpufreq, uspání, SD) hotové; případně jen načíst a prozkoumat stav modemu pod dohledem.
+
+### 35.0 Ověření balíčků (2026-11-16)
+
+Kernel `7.3.3-r9` (46 min), firmware `r2`, zařízení `r9`; `install` a `export`, boot image
+`out/troika-test-PKG9.img` (uniLoader z balíčku, původní DTB v `second`, netboot hook a `nbd.ko`
+v initramfs; obsahuje ovladače `exynos9610-dpu`, `s2mu106`, moduly ABOX/karty/CS47L35/CS35L41,
+`scsc_bt`, firmware calliope, CS35L41 a `bt.hcf`, v zařízení `bt-addr.sh` a načítání modulu).
+Spuštěno přes netboot a `fastboot boot`: displej, baterie, zvuk (reproduktor), Bluetooth a Wi-Fi
+fungují z balíčků (uživatel potvrdil 2026-11-16). Pomocí `unpack_bootimg` a `tar tzf` ověřeno před
+spuštěním.
