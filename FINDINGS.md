@@ -5020,3 +5020,40 @@ DBVDD) je po studeném startu vypnutý a v testech ho zapíná ladicí soubor
 (ACPM/S2MPU09) nebo jinou cestu; podle pravidel projektu to nesmím řešit bez
 souhlasu. Dál: firmware ABOX, CS35L41 a ochrany do balíčku firmwaru, přerušení
 ABOX, čistá větev kernelu (DT bez DEBUG), patche a konfigurace do balíčku.
+
+### 33.40 Zvuk v Phoshi: „modem“ – pozice z přerušení, ne z `RDMA_STATUS` (2026-11-15)
+
+Netboot SND4–SND6: kartu `troika` v Phoshi jsme zprovoznili (viz níže), zvuk ale
+zněl jako „DSL modem“, i při přímém `speaker-test -D hw:0,0 -t wav`. Sinus
+z `pcm-sine` je čistý, protože se opakuje v každé periodě; skutečný zvuk ne.
+
+- **Příčina:** `RDMA_STATUS` (0x14a51130) není průběžný ukazatel pozice. Při
+  vzorkování po 250 µs (debugfs `abox-rdma-trace`, `logs/rdma-trace.txt`) skáče
+  pole „offset“ náhodně mezi 0, 3840, 7680 a 11520 a „cnt“ mezi 0 a 232. Platí
+  jen v okamžiku přerušení „perioda dočtena“. Vendorový ovladač proto bere
+  pozici z přerušení `RDMA1_BUF_EMPTY` (0xc) abox_gic (SPI 198), registr čte až
+  tam. Firmware žádnou zprávu s pozicí (ipcid 2) neposílá.
+- **Oprava:** DT `interrupts = <GIC_SPI 198 IRQ_TYPE_LEVEL_HIGH>`, `gicc` o
+  velikosti 0x1004 (kvůli DEACTIVATE na +0x1000). Přerušení se žádá až po
+  startu firmwaru a inicializaci GIC; smyčka čte IAR, potvrzuje EOIR a
+  DEACTIVATE (u čísel < 16) jako `abox_gic_irq_handler()`. Pozice se uloží při
+  každém přerušení 0xc a `snd_pcm_period_elapsed()` se volá z vlákna (karta je
+  `nonatomic`; první verze volala z IRQ a zamrzla).
+- **Firmware zablokovaný konfigurací:** po BOOT_DONE firmware ještě asi 0,4 s
+  dokončuje start (log „Main init completed“); konfigurační zprávy hned po
+  BOOT_DONE ho někdy zablokují (`no ack for message 10/0x10`). Za BOOT_DONE je
+  teď pauza 2 s.
+- Test v testovacím initramfs (ABOXG5): 12 s sinus bez chyby, v
+  `/proc/interrupts` 858 přerušení `abox`. Poslech skutečného zvuku v Phoshi
+  zatím neověřen.
+
+**Netboot v Phoshi (postup, co se zjistilo):** zdroj pro
+`tools/make-local-pmos-bootimg.sh` je ten image, jehož UUID sedí s aktuálním
+netboot rootfs (PKG8: boot e33cc373…, root 111af3fa…). Před každým startem
+netbootu restartovat `pmbootstrap … netboot serve` (stará spojení NBD ho jinak
+zablokují). Konfigurace balíčku nemá `EXYNOS_IOMMU` (ABOX potřebuje ->
+`build/linux-gui`: SOUND/SND/SND_SOC zabudované, EXYNOS_IOMMU, EXTRA_FIRMWARE,
+`MODULE_ALLOW_BTF_MISMATCH`). Kodek CS47L35 se při startu nemusí rozpoznat
+(čte ffff, časování `codec_en`; ruční `bind` spi9.0 pomůže). Karta se na
+startu neregistruje (parametr `snd_soc_exynos9610_troika.enable`), registruje
+se ručně po zapnutí LDO42.
