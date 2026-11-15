@@ -5303,3 +5303,104 @@ Zvuk: ABOX po nahlášené chybě firmwaru už nešel spustit (každé otevřen�
 firmware zastaví a nahraje znovu při dalším otevření (commit e202d34). Při startu se dále
 objevuje `irq 68: nobody cared ... cs35l41_irq` (linka přerušení zesilovače zůstává aktivní, kernel
 ji po 100 000 pokusech vypne; zvuk to neruší, příčina nezjištěna, ovladač přerušení vyžaduje).
+
+## 35. Noční příprava dalších kroků (2026-11-15/16, jen zdroje a překlad, na telefon se nezapisovalo)
+
+Podle `PLAN.md`. Nic z toho není v balíčku ani v čisté větvi; kód je v `troika-clk-test`.
+
+### 35.1 Frekvence procesoru (cpufreq)
+
+Hotovo (commity `0174b8f`, `5189340`, `f34b4ba` v `troika-clk-test`, přeloženo, DTB a
+`dt_binding_check` projdou, nezkoušeno na telefonu):
+- `clk-acpm`: hodiny `acpm_cpucl0` (ID 2, rodič PLL CPUCL0 v CMU) a `acpm_cpucl1` (ID 3, bez
+  CMU, počáteční rate 1456 MHz = stupeň „init“ v tabulce firmwaru, 21.6). Rate se po první
+  žádosti drží podle poslední žádosti (stejně jako GPU).
+- DT: OPP A53 403–1638 MHz (12 stupňů) a A73 936–2210 MHz (14 stupňů), `clocks` a
+  `operating-points-v2` v uzlech `cpu*`, chlazení clusteru BIG nad 83 °C (kontrolní trip zóny
+  BIG ve vendorovém DT, `live.dts` 6653–6745; vendor má governor `power_allocator`, zde
+  výchozí `step_wise`).
+- Meze: 1,6 GHz (A53) a 2,2 GHz (A73) jsou maxima Exynos9609 (wiki Nura, FINDINGS 3.4), shodují
+  se se stupněm 4 tabulky firmwaru; vendorová tabulka omezení paměti (`dm-constraints`) sahá
+  výš (1742 a 2314 MHz = stupeň 3 pro 9610), tyto stupně nejsou v DT. Minima 403 a 936 MHz
+  jsou `min-freq` ze živého DT. Napětí řídí firmware.
+- Paměť (MIF) zůstává na stupni z bootloaderu (1794 MHz), proto omezení paměti pro CPU
+  nehrozí; kdyby se MIF snižoval, bylo by třeba je respektovat.
+
+Neověřeno a pro zítřejší dohled: jestli firmware přijme žádost pro doménu 2 a 3 (zatím jen
+GPU), `clock-latency` (nezadána, `CPUFREQ_ETERNAL`), zda governor `schedutil` nezpůsobí
+neočekávané přepínání při startu (testovací obraz s governorem `userspace`).
+
+### 35.2 Uspání (suspend) a nečinnost
+
+Zdroje: `live.dts` 4058–4160 (`cpu-idle-states`, `idle-states`), 4260–4345 (`exynos-pm`,
+`exynos-powermode`), mainline `exynos9610.dtsi`.
+- Vendor: jeden stav „c2“ pro každé jádro přes PSCI (`arm,psci-suspend-param = 0x10000`):
+  jádra 0–3: vstup 35 µs, výstup 90 µs, minimální pobyt 750 µs; jádra 4–7: 30 / 75 / 2000 µs.
+  Mainline DT stavy nemá (cpuidle je jen WFI).
+- Skutečné uspání v původním kernelu: `exynos-pm` (`suspend_mode_idx = 8`, `suspend_psci_idx =
+  0x400`) nejdřív zapíše do PMU (masky probouzení na 0x610–0x61c, stav 0x600–0x610) a pak volá
+  PSCI s vlastním parametrem. Mainline na to nemá ovladač; `SYSTEM_SUSPEND` firmware
+  nejspíš neumí (u `SYSTEM_RESET` ne, FINDINGS 10).
+- Tlačítko napájení (`gpa1-7`) je `wakeup-source` v DT. `pinctrl_cmgp` stále nemá poduzel
+  `wakeup-interrupt-controller` (nález P1, 3.3) ani `interrupts` některých bank (P2).
+- Doporučené pořadí zítra: (1) `s2idle` bez zápisů do PMU, (2) PSCI stavy `idle-states` (riziko:
+  stav vypne časovač jádra; bez `local-timer-stop` a broadcast časovače se jádro nemusí
+  probudit; testovat opatrně v obrazu s telnetem), (3) vlastní ovladač suspend jen pokud se
+  ukáže, že PSCI hluboký stav funguje. Kód zatím nenapsán (riziko zamrznutí, chce dohled).
+
+### 35.3 SD karta
+
+Zdroje: `live.dts` 8116–8170 (řadič), 4541 a 4700 (regulátory), 1593–1660 (piny);
+`refs/downstream-kernel/drivers/regulator/s2mpu09-regulator.c`, `include/linux/mfd/samsung/
+s2mpu09-regulator.h`.
+- Řadič `dwmmc2@13550000`, SPI 147, 4 bity, `supports-highspeed`, `sd-uhs-sdr50/sdr104`,
+  `card-detect-invert`, `fifo-depth = 0x40`, `clock-frequency = 200 MHz` (`0x2faf0800`),
+  časování: SDR 3/0/2/0, DDR 3/0/2/1, SDR50 3/0/4/2, SDR104 3/0/3/0 (`samsung,dw-mshc-*-timing`),
+  `samsung,dw-mshc-ciu-div = 3`.
+- Piny (FSYS, `pinctrl@13490000`; banka `gpf2` má v mainline 6 pinů): clk `gpf2-0` (funkce 2,
+  pud 0, drv 2), cmd `gpf2-1` (2, 3, 2), data `gpf2-2` až `gpf2-5` (2, 3, 2), detekce karty
+  `gpa0-7` (funkce 0xf EINT, pud 0, drv 3).
+- Napájení (PMIC S2MPU09, přes ACPM jako LDO42): `vmmc` = LDO35, registr `0x5C`; `vqmmc` =
+  LDO2, registr `0x3A` (`L2CTRL1`). Obě: 6 bitů napětí od 1,8 V po 25 mV (1,8–3,375 V), enable
+  bity 7:6 (`ENABLE_SHIFT = 6`), rozsah v DT 1 800 000–3 375 000 µV, ramp 12 000 µV/µs. Po
+  startu vypnuté.
+- Co chybí: ovladač regulátoru `exynos-acpm-ldo` umí jen zapnout/vypnout pevné napětí (kód
+  napětí z DT); pro UHS (přepnutí `vqmmc` 3,0 → 1,8 V) bude potřeba `set_voltage` s kódy
+  (3,0 V = 0x30, 3,3 V = 0x3C, 1,8 V = 0x00). Hodiny `ciu` ve vendorovém DT (ID 0x137) je
+  potřeba přiřadit k hodinám CMU_FSYS v mainline (`CLK_GOUT_FSYS_MMC_CARD_*`), což zítra
+  doložím z `cmucal`. Uzel řadiče v `exynos9610.dtsi` není. Zapnutí regulátorů vyžaduje
+  tvůj souhlas, proto DT nenapsáno.
+
+### 35.4 Fotoaparát
+
+Doplnění k 34.3 (zdroje `refs/downstream-kernel/.../fimc-is2/sensor/module_framework/cis`).
+- Hlavní zadní senzor `12a10` je OmniVision OV12A10 (`SENSOR_NAME "OV12A10"`, hodiny EXT_CLK
+  26 MHz, 4096×3072, `fimc-is-cis-12a10.c` 1958 řádků, tabulky registrů `…-12a10-setA.h`
+  548 řádků). Revize se čte z registru `0x300B` (8 bitů). V mainline 7.3.3 `drivers/media/i2c`
+  ovladač OV12A10 není (jsou `ov13b10`, `ov13858`, `ov5670`, …).
+- Přední `12a10ff` má vlastní `…-12a10ff.c`; `5e9` (Samsung S5K5E9) a `16885c` také.
+- CSIS: vendor má `fimc-is-hw-csi-v3_x` a `csi2/v4_0`, `v5_2`; verzi pro 9610 doložím zítra z
+  `fimc-is-dt` a DT uzlu `fimc_is_csi*`. Nic nenapsáno, protože bez souhlasu s piny a
+  hodinami nejde nic zkoušet a samotný ovladač senzoru bez přijímače nemá smysl.
+
+### 35.5 Telefonní modem: studie proveditelnosti
+
+- Modem je Samsung Shannon 360 (`mif,name = "ss360ap"`, `modem_type = 0x0a`, `ipc_version =
+  0x32`), spojení přes sdílenou paměť (`mif,link_name = "shmem"`, `ap2cp_cfg_addr =
+  0x14000000`, paměť `modem_if` na `0xf0000000` o velikosti `0x8a00000`), přerušení SPI 75
+  a mailbox (AP→CP a CP→AP, ID v DT 0–9, 0x11). 22 zařízení (`umts_ipc0`, `umts_boot0`, …)
+  pro RIL.
+- Zdroje v `refs/downstream-kernel/drivers/misc/modem_if` (≈9 150 řádků): hlavní ovladač,
+  link `shmem`, ovládání `sh333ap`, SPI zavaděč modemu (`modem_boot_device_spi.c`), vstup/výstup,
+  výpis.
+- Mainline: ne. Veřejné poznatky: postmarketOS wiki k Samsung Modem uvádí, že jádrová část
+  ovladače byla přenesena jen u některých modemů (XMM626), jinak je potřeba downstream kernel;
+  u Exynos 7870 (Shannon 315) „nefunguje, ovladač by se musel přepsat“
+  ([wiki](https://wiki.postmarketos.org/wiki/Samsung_Modem),
+  [Exynos 7870](https://wiki.postmarketos.org/wiki/Samsung_Exynos_7870_Octa)). Protokol
+  uživatelského prostoru (Replicant `libsamsung-ipc`) je pro starší IPC; zda Shannon 360
+  (IPC verze 5.0 podle DT) je pokryt, nezjištěno.
+- Odhad: ovladač `shmem` (přenos), spuštění modemu z oddílu `modem`/`radio` (firmware v
+  záloze k dispozici ke čtení), uživatelský protokol (RIL nebo vlastní implementace) a audio
+  hovorů přes ABOX. Každý z kroků je velký; výsledek studie: **zatím nejít**, dokud nejsou ostatní
+  části (cpufreq, uspání, SD) hotové; případně jen načíst a prozkoumat stav modemu pod dohledem.
