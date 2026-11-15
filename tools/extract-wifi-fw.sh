@@ -15,7 +15,7 @@ out="$root/dl/wifi-fw/motorola/troika"
 
 [ -r "$img" ] || { echo "CHYBA: nejde číst $img" >&2; exit 1; }
 rm -rf "$root/dl/wifi-fw"
-mkdir -p "$out/mx140/conf/$plat/wlan"
+mkdir -p "$out/mx140/conf/$plat/wlan" "$out/mx140/conf/$plat/bluetooth"
 get() {
 	debugfs -R "dump $1 $2" "$img" 2>/dev/null
 	[ -s "$2" ] || { echo "CHYBA: v obrazu chybí $1" >&2; exit 1; }
@@ -24,6 +24,10 @@ get /etc/wifi/mx140.bin "$out/mx140.bin"
 for f in wlan.hcf wlan_sw.hcf wlan_t.hcf wlan_t_sw.hcf platform.txt; do
 	get "/etc/wifi/mx140/conf/$plat/wlan/$f" "$out/mx140/conf/$plat/wlan/$f"
 done
+# Konfigurace Bluetooth (rádio WLBT je společné pro WiFi a Bluetooth)
+get "/etc/wifi/mx140/conf/$plat/bluetooth/bt.hcf" "$out/mx140/conf/$plat/bluetooth/bt.hcf"
+get "/etc/wifi/mx140/conf/$plat/bluetooth/platform.txt" "$out/mx140/conf/$plat/bluetooth/platform.txt"
+ln -s "mx140/conf/$plat/bluetooth/bt.hcf" "$out/mx140_bt.hcf"
 # Přenesený ovladač hledá konfiguraci „naplocho“ vedle firmwaru
 # (mx140_wlan.hcf …, volba force_flat), proto ještě odkazy s těmi jmény.
 for f in wlan.hcf wlan_sw.hcf wlan_t.hcf wlan_t_sw.hcf; do

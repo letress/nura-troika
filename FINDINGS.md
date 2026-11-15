@@ -5139,3 +5139,37 @@ palivoměr `s2mu106-fuelgauge` na adrese 0x3b sběrnice `i2c@13830000` (u výrob
   `PRESENT`, `TECHNOLOGY`, `VOLTAGE_NOW`, `CURRENT_NOW`, `CAPACITY`. Test BAT2:
   `voltage_now=4247314`, `capacity=91`, `status=Not charging`. Nabíječ
   S2MCS02/S2MU106 zatím není popsán, nabíjení se neřídí ani nečte.
+
+### 34.2 Bluetooth přes SCSC: funguje (test BT1, 2026-11-15)
+
+Bluetooth troiky není UART: příkazy, události a data HCI jdou sdílenou
+pamětí a mailboxem rádia WLBT, stejně jako WiFi (viz `refs/gta4xl-linux/docs/
+BLUETOOTH.md`). Přenesený ovladač `scsc_bt` (zdroje už v `build/scsc/bt` z
+`tools/prepare-wifi.sh`, port 0002-bt-linux-7.3) jsme jen přidali do sestavení:
+
+- `wifi/Makefile`: `scsc_bt.o` (`scsc_bt_module`, `scsc_shm`, `scsc_avdtp_detect`,
+  `scsc_bt_qos`, `scsc_bluez`); `wifi/troika.h`: `CONFIG_SCSC_BT`,
+  `CONFIG_SCSC_BT_BLUEZ`, `CONFIG_SCSC_BT_ADDRESS_IN_FILE` a
+  `CONFIG_SCSC_BT_ADDRESS_FILENAME "motorola/troika/bt_addr"`.
+- **Firmware:** konfigurace `bt.hcf` (178 B) a `platform.txt` z vendoru
+  (`/etc/wifi/mx140/conf/leman_s620_troika_dualfem/bluetooth/`, přidáno do
+  `tools/extract-wifi-fw.sh`, plus „plochý“ odkaz `mx140_bt.hcf`). Firmware
+  rádia je společný s WiFi (`mx140.bin`).
+- **Adresa:** `androidboot.btmacaddr=F8:1F:32:43:E6:27` z příkazového řádku
+  původního bootloaderu (`device-info/cmdline.txt`); testovací image ji zapíše
+  do `bt_addr` (`tools/make-clk-test-bootimg.sh`). V systému je tento údaj také
+  v `/proc/cmdline`, takže ho jde zapsat při startu; zatím nevyřešeno.
+- **Kernel:** testovací jádro má `BT=y`, `BT_BREDR`, `BT_LE`, `RFKILL=y`; balíček
+  má `BT=m` a `BT_LE` vypnuté.
+- **Test** (`test-initramfs/hci-scan.c`, surový soket HCI bez libc;
+  rádio WLBT zapnuto se souhlasem uživatele): `insmod scsc_platform_mif`,
+  `scsc_mx`, `scsc_bt` → v `/sys/class/bluetooth` je `hci0`; `HCIDEVUP` prošlo
+  (firmware se nahrál, služba BT naběhla, jednou „unexpected event for opcode
+  0x0000“ jako u tabletu); `Read BD_ADDR` = `f8:1f:32:43:e6:27`, `Read Local
+  Version`: HCI 9, LMP 9, výrobce `0x0075` (Samsung). Inquiry BR/EDR za 8 s
+  našlo dvě zařízení (`48:b0:2d:58:16:46`, `dc:97:58:88:7d:e1`). Pasivní
+  skenování LE vrátilo stav 12 (příkaz nepovolen, nezkoumáno; BlueZ to řeší
+  vlastním nastavením).
+- **Do balíčku:** `scsc_bt.ko` do archivu `scsc-wlbt-troika.tar.gz`, `BT_LE=y`
+  v konfiguraci, `bt.hcf` do firmware balíčku, zápis `bt_addr` při startu,
+  `bluez`; pkgrel navýšit až v balíčkovém kole.

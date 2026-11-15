@@ -2270,3 +2270,4 @@ automaticky podle oprávnění uživatele.
 - 2026-11-15: regulátor LDO42 přes ACPM (exynos-acpm-ldo.c), karta troika se registruje sama, opakování startu firmwaru ABOX; netboot out/troika-test-SND10.img; FINDINGS 33.42
 - 2026-11-15: studený start (LDO42 zapnut regulátorem) a přesné bitové hodiny 1536001 Hz ověřeny v Phoshi (SND11); FINDINGS 33.43; další: čistá větev, patche a balíček
 - 2026-11-15: baterie: palivoměr S2MU106 (i2c_0 0x3b), read-only ovladač, test BAT2 (4,247 V, 91 %); patche 0105-0106; FINDINGS 34.1
+- 2026-11-15: Bluetooth funguje (scsc_bt, hci0, adresa F8:1F:32:43:E6:27, inquiry našel 2 zařízení); test BT1; FINDINGS 34.2; do balíčku zatím ne

@@ -57,6 +57,10 @@ aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
 aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
 	-I "$root/build/uapi-stub" -I "$root/build/uapi/include" \
 	-o "$tmp/bin/pcm-sine" "$root/test-initramfs/pcm-sine.c"
+# Zkouška Bluetooth přes surový soket HCI (test BT)
+aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
+	-I "$root/build/uapi-stub" -I "$root/build/uapi/include" \
+	-o "$tmp/bin/hci-scan" "$root/test-initramfs/hci-scan.c"
 # Firmware ochrany reproduktoru CS35L41 (tools/extract-cs35l41-fw.sh) pod
 # názvy, které hledá wm_adsp; ladění Qisheng „music“ (FINDINGS 33.20).
 cs="$root/dl/cs35l41-fw"
@@ -81,6 +85,10 @@ if ls "$root"/build/scsc/*.ko > /dev/null 2>&1 && [ -d "$root/dl/wifi-fw/motorol
 		aarch64-linux-strip --strip-debug -o "$tmp/lib/wifi/$(basename "$m")" "$m"
 	done
 	cp -r "$root/dl/wifi-fw/motorola" "$tmp/lib/firmware/"
+	# Adresa Bluetooth z příkazového řádku původního bootloaderu
+	# (androidboot.btmacaddr); ovladač ji čte jako soubor bt_addr.
+	btmac="$(tr ' ' '\n' < "$root/device-info/cmdline.txt" | sed -n 's/^androidboot.btmacaddr=//p')"
+	[ -n "$btmac" ] && printf '%s\n' "$btmac" > "$tmp/lib/firmware/motorola/troika/bt_addr"
 fi
 # Firmware zvukové jednotky (test ABOX, tools/extract-abox-fw.sh). Nahraje se
 # až zápisem do /sys/kernel/debug/abox-fw/load, samo se nic neděje.
