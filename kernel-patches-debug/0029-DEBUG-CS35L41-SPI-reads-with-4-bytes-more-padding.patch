@@ -1,4 +1,4 @@
-From 0ed615247853b4c0da61e79d22b09c92cb963377 Mon Sep 17 00:00:00 2001
+From ff506215fa9d49dcbd2150817e042b83dd7cb24f Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:23:56 +0100
 Subject: [PATCH 29/73] DEBUG: CS35L41 SPI reads with 4 bytes more padding

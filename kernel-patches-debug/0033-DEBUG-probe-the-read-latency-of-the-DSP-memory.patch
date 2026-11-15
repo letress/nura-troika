@@ -1,4 +1,4 @@
-From 3b21ea00d4ba5e084855d199abb0bc4d282ff7b6 Mon Sep 17 00:00:00 2001
+From b3a1c3d7c0aeeca746dffb78b522ea57e040d142 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:52:14 +0100
 Subject: [PATCH 33/73] DEBUG: probe the read latency of the DSP memory

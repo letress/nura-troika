@@ -1,4 +1,4 @@
-From 653a9efea726c91e30193bc78b30fd6874e5e987 Mon Sep 17 00:00:00 2001
+From 89299d06a5637066763baa14a7d39345283a1b9c Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:40:29 +0100
 Subject: [PATCH 53/73] DEBUG: prefix the amplifier in the test card

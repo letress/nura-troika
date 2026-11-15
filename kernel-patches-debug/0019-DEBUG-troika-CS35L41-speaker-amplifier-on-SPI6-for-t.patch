@@ -1,4 +1,4 @@
-From c4174d2ec9ccff0c5a2047fd0a851cba23c335b1 Mon Sep 17 00:00:00 2001
+From 1776af225d66741ef1c6ec70f3381abe22a2f634 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 16:03:33 +0100
 Subject: [PATCH 19/73] DEBUG: troika: CS35L41 speaker amplifier on SPI6 for
@@ -10,10 +10,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
  1 file changed, 23 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index b08062e..c7bf62c 100644
+index fcbbaf2..c24062a 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -387,3 +387,26 @@ abox_test: abox-test {
+@@ -395,3 +395,26 @@ abox_test: abox-test {
  		memory-region = <&abox_fw_reserved>, <&abox_buf_reserved>;
  	};
  };

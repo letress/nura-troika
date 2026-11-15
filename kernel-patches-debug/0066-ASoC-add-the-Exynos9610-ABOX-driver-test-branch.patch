@@ -1,4 +1,4 @@
-From 80abcce51a05a1f7ca5633ad68162bd729749204 Mon Sep 17 00:00:00 2001
+From 2b3a18a0fcbdc1006be85a1400eba756666da8fe Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 21:12:25 +0100
 Subject: [PATCH 66/73] ASoC: add the Exynos9610 ABOX driver (test branch)
@@ -13,10 +13,10 @@ Subject: [PATCH 66/73] ASoC: add the Exynos9610 ABOX driver (test branch)
  create mode 100644 sound/soc/samsung/exynos9610-abox.c
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index 83d3a30..e3a9227 100644
+index 10b99f6..dc543fa 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -380,13 +380,20 @@ sysmmu_abox: sysmmu@14920000 {
+@@ -388,13 +388,20 @@ sysmmu_abox: sysmmu@14920000 {
  	};
  };
  

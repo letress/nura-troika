@@ -1,4 +1,4 @@
-From a9cd5cef706641b71eb77d7470cc6162b520bf92 Mon Sep 17 00:00:00 2001
+From a54e4750c0db1cc044f7a3ac38c66f1ed5894abc Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:56:02 +0100
 Subject: [PATCH 34/73] DEBUG: read padding of the CS35L41 as module parameters

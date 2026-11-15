@@ -1,4 +1,4 @@
-From bae0ec49d0574f841adcbaaf8b716ea664d980a7 Mon Sep 17 00:00:00 2001
+From 702590a2eeda60fca7544e48fd343799ae8bf245 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:29:16 +0100
 Subject: [PATCH 48/73] DEBUG: select the CS47L35 sound driver with the MFD

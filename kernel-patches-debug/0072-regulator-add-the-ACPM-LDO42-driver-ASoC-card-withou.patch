@@ -1,4 +1,4 @@
-From b7bff150279164c446b7175630955ca42a079988 Mon Sep 17 00:00:00 2001
+From 283504d2d5af99348bf59930791dfd3f50d7eefe Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 02:25:29 +0100
 Subject: [PATCH 72/73] regulator: add the ACPM LDO42 driver; ASoC: card
@@ -15,10 +15,10 @@ Subject: [PATCH 72/73] regulator: add the ACPM LDO42 driver; ASoC: card
  create mode 100644 drivers/regulator/exynos-acpm-ldo.c
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index e749244..0ce11f4 100644
+index dbaca24..f31a4fc 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -408,9 +408,34 @@ abox: audio-controller@14a50000 {
+@@ -416,9 +416,34 @@ abox: audio-controller@14a50000 {
  	};
  };
  
@@ -54,7 +54,7 @@ index e749244..0ce11f4 100644
   */
  &spi_6 {
  	pinctrl-0 = <&spi6_bus &spi6_cs_func>;
-@@ -423,6 +448,7 @@ speaker_amp: amplifier@0 {
+@@ -431,6 +456,7 @@ speaker_amp: amplifier@0 {
  		interrupt-parent = <&gpa0>;
  		interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
  		reset-gpios = <&gpg3 3 GPIO_ACTIVE_HIGH>;
@@ -62,7 +62,7 @@ index e749244..0ce11f4 100644
  		#sound-dai-cells = <1>;
  		cirrus,boost-type = <0>;
  		cirrus,boost-peak-milliamp = <4500>;
-@@ -437,8 +463,7 @@ controller-data {
+@@ -445,8 +471,7 @@ controller-data {
  
  /*
   * Audio codec CS47L35 (Madera) on SPI9, values from the live device tree of
@@ -72,7 +72,7 @@ index e749244..0ce11f4 100644
   * reference from xclkout.
   */
  &spi_9 {
-@@ -456,6 +481,10 @@ audio_codec: codec@0 {
+@@ -464,6 +489,10 @@ audio_codec: codec@0 {
  		gpio-controller;
  		#gpio-cells = <2>;
  		reset-gpios = <&gpg3 2 GPIO_ACTIVE_HIGH>;

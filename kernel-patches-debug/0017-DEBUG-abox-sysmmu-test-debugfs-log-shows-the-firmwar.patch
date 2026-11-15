@@ -1,4 +1,4 @@
-From 5b20eab2b9d1a27ba6851c6e1ffcb6d5438ec2c5 Mon Sep 17 00:00:00 2001
+From 46963645ea0a9b9622be5f30e2c81e87eeb14e29 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 15:05:28 +0100
 Subject: [PATCH 17/73] DEBUG: abox-sysmmu-test: debugfs log shows the firmware

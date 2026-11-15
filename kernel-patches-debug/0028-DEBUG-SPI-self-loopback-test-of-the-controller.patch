@@ -1,4 +1,4 @@
-From b574f2d166b04f77cd9eec6701a2cb870286c3d5 Mon Sep 17 00:00:00 2001
+From acab9cc14f21e4047605e2f03ce34de869121e36 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:20:48 +0100
 Subject: [PATCH 28/73] DEBUG: SPI self loopback test of the controller

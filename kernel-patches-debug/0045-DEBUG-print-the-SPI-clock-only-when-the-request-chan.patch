@@ -1,4 +1,4 @@
-From eaeeeffc785a7cf317b37d6ac1536a272dc227bc Mon Sep 17 00:00:00 2001
+From 29e4155a4c56a4a7cf162a16b961b30b633a2815 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:42:59 +0100
 Subject: [PATCH 45/73] DEBUG: print the SPI clock only when the request

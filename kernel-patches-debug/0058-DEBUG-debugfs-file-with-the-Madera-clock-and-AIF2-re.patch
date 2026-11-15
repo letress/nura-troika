@@ -1,4 +1,4 @@
-From 4b4f588f14fc634def3d3ff95c8bf6b30ba5c71f Mon Sep 17 00:00:00 2001
+From 075419cda076957b7e72e54c538f02c2ba023b01 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 15:01:11 +0100
 Subject: [PATCH 58/73] DEBUG: debugfs file with the Madera clock and AIF2

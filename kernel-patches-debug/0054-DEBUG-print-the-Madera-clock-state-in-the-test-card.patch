@@ -1,4 +1,4 @@
-From ce7520803f782c8aca4e8dfd944c6c961a1b2f33 Mon Sep 17 00:00:00 2001
+From b5a6214620cd3507fd1f3b8ef0ff38b476adb1f8 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:46:35 +0100
 Subject: [PATCH 54/73] DEBUG: print the Madera clock state in the test card

@@ -1,4 +1,4 @@
-From 54efd20b90e6d61f6467d83b16826f9b6d4c222c Mon Sep 17 00:00:00 2001
+From bc7df308500f2062fcfba4fd17570ac8767adefb Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Thu, 12 Nov 2026 20:34:14 +0100
 Subject: [PATCH 08/73] DEBUG: firmware: exynos-acpm: G3D rates up to 764 MHz,

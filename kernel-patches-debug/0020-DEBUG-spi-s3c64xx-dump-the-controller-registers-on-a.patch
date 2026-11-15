@@ -1,4 +1,4 @@
-From a97845fc73642d62d03eab811c986e35e736bcbb Mon Sep 17 00:00:00 2001
+From 29f74593489150b11316ea6dc9e14a212a09a990 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 16:07:46 +0100
 Subject: [PATCH 20/73] DEBUG: spi-s3c64xx: dump the controller registers on an

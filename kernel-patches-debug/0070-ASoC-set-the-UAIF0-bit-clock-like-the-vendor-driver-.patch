@@ -1,4 +1,4 @@
-From 142e1c0d592276c5bd1d5355fffe53d92c406f09 Mon Sep 17 00:00:00 2001
+From b8db04685ad1cdf0b5791249c51aaa50bff32461 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 01:39:56 +0100
 Subject: [PATCH 70/73] ASoC: set the UAIF0 bit clock like the vendor driver
@@ -10,10 +10,10 @@ Subject: [PATCH 70/73] ASoC: set the UAIF0 bit clock like the vendor driver
  2 files changed, 19 insertions(+), 1 deletion(-)
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index 5239472..e749244 100644
+index 9a6b1e8..dbaca24 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -394,7 +394,11 @@ abox: audio-controller@14a50000 {
+@@ -402,7 +402,11 @@ abox: audio-controller@14a50000 {
  		reg-names = "sfr", "sram", "gicd", "gicc";
  		interrupts = <GIC_SPI 198 IRQ_TYPE_LEVEL_HIGH>;
  		clocks = <&cmu_dispaud CLK_GOUT_DISPAUD_ABOX_CCLK_ASB>,

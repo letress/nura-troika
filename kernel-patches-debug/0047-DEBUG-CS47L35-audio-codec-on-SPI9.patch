@@ -1,4 +1,4 @@
-From 5c39325f04ffa0e74e6d57484c543cafee196853 Mon Sep 17 00:00:00 2001
+From ef654695814b688fb2a04d8be56e1a19d372d7c9 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:28:55 +0100
 Subject: [PATCH 47/73] DEBUG: CS47L35 audio codec on SPI9
@@ -9,10 +9,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
  1 file changed, 25 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index 278c477..161f8ec 100644
+index a4c7b51..0fda589 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -414,3 +414,28 @@ controller-data {
+@@ -422,3 +422,28 @@ controller-data {
  		};
  	};
  };

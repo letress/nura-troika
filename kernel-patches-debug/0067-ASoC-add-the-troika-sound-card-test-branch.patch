@@ -1,4 +1,4 @@
-From 8e9341610b4406939916fdf8fa0042c14449b9c4 Mon Sep 17 00:00:00 2001
+From b3c2628406e4faa27441c18534a3441a5f44c6d6 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 21:35:00 +0100
 Subject: [PATCH 67/73] ASoC: add the troika sound card (test branch)
@@ -13,10 +13,10 @@ Subject: [PATCH 67/73] ASoC: add the troika sound card (test branch)
  create mode 100644 sound/soc/samsung/exynos9610-troika.c
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index e3a9227..fe75ddf 100644
+index dc543fa..640490d 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -380,6 +380,12 @@ sysmmu_abox: sysmmu@14920000 {
+@@ -388,6 +388,12 @@ sysmmu_abox: sysmmu@14920000 {
  	};
  };
  

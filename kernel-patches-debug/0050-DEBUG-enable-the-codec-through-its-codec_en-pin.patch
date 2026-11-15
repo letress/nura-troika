@@ -1,4 +1,4 @@
-From 3ba053be9e24098add5b6c1a1742d92356c87756 Mon Sep 17 00:00:00 2001
+From e5f07b4d722cbd311f44be826fefb0b8cd0b9a4d Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:35:19 +0100
 Subject: [PATCH 50/73] DEBUG: enable the codec through its codec_en pin
@@ -9,10 +9,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
  1 file changed, 13 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index 862bbee..bbf3683 100644
+index da72c9c..4203aad 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -443,3 +443,16 @@ controller-data {
+@@ -451,3 +451,16 @@ controller-data {
  		};
  	};
  };

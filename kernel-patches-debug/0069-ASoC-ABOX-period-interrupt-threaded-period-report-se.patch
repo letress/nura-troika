@@ -1,4 +1,4 @@
-From ef9e5552fa7cd0e337f6b895a3f36932ae90b11a Mon Sep 17 00:00:00 2001
+From 4d1428763eb5092608af22f88c3a69c9ebf9dca4 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 01:13:20 +0100
 Subject: [PATCH 69/73] ASoC: ABOX period interrupt, threaded period report,
@@ -10,10 +10,10 @@ Subject: [PATCH 69/73] ASoC: ABOX period interrupt, threaded period report,
  2 files changed, 91 insertions(+), 15 deletions(-)
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index fe75ddf..5239472 100644
+index 640490d..9a6b1e8 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -390,8 +390,9 @@ &soc {
+@@ -398,8 +398,9 @@ &soc {
  	abox: audio-controller@14a50000 {
  		compatible = "samsung,exynos9610-abox";
  		reg = <0x14a50000 0x10000>, <0x14b00000 0x35000>,

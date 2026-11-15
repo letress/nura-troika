@@ -1,4 +1,4 @@
-From 78a1a25beaf06e95bba318788921c1244524a49e Mon Sep 17 00:00:00 2001
+From 7fba173ef1474ceb7af9a50881e2d71c85dbeac6 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 01:58:59 +0100
 Subject: [PATCH 71/73] ASoC: troika card defaults as in the stock system (test

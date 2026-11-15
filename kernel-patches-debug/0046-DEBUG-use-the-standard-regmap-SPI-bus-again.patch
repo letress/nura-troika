@@ -1,4 +1,4 @@
-From 932b16eb3bd48f0d21bbac3e905e495d01cc87cb Mon Sep 17 00:00:00 2001
+From e98520e6040d4a17aa8eb5d825dfaa255e8f0aeb Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:49:57 +0100
 Subject: [PATCH 46/73] DEBUG: use the standard regmap SPI bus again

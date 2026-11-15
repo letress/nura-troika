@@ -1,4 +1,4 @@
-From 41f317dd922bd4791a903372d7c61f82fe874bdb Mon Sep 17 00:00:00 2001
+From 41ab02868e4b405a119069761fa3e67a10c74e29 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:12:11 +0100
 Subject: [PATCH 38/73] DEBUG: scan the padding of the firmware ID header read

@@ -1,4 +1,4 @@
-From 49c76f1b24f977ccee2e1cabfe2af0dfa84b0a4d Mon Sep 17 00:00:00 2001
+From fe5fd072c1a3cca42d7f5cd628c59e1a4e85d186 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Wed, 11 Nov 2026 13:53:55 +0100
 Subject: [PATCH 01/73] DEBUG: clk: samsung: report option registers and power

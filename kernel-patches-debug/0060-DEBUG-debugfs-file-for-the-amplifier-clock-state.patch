@@ -1,4 +1,4 @@
-From b0a57e99052111012aa63dbfe27729e9b287b57b Mon Sep 17 00:00:00 2001
+From 9faf099f9703fb300829d68cfc29a51c02186c7b Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 15:08:50 +0100
 Subject: [PATCH 60/73] DEBUG: debugfs file for the amplifier clock state

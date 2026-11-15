@@ -1,4 +1,4 @@
-From 2a2ede525e48554f7a42fe0e436ca5cd6635d85b Mon Sep 17 00:00:00 2001
+From d537c11480ea00942f284ab081c79efc06a547b3 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 02:47:57 +0100
 Subject: [PATCH 73/73] ASoC: ABOX bit clock: request 0.1 % more so the divider

@@ -1,4 +1,4 @@
-From 41c1cc479f8b8e8e58eee030a55975f2a1652580 Mon Sep 17 00:00:00 2001
+From 7d7e2514ad723b27b7a4462d992b945798e966ec Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 20:21:07 +0100
 Subject: [PATCH 65/73] DEBUG: ABOX UAIF0 pins, AIF1 DAPM source for the test
@@ -10,10 +10,10 @@ Subject: [PATCH 65/73] DEBUG: ABOX UAIF0 pins, AIF1 DAPM source for the test
  2 files changed, 30 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index 81b3d49..83d3a30 100644
+index e9f5b77..10b99f6 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -385,6 +385,8 @@ abox_test: abox-test {
+@@ -393,6 +393,8 @@ abox_test: abox-test {
  		compatible = "samsung,exynos9610-abox-sysmmu-test";
  		iommus = <&sysmmu_abox>;
  		memory-region = <&abox_fw_reserved>, <&abox_buf_reserved>;

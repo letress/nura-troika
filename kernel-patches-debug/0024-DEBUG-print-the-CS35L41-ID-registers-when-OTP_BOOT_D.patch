@@ -1,4 +1,4 @@
-From bbf462d7452469a513d05fc5c709111b4316c008 Mon Sep 17 00:00:00 2001
+From 57e8e7d2416c1a7a3c37ab962f2eecb6e702ae60 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 00:45:37 +0100
 Subject: [PATCH 24/73] DEBUG: print the CS35L41 ID registers when

@@ -1,4 +1,4 @@
-From a384670e382181c62611359b2e7acc23861163b7 Mon Sep 17 00:00:00 2001
+From d039005ace4a071eb92c03add98d75272fc04852 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:40:07 +0100
 Subject: [PATCH 43/73] DEBUG: print the requested and the real SPI clock

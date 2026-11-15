@@ -1,4 +1,4 @@
-From 7051132f0592d40736ec70fa28827b2e8255f07f Mon Sep 17 00:00:00 2001
+From 1c69e70837294ec1bbcc5249dc66eef8dcb4c6de Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:32:59 +0100
 Subject: [PATCH 49/73] DEBUG: feedback delay of the CS47L35 from the vendor
@@ -10,10 +10,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
  1 file changed, 4 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index 161f8ec..862bbee 100644
+index 0fda589..da72c9c 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -437,5 +437,9 @@ audio_codec: codec@0 {
+@@ -445,5 +445,9 @@ audio_codec: codec@0 {
  		#gpio-cells = <2>;
  		reset-gpios = <&gpg3 2 GPIO_ACTIVE_HIGH>;
  		#sound-dai-cells = <1>;
