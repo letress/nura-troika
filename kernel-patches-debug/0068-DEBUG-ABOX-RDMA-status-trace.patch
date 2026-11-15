@@ -1,0 +1,89 @@
+From 93f536bfb192aa5703b7625cc05e2fbdbceb0532 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 00:54:54 +0100
+Subject: [PATCH 68/73] DEBUG: ABOX RDMA status trace
+
+---
+ sound/soc/samsung/exynos9610-abox.c   | 25 +++++++++++++++++++++++++
+ sound/soc/samsung/exynos9610-troika.c | 13 +++++++++++++
+ 2 files changed, 38 insertions(+)
+
+diff --git a/sound/soc/samsung/exynos9610-abox.c b/sound/soc/samsung/exynos9610-abox.c
+index 09afe46..9c0a228 100644
+--- a/sound/soc/samsung/exynos9610-abox.c
++++ b/sound/soc/samsung/exynos9610-abox.c
+@@ -16,6 +16,7 @@
+ #include <linux/bitfield.h>
+ #include <linux/clk.h>
+ #include <linux/debugfs.h>
++#include <linux/ktime.h>
+ #include <linux/seq_file.h>
+ #include <linux/delay.h>
+ #include <linux/firmware.h>
+@@ -203,6 +204,29 @@ static int abox_log_show(struct seq_file *m, void *unused)
+ }
+ DEFINE_SHOW_ATTRIBUTE(abox_log);
+ 
++/* DEBUG: sample the RDMA1 status while a stream plays: time (us) and the register */
++static int abox_trace_show(struct seq_file *m, void *unused)
++{
++	struct abox *abox = m->private;
++	void __iomem *st = abox->sfr + ABOX_RDMA_BASE + ABOX_RDMA_INTERVAL * ABOX_RDMA_CH +
++			   ABOX_RDMA_STATUS;
++	static u32 val[600];
++	static u32 us[600];
++	ktime_t t0 = ktime_get();
++	int i;
++
++	for (i = 0; i < 600; i++) {
++		val[i] = readl(st);
++		us[i] = ktime_to_us(ktime_sub(ktime_get(), t0));
++		udelay(250);
++	}
++	for (i = 0; i < 600; i++)
++		seq_printf(m, "%u %08x\n", us[i], val[i]);
++
++	return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(abox_trace);
++
+ static int abox_map(struct abox *abox, int idx, unsigned long iova, void **virt,
+ 		    phys_addr_t *phys, size_t *size)
+ {
+@@ -637,6 +661,7 @@ static int abox_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	debugfs_create_file("abox-fw-log", 0400, NULL, abox, &abox_log_fops);
++	debugfs_create_file("abox-rdma-trace", 0400, NULL, abox, &abox_trace_fops);
+ 
+ 	return devm_snd_soc_register_component(dev, &abox_component, &abox_dai, 1);
+ }
+diff --git a/sound/soc/samsung/exynos9610-troika.c b/sound/soc/samsung/exynos9610-troika.c
+index 3336e8f..0a776d9 100644
+--- a/sound/soc/samsung/exynos9610-troika.c
++++ b/sound/soc/samsung/exynos9610-troika.c
+@@ -188,8 +188,21 @@ static struct snd_soc_card troika_card = {
+ 	.late_probe = troika_late_probe,
+ };
+ 
++/*
++ * The speaker needs LDO42, which is off after a cold start and is switched
++ * on by hand for now, so the card stays unbound until it is asked for:
++ *   echo 1 > /sys/module/exynos9610_troika/parameters/enable
++ *   echo sound > /sys/bus/platform/drivers/exynos9610-troika-sound/bind
++ */
++static bool enable;
++module_param(enable, bool, 0644);
++MODULE_PARM_DESC(enable, "Register the card (set before binding it by hand)");
++
+ static int troika_probe(struct platform_device *pdev)
+ {
++	if (!enable)
++		return -ENODEV;
++
+ 	troika_card.dev = &pdev->dev;
+ 
+ 	return devm_snd_soc_register_card(&pdev->dev, &troika_card);
+-- 
+2.56.0
+

@@ -1,7 +1,7 @@
-From d7f1ba9691cde7950670a5edf147e5747563ba50 Mon Sep 17 00:00:00 2001
+From 515d18af964721024d320a98994d04d6414e6343 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 15:04:34 +0100
-Subject: [PATCH 59/63] DEBUG: dump the Madera GPIO registers as well
+Subject: [PATCH 59/73] DEBUG: dump the Madera GPIO registers as well
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

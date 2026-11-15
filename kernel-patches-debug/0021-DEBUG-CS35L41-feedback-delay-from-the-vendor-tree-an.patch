@@ -1,7 +1,7 @@
-From 76fe9a94e79e2102ac83a87fdf641b03e99b2068 Mon Sep 17 00:00:00 2001
+From 436c0ecb083134f0a289c0d97d3e971a03cc25cb Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 16:22:04 +0100
-Subject: [PATCH 21/63] DEBUG: CS35L41 feedback delay from the vendor tree and
+Subject: [PATCH 21/73] DEBUG: CS35L41 feedback delay from the vendor tree and
  a raw ID print
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
@@ -11,10 +11,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
  2 files changed, 15 insertions(+)
 
 diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-index b513687..beb913d 100644
+index c7bf62c..278c477 100644
 --- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
 +++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
-@@ -395,5 +395,9 @@ speaker_amp: amplifier@0 {
+@@ -408,5 +408,9 @@ speaker_amp: amplifier@0 {
  		cirrus,boost-peak-milliamp = <4500>;
  		cirrus,boost-ind-nanohenry = <1000>;
  		cirrus,boost-cap-microfarad = <15>;

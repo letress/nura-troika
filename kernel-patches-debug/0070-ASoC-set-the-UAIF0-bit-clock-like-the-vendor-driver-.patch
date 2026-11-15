@@ -1,0 +1,77 @@
+From 142e1c0d592276c5bd1d5355fffe53d92c406f09 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 01:39:56 +0100
+Subject: [PATCH 70/73] ASoC: set the UAIF0 bit clock like the vendor driver
+ (test branch)
+
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts |  6 +++++-
+ sound/soc/samsung/exynos9610-abox.c              | 14 ++++++++++++++
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 5239472..e749244 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -394,7 +394,11 @@ abox: audio-controller@14a50000 {
+ 		reg-names = "sfr", "sram", "gicd", "gicc";
+ 		interrupts = <GIC_SPI 198 IRQ_TYPE_LEVEL_HIGH>;
+ 		clocks = <&cmu_dispaud CLK_GOUT_DISPAUD_ABOX_CCLK_ASB>,
+-			 <&cmu_dispaud CLK_GOUT_DISPAUD_ABOX_CCLK_CA7>;
++			 <&cmu_dispaud CLK_GOUT_DISPAUD_ABOX_CCLK_CA7>,
++			 <&cmu_dispaud CLK_DOUT_CLK_AUD_UAIF0>,
++			 <&cmu_dispaud CLK_GOUT_CLK_DISPAUD_ABOX_BCLK_UAIF0>,
++			 <&cmu_dispaud CLK_GOUT_CLK_DISPAUD_CLK_AUD_UAIF0_CLK>;
++		clock-names = "asb", "ca7", "bclk", "bclk_gate", "uaif0_clk";
+ 		samsung,pmu-syscon = <&pmu_system_controller>;
+ 		iommus = <&sysmmu_abox>;
+ 		memory-region = <&abox_fw_reserved>, <&abox_buf_reserved>;
+diff --git a/sound/soc/samsung/exynos9610-abox.c b/sound/soc/samsung/exynos9610-abox.c
+index 0da1cde..c1390cd 100644
+--- a/sound/soc/samsung/exynos9610-abox.c
++++ b/sound/soc/samsung/exynos9610-abox.c
+@@ -30,6 +30,7 @@
+ #include <linux/platform_device.h>
+ #include <linux/pm_runtime.h>
+ #include <linux/regmap.h>
++#include <linux/string.h>
+ #include <linux/sizes.h>
+ #include <linux/uaccess.h>
+ #include <sound/pcm.h>
+@@ -132,6 +133,7 @@ struct abox {
+ 	struct regmap *pmu;
+ 	struct clk_bulk_data *clks;
+ 	int num_clks;
++	struct clk *bclk;		/* bit clock divider of UAIF0 */
+ 	int irq;
+ 	struct iommu_domain *domain;
+ 	void *fw_dram;
+@@ -492,6 +494,13 @@ static int abox_dai_hw_params(struct snd_pcm_substream *substream,
+ 	if (ret)
+ 		return ret;
+ 
++	/* as the vendor driver: the bit clock is rate * channels * width */
++	ret = clk_set_rate(abox->bclk, params_rate(params) * params_channels(params) *
++				       params_width(params));
++	if (ret)
++		return ret;
++	dev_info(abox->dev, "bit clock %lu Hz\n", clk_get_rate(abox->bclk));
++
+ 	return abox_ipc(abox, ABOX_IPC_PCMPLAYBACK, ABOX_RDMA_CH, PCM_HW_PARAMS,
+ 			ABOX_RDMA_CH, params_rate(params), params_width(params),
+ 			params_channels(params));
+@@ -697,6 +706,11 @@ static int abox_probe(struct platform_device *pdev)
+ 	abox->num_clks = devm_clk_bulk_get_all(dev, &abox->clks);
+ 	if (abox->num_clks < 0)
+ 		return abox->num_clks;
++	for (i = 0; i < abox->num_clks; i++)
++		if (!strcmp(abox->clks[i].id, "bclk"))
++			abox->bclk = abox->clks[i].clk;
++	if (!abox->bclk)
++		return dev_err_probe(dev, -ENOENT, "no \"bclk\" clock\n");
+ 
+ 	/* The System MMU in front of the unit is powered along with this device */
+ 	pm_runtime_enable(dev);
+-- 
+2.56.0
+

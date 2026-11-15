@@ -1,7 +1,7 @@
-From b9364bae9984a4f6c9f1ab6316ca3f84629418c3 Mon Sep 17 00:00:00 2001
+From afa07f4a1ee7b831c3fc51cbab78e9689db7032c Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:39:18 +0100
-Subject: [PATCH 52/63] DEBUG: fix the includes of the test card
+Subject: [PATCH 52/73] DEBUG: fix the includes of the test card
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

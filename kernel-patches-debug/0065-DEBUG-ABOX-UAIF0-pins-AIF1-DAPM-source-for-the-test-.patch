@@ -1,0 +1,73 @@
+From 41c1cc479f8b8e8e58eee030a55975f2a1652580 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 20:21:07 +0100
+Subject: [PATCH 65/73] DEBUG: ABOX UAIF0 pins, AIF1 DAPM source for the test
+ card
+
+---
+ .../boot/dts/exynos/exynos9610-troika.dts     |  2 ++
+ sound/soc/codecs/troika-test-card.c           | 28 +++++++++++++++++++
+ 2 files changed, 30 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 81b3d49..83d3a30 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -385,6 +385,8 @@ abox_test: abox-test {
+ 		compatible = "samsung,exynos9610-abox-sysmmu-test";
+ 		iommus = <&sysmmu_abox>;
+ 		memory-region = <&abox_fw_reserved>, <&abox_buf_reserved>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&aud_i2s0_bus>;
+ 	};
+ };
+ 
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index 0689928..bd32522 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -133,6 +133,33 @@ static ssize_t troika_test_aif1_write(struct file *file, const char __user *buf,
+ 	if (!dbg_madera || len >= sizeof(tmp) || copy_from_user(tmp, buf, len))
+ 		return -EINVAL;
+ 	dapm = snd_soc_component_to_dapm(dbg_madera);
++	/*
++	 * The source endpoint of the AIF1 playback path is the DAI widget of an
++	 * active stream; mark it by hand, as a stream start would.
++	 */
++	{
++		struct snd_soc_dai *dai;
++		struct snd_soc_dapm_widget *w;
++
++		for_each_component_dais(dbg_madera, dai) {
++			if (dai->id != 1)
++				continue;
++			w = snd_soc_dai_get_widget(dai, SNDRV_PCM_STREAM_PLAYBACK);
++			if (w) {
++				w->active = tmp[0] == '1';
++				w->is_ep = tmp[0] == '1' ? SND_SOC_DAPM_EP_SOURCE : 0;
++				pr_info("troika-test: dai %s widget %s active %d is_ep %d connected %d\n",
++					dai->name, w->name, w->active, w->is_ep, w->connected);
++			} else {
++				pr_info("troika-test: dai %s has no playback widget\n", dai->name);
++			}
++		}
++	}
++	/* a pin call invalidates the cached endpoint counts around the widget */
++	if (tmp[0] == '1')
++		snd_soc_dapm_enable_pin(dapm, "AIF1 Playback");
++	else
++		snd_soc_dapm_disable_pin(dapm, "AIF1 Playback");
+ 	if (tmp[0] == '1') {
+ 		snd_soc_dapm_force_enable_pin(dapm, "AIF1RX1");
+ 		snd_soc_dapm_force_enable_pin(dapm, "AIF1RX2");
+@@ -140,6 +167,7 @@ static ssize_t troika_test_aif1_write(struct file *file, const char __user *buf,
+ 		snd_soc_dapm_disable_pin(dapm, "AIF1RX1");
+ 		snd_soc_dapm_disable_pin(dapm, "AIF1RX2");
+ 	}
++	snd_soc_dapm_mark_endpoints_dirty(dbg_madera->card);
+ 	snd_soc_dapm_sync(dapm);
+ 	pr_info("troika-test: AIF1RX forced %c\n", tmp[0]);
+ 
+-- 
+2.56.0
+

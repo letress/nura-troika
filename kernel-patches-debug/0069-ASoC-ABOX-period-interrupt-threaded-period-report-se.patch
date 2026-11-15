@@ -1,0 +1,227 @@
+From ef9e5552fa7cd0e337f6b895a3f36932ae90b11a Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 01:13:20 +0100
+Subject: [PATCH 69/73] ASoC: ABOX period interrupt, threaded period report,
+ settle after BOOT_DONE (test branch)
+
+---
+ .../boot/dts/exynos/exynos9610-troika.dts     |   3 +-
+ sound/soc/samsung/exynos9610-abox.c           | 103 +++++++++++++++---
+ 2 files changed, 91 insertions(+), 15 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index fe75ddf..5239472 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -390,8 +390,9 @@ &soc {
+ 	abox: audio-controller@14a50000 {
+ 		compatible = "samsung,exynos9610-abox";
+ 		reg = <0x14a50000 0x10000>, <0x14b00000 0x35000>,
+-		      <0x14af1000 0x1000>, <0x14af2000 0x1000>;
++		      <0x14af1000 0x1000>, <0x14af2000 0x1004>;
+ 		reg-names = "sfr", "sram", "gicd", "gicc";
++		interrupts = <GIC_SPI 198 IRQ_TYPE_LEVEL_HIGH>;
+ 		clocks = <&cmu_dispaud CLK_GOUT_DISPAUD_ABOX_CCLK_ASB>,
+ 			 <&cmu_dispaud CLK_GOUT_DISPAUD_ABOX_CCLK_CA7>;
+ 		samsung,pmu-syscon = <&pmu_system_controller>;
+diff --git a/sound/soc/samsung/exynos9610-abox.c b/sound/soc/samsung/exynos9610-abox.c
+index 9c0a228..0da1cde 100644
+--- a/sound/soc/samsung/exynos9610-abox.c
++++ b/sound/soc/samsung/exynos9610-abox.c
+@@ -21,6 +21,7 @@
+ #include <linux/delay.h>
+ #include <linux/firmware.h>
+ #include <linux/io.h>
++#include <linux/interrupt.h>
+ #include <linux/iommu.h>
+ #include <linux/mfd/syscon.h>
+ #include <linux/module.h>
+@@ -93,6 +94,12 @@
+ #define ABOX_GICD_SOFTINT		0xf00
+ #define ABOX_GICC_CTRL			0x000
+ #define ABOX_GICC_PRIMASK		0x004
++#define ABOX_GICC_IAR			0x00c
++#define ABOX_GICC_EOIR			0x010
++#define ABOX_GICC_DEACTIVATE		0x1000
++#define ABOX_GICC_IAR_ID		GENMASK(9, 0)
++/* Interrupt the firmware raises when a period of RDMA1 has been read */
++#define ABOX_IRQ_RDMA1_BUF_EMPTY	0xc
+ 
+ /* Message ids and types from abox_ipc.h */
+ #define ABOX_IPC_SYSTEM			1
+@@ -111,6 +118,7 @@
+ #define ABOX_SET_OUT1_FORMAT		0x11
+ 
+ #define ABOX_IPC_GAP_MS			300
++#define ABOX_BOOT_SETTLE_MS		2000
+ #define ABOX_RATE			48000
+ #define ABOX_PERIOD_BYTES		3840
+ #define ABOX_PERIODS			4
+@@ -124,11 +132,15 @@ struct abox {
+ 	struct regmap *pmu;
+ 	struct clk_bulk_data *clks;
+ 	int num_clks;
++	int irq;
+ 	struct iommu_domain *domain;
+ 	void *fw_dram;
+ 	u8 *buf;
+ 	size_t buf_size;
+ 
++	struct snd_pcm_substream *substream;
++	u32 ptr;			/* position of the RDMA in bytes, from the last period interrupt */
++	bool irq_requested;
+ 	struct mutex lock;		/* firmware state and mailbox */
+ 	struct delayed_work rx_work;
+ 	struct completion boot_done;
+@@ -268,6 +280,59 @@ static int abox_fault(struct iommu_domain *domain, struct device *dev,
+ 	return 0;
+ }
+ 
++/* The position is valid at the moment the firmware reports a finished period */
++static void abox_period_done(struct abox *abox)
++{
++	u32 status = readl(abox->sfr + ABOX_RDMA_BASE + ABOX_RDMA_INTERVAL * ABOX_RDMA_CH +
++			   ABOX_RDMA_STATUS);
++	/* The offset counts in units of 16 bytes, the count in bytes */
++	u32 bytes = (FIELD_GET(ABOX_RDMA_RBUF_OFFSET, status) << 4) +
++		    FIELD_GET(ABOX_RDMA_RBUF_CNT, status);
++
++	WRITE_ONCE(abox->ptr, bytes % (ABOX_PERIOD_BYTES * ABOX_PERIODS));
++}
++
++/* The PCM of this link is non-atomic, so the period is reported from a thread */
++static irqreturn_t abox_irq_thread(int irq, void *data)
++{
++	struct abox *abox = data;
++	struct snd_pcm_substream *substream = READ_ONCE(abox->substream);
++
++	if (substream)
++		snd_pcm_period_elapsed(substream);
++
++	return IRQ_HANDLED;
++}
++
++static irqreturn_t abox_irq(int irq, void *data)
++{
++	struct abox *abox = data;
++	irqreturn_t ret = IRQ_NONE;
++	u32 stat, nr;
++
++	/* the loop of abox_gic_irq_handler() of the vendor driver */
++	for (;;) {
++		stat = readl(abox->gicc + ABOX_GICC_IAR);
++		nr = FIELD_GET(ABOX_GICC_IAR_ID, stat);
++		if (nr < 16) {
++			writel(stat, abox->gicc + ABOX_GICC_EOIR);
++			writel(stat, abox->gicc + ABOX_GICC_DEACTIVATE);
++		} else if (nr < 1021) {
++			writel(stat, abox->gicc + ABOX_GICC_EOIR);
++		} else {
++			break;
++		}
++		if (nr == ABOX_IRQ_RDMA1_BUF_EMPTY) {
++			abox_period_done(abox);
++			ret = IRQ_WAKE_THREAD;
++		} else if (ret == IRQ_NONE) {
++			ret = IRQ_HANDLED;
++		}
++	}
++
++	return ret;
++}
++
+ static int abox_load_and_start(struct abox *abox)
+ {
+ 	const struct firmware *fw_sram, *fw_dram;
+@@ -318,12 +383,25 @@ static int abox_load_and_start(struct abox *abox)
+ 		goto stop;
+ 	}
+ 
++	/*
++	 * The firmware finishes its own initialisation about 0.4 s after
++	 * BOOT_DONE; messages sent earlier have sometimes hung it.
++	 */
++	msleep(ABOX_BOOT_SETTLE_MS);
++
+ 	/* abox_gic_init_gic() of the vendor driver, then the mixer configuration */
+ 	writel(0xff, abox->gicc + ABOX_GICC_PRIMASK);
+ 	writel(0x3, abox->gicd + ABOX_GICD_CTRL);
+ 	for (i = 0; i < 40; i++)
+ 		writel(0x10101010, abox->gicd + ABOX_GICD_PRI + 4 * i);
+ 	writel(0x3, abox->gicc + ABOX_GICC_CTRL);
++	if (!abox->irq_requested) {
++		ret = devm_request_threaded_irq(dev, abox->irq, abox_irq, abox_irq_thread, 0,
++					"abox", abox);
++		if (ret)
++			goto stop;
++		abox->irq_requested = true;
++	}
+ 
+ 	/* Messages sent without pauses have hung the firmware once */
+ 	ret = abox_ipc(abox, ABOX_IPC_ABOX_CONFIG, 0, ABOX_SET_MIXER_RATE, ABOX_RATE, 0, 0, 0);
+@@ -374,6 +452,8 @@ static int abox_dai_startup(struct snd_pcm_substream *substream,
+ 
+ 	guard(mutex)(&abox->lock);
+ 
++	WRITE_ONCE(abox->substream, substream);
++	WRITE_ONCE(abox->ptr, 0);
+ 	if (!abox->started) {
+ 		ret = abox_load_and_start(abox);
+ 		if (ret)
+@@ -394,6 +474,7 @@ static void abox_dai_shutdown(struct snd_pcm_substream *substream,
+ 	abox_ipc(abox, ABOX_IPC_PCMPLAYBACK, ABOX_RDMA_CH, PCM_CLOSE, ABOX_RDMA_CH,
+ 		 0, 0, 0);
+ 	abox_rdma_regs(abox, false);
++	WRITE_ONCE(abox->substream, NULL);
+ }
+ 
+ static int abox_dai_hw_params(struct snd_pcm_substream *substream,
+@@ -456,8 +537,10 @@ static int abox_dai_trigger(struct snd_pcm_substream *substream, int cmd,
+ 
+ 	guard(mutex)(&abox->lock);
+ 
+-	if (on)
++	if (on) {
++		WRITE_ONCE(abox->ptr, 0);
+ 		writel(ABOX_UAIF0_CTRL0_PLAY, abox->sfr + ABOX_UAIF0_CTRL0);
++	}
+ 
+ 	abox_ipc(abox, ABOX_IPC_PCMPLAYBACK, ABOX_RDMA_CH, PCM_TRIGGER,
+ 		 ABOX_RDMA_CH, on, 0, 0);
+@@ -560,21 +643,9 @@ static snd_pcm_uframes_t abox_pcm_pointer(struct snd_soc_component *component,
+ 					  struct snd_pcm_substream *substream)
+ {
+ 	struct abox *abox = snd_soc_component_get_drvdata(component);
+-	u32 status = readl(abox->sfr + ABOX_RDMA_BASE +
+-			   ABOX_RDMA_INTERVAL * ABOX_RDMA_CH + ABOX_RDMA_STATUS);
+-	unsigned int bytes;
+-
+-	dev_info_ratelimited(abox->dev, "DEBUG pointer: status %08x ctl %08x\n", status,
+-			     readl(abox->sfr + ABOX_RDMA_BASE + ABOX_RDMA_INTERVAL * ABOX_RDMA_CH));
+-	if (!(status & ABOX_RDMA_PROGRESS))
+-		return 0;
+-
+-	/* The offset counts in units of 16 bytes, the count in bytes */
+-	bytes = (FIELD_GET(ABOX_RDMA_RBUF_OFFSET, status) << 4) +
+-		FIELD_GET(ABOX_RDMA_RBUF_CNT, status);
+ 
+ 	return bytes_to_frames(substream->runtime,
+-			       bytes % substream->runtime->dma_bytes);
++			       READ_ONCE(abox->ptr) % substream->runtime->dma_bytes);
+ }
+ 
+ static const struct snd_soc_component_driver abox_component = {
+@@ -615,6 +686,10 @@ static int abox_probe(struct platform_device *pdev)
+ 	if (IS_ERR(abox->gicc))
+ 		return PTR_ERR(abox->gicc);
+ 
++	abox->irq = platform_get_irq(pdev, 0);
++	if (abox->irq < 0)
++		return abox->irq;
++
+ 	abox->pmu = syscon_regmap_lookup_by_phandle(dev->of_node, "samsung,pmu-syscon");
+ 	if (IS_ERR(abox->pmu))
+ 		return PTR_ERR(abox->pmu);
+-- 
+2.56.0
+

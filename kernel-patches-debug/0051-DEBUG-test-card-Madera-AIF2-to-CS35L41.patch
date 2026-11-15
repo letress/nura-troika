@@ -1,7 +1,7 @@
-From 7679784818971fedc2d17f590369a1b1ea9f83fa Mon Sep 17 00:00:00 2001
+From 7e08dd18ed6af68ceacbaa777999a790f7841f1c Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:37:31 +0100
-Subject: [PATCH 51/63] DEBUG: test card Madera AIF2 to CS35L41
+Subject: [PATCH 51/73] DEBUG: test card Madera AIF2 to CS35L41
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

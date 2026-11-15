@@ -1,7 +1,7 @@
-From 91be99876160f528aa19ca0ce41d8411a25dff3f Mon Sep 17 00:00:00 2001
+From 653a9efea726c91e30193bc78b30fd6874e5e987 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:40:29 +0100
-Subject: [PATCH 53/63] DEBUG: prefix the amplifier in the test card
+Subject: [PATCH 53/73] DEBUG: prefix the amplifier in the test card
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

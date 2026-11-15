@@ -5241,3 +5241,12 @@ registrů za běhu (jen čtení, uživatel povolil; `device-info/display-regs-bo
   Doporučení: DECON + DSIM do jednoho DRM ovladače podle `dpu20`
   (`decon_reg.c`, `dsim_reg.c`) začít testem „převzít“ displej od bootloaderu
   (stejný režim, žádná změna časování) a až potom psát celou sekvenci zapnutí.
+
+### 34.5 Nabíječ S2MCS02 a stav baterie (doplněk)
+
+Nabíječ `s2mcs02-charger` na adrese 0x41 sběrnice `i2c_0` na čtení neodpověděl
+(`zařízení neodpovídá` u registrů 0x5e, 0x5f, 0x07–0x09, 0x0e, 0x0f; jen čtení):
+v živém DT je u jiné sběrnice než palivoměr (řádek 6185), pro nabíječ je tedy
+potřeba najít správný uzel I2C. Stav nabíjení se zatím odvozuje ze znaménka proudu
+palivoměru. Ladicí patche (`kernel-patches-debug/`) jsou přegenerované
+(`troika-clk..troika-clk-test`).

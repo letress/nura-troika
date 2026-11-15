@@ -1,0 +1,43 @@
+From 2a2ede525e48554f7a42fe0e436ca5cd6635d85b Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 02:47:57 +0100
+Subject: [PATCH 73/73] ASoC: ABOX bit clock: request 0.1 % more so the divider
+ is 32
+
+---
+ sound/soc/samsung/exynos9610-abox.c | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/sound/soc/samsung/exynos9610-abox.c b/sound/soc/samsung/exynos9610-abox.c
+index f58ea03..588bfaf 100644
+--- a/sound/soc/samsung/exynos9610-abox.c
++++ b/sound/soc/samsung/exynos9610-abox.c
+@@ -517,6 +517,7 @@ static int abox_dai_hw_params(struct snd_pcm_substream *substream,
+ 			      struct snd_soc_dai *dai)
+ {
+ 	struct abox *abox = snd_soc_dai_get_drvdata(dai);
++	unsigned long bclk_rate;
+ 	int ret;
+ 
+ 	guard(mutex)(&abox->lock);
+@@ -527,9 +528,14 @@ static int abox_dai_hw_params(struct snd_pcm_substream *substream,
+ 	if (ret)
+ 		return ret;
+ 
+-	/* as the vendor driver: the bit clock is rate * channels * width */
+-	ret = clk_set_rate(abox->bclk, params_rate(params) * params_channels(params) *
+-				       params_width(params));
++	/*
++	 * As the vendor driver: the bit clock is rate * channels * width. The
++	 * parent runs at 49152002 Hz (the PLL is 40 Hz off), so the divider
++	 * rounds the exact request up to 33 and gives 1489455 Hz. Ask 0.1 %
++	 * more to get the divider 32.
++	 */
++	bclk_rate = params_rate(params) * params_channels(params) * params_width(params);
++	ret = clk_set_rate(abox->bclk, bclk_rate + bclk_rate / 1000);
+ 	if (ret)
+ 		return ret;
+ 	dev_info(abox->dev, "bit clock %lu Hz\n", clk_get_rate(abox->bclk));
+-- 
+2.56.0
+

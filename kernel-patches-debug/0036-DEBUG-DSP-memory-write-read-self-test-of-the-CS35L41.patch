@@ -1,7 +1,7 @@
-From 1506b5a9b34560291db6d6f0d9d47043c74fe245 Mon Sep 17 00:00:00 2001
+From b7eb295637d272b5e8c2cff55fa67dd035e539cb Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:03:50 +0100
-Subject: [PATCH 36/63] DEBUG: DSP memory write/read self test of the CS35L41
+Subject: [PATCH 36/73] DEBUG: DSP memory write/read self test of the CS35L41
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

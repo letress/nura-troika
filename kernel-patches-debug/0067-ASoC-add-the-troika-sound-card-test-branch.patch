@@ -1,0 +1,292 @@
+From 8e9341610b4406939916fdf8fa0042c14449b9c4 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 21:35:00 +0100
+Subject: [PATCH 67/73] ASoC: add the troika sound card (test branch)
+
+---
+ .../boot/dts/exynos/exynos9610-troika.dts     |   6 +
+ sound/soc/codecs/Makefile                     |   1 -
+ sound/soc/samsung/Kconfig                     |  10 +
+ sound/soc/samsung/Makefile                    |   2 +
+ sound/soc/samsung/exynos9610-troika.c         | 214 ++++++++++++++++++
+ 5 files changed, 232 insertions(+), 1 deletion(-)
+ create mode 100644 sound/soc/samsung/exynos9610-troika.c
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index e3a9227..fe75ddf 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -380,6 +380,12 @@ sysmmu_abox: sysmmu@14920000 {
+ 	};
+ };
+ 
++/ {
++	sound {
++		compatible = "motorola,troika-sound";
++	};
++};
++
+ &soc {
+ 	abox: audio-controller@14a50000 {
+ 		compatible = "samsung,exynos9610-abox";
+diff --git a/sound/soc/codecs/Makefile b/sound/soc/codecs/Makefile
+index cbb445d..3d122ac 100644
+--- a/sound/soc/codecs/Makefile
++++ b/sound/soc/codecs/Makefile
+@@ -897,4 +897,3 @@ obj-$(CONFIG_SND_SOC_LPASS_TX_MACRO)	+= snd-soc-lpass-tx-macro.o
+ 
+ # Mux
+ obj-$(CONFIG_SND_SOC_SIMPLE_MUX)	+= snd-soc-simple-mux.o
+-obj-$(CONFIG_SND_SOC_CS35L41_SPI)	+= troika-test-card.o
+diff --git a/sound/soc/samsung/Kconfig b/sound/soc/samsung/Kconfig
+index 7d3608d..dddec55 100644
+--- a/sound/soc/samsung/Kconfig
++++ b/sound/soc/samsung/Kconfig
+@@ -156,4 +156,14 @@ config SND_SOC_EXYNOS9610_ABOX
+ 	  Say Y if you want to add support for the ABOX audio unit of the
+ 	  Exynos9610 (Calliope firmware, read DMA 1 to UAIF0).
+ 
++config SND_SOC_EXYNOS9610_TROIKA
++	tristate "Sound card of the Motorola One Action"
++	depends on SND_SOC_EXYNOS9610_ABOX && SPI_MASTER
++	select MFD_CS47L35
++	select SND_SOC_CS47L35
++	select SND_SOC_CS35L41_SPI
++	help
++	  Say Y if you want to add support for the speaker of the Motorola
++	  One Action (ABOX, CS47L35 codec and CS35L41 amplifier).
++
+ endif #SND_SOC_SAMSUNG
+diff --git a/sound/soc/samsung/Makefile b/sound/soc/samsung/Makefile
+index 3f82f2d..52608d0 100644
+--- a/sound/soc/samsung/Makefile
++++ b/sound/soc/samsung/Makefile
+@@ -44,3 +44,5 @@ obj-$(CONFIG_SND_SOC_SAMSUNG_ARIES_WM8994) += snd-soc-aries-wm8994.o
+ obj-$(CONFIG_SND_SOC_SAMSUNG_MIDAS_WM1811) += snd-soc-midas-wm1811.o
+ snd-soc-exynos9610-abox-y := exynos9610-abox.o
+ obj-$(CONFIG_SND_SOC_EXYNOS9610_ABOX) += snd-soc-exynos9610-abox.o
++snd-soc-exynos9610-troika-y := exynos9610-troika.o
++obj-$(CONFIG_SND_SOC_EXYNOS9610_TROIKA) += snd-soc-exynos9610-troika.o
+diff --git a/sound/soc/samsung/exynos9610-troika.c b/sound/soc/samsung/exynos9610-troika.c
+new file mode 100644
+index 0000000..3336e8f
+--- /dev/null
++++ b/sound/soc/samsung/exynos9610-troika.c
+@@ -0,0 +1,214 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Sound card of the Motorola One Action (troika, Exynos9610).
++ *
++ * Playback: ABOX read DMA 1 -> ABOX UAIF0 -> CS47L35 AIF1 -> mixer ->
++ * CS47L35 AIF2 -> CS35L41 speaker amplifier. The last hop is a
++ * codec-to-codec link (I2S, 48 kHz, 16 bit, mono, BCLK 1.536 MHz) as in the
++ * vendor card ("codec-left-amp"); the amplifier takes its clock from that BCLK.
++ *
++ * The values come from the vendor machine driver exynos9610_madera.c and from
++ * register dumps of the stock system during playback.
++ */
++
++#include <linux/delay.h>
++#include <linux/interrupt.h>
++#include <linux/mfd/madera/core.h>
++#include <linux/mfd/madera/registers.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <sound/cs35l41.h>
++#include <sound/pcm.h>
++#include <sound/soc.h>
++
++#include "../codecs/madera.h"
++
++#define TROIKA_SYSCLK		98304000
++#define TROIKA_FLL_REF		32768		/* 32 kHz on MCLK2 */
++#define TROIKA_OPCLK		12288000
++#define TROIKA_AMP_RATE		48000
++#define TROIKA_AMP_BCLK		(TROIKA_AMP_RATE * 16 * 2)
++
++/* Mixer source "AIF1RX1" in the Madera input selectors */
++#define TROIKA_MIXER_AIF1RX1	20
++/* Defaults of the user controls: the protection DSP of the amplifier in
++ * the path, -20 dB at the amplifier and the mixer at its maximum. */
++#define TROIKA_SPK_DIGITAL_VOL	657
++#define TROIKA_MIXER_VOL	32
++
++static struct snd_soc_pcm_stream troika_amp_params = {
++	.formats = SNDRV_PCM_FMTBIT_S16_LE,
++	.rate_min = TROIKA_AMP_RATE,
++	.rate_max = TROIKA_AMP_RATE,
++	.channels_min = 1,
++	.channels_max = 1,
++};
++
++SND_SOC_DAILINK_DEFS(abox,
++	DAILINK_COMP_ARRAY({ .name = "14a50000.audio-controller", .dai_name = "abox-rdma1" }),
++	DAILINK_COMP_ARRAY(COMP_CODEC("cs47l35-codec", "cs47l35-aif1")),
++	DAILINK_COMP_ARRAY({ .name = "14a50000.audio-controller" }));
++
++SND_SOC_DAILINK_DEFS(amp,
++	DAILINK_COMP_ARRAY(COMP_CODEC("cs47l35-codec", "cs47l35-aif2")),
++	DAILINK_COMP_ARRAY(COMP_CODEC("spi6.0", "cs35l41-pcm")),
++	DAILINK_COMP_ARRAY(COMP_DUMMY()));
++
++static struct snd_soc_dai_link troika_links[] = {
++	{
++		.name = "RDMA1",
++		.stream_name = "RDMA1",
++		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBC_CFC,
++		.nonatomic = 1,
++		.playback_only = 1,
++		SND_SOC_DAILINK_REG(abox),
++	},
++	{
++		.name = "codec-left-amp",
++		.stream_name = "codec-left-amp",
++		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBC_CFC,
++		.c2c_params = &troika_amp_params,
++		.num_c2c_params = 1,
++		.ignore_suspend = 1,
++		.ignore_pmdown_time = 1,
++		SND_SOC_DAILINK_REG(amp),
++	},
++};
++
++static const struct snd_soc_dapm_widget troika_widgets[] = {
++	SND_SOC_DAPM_SPK("Speaker", NULL),
++};
++
++static const struct snd_soc_dapm_route troika_routes[] = {
++	{ "Speaker", NULL, "SPK SPK" },
++};
++
++/* The name prefix of the vendor card; the DSP controls of both codecs clash otherwise */
++static struct snd_soc_codec_conf troika_conf[] = {
++	{
++		.dlc = COMP_CODEC_CONF("spi6.0"),
++		.name_prefix = "SPK",
++	},
++};
++
++static int troika_set_ctl(struct snd_soc_card *card, const char *name, bool enumerated,
++			  long val)
++{
++	struct snd_ctl_elem_value *uc;
++	struct snd_kcontrol *kctl;
++	int ret;
++
++	kctl = snd_soc_card_get_kcontrol(card, name);
++	if (!kctl) {
++		dev_warn(card->dev, "no control \"%s\"\n", name);
++		return -ENOENT;
++	}
++	uc = kzalloc(sizeof(*uc), GFP_KERNEL);
++	if (!uc)
++		return -ENOMEM;
++	if (enumerated)
++		uc->value.enumerated.item[0] = val;
++	else
++		uc->value.integer.value[0] = val;
++	ret = kctl->put(kctl, uc);
++	kfree(uc);
++
++	return ret < 0 ? ret : 0;
++}
++
++static int troika_late_probe(struct snd_soc_card *card)
++{
++	struct snd_soc_pcm_runtime *rtd = snd_soc_get_pcm_runtime(card, &troika_links[1]);
++	struct snd_soc_dai *madera_dai = snd_soc_rtd_to_cpu(rtd, 0);
++	struct snd_soc_dai *amp_dai = snd_soc_rtd_to_codec(rtd, 0);
++	struct snd_soc_component *madera = madera_dai->component;
++	struct snd_soc_pcm_runtime *abox_rtd = snd_soc_get_pcm_runtime(card, &troika_links[0]);
++	struct snd_soc_dai *aif1 = snd_soc_rtd_to_codec(abox_rtd, 0);
++	int ret;
++
++	/* FLL1 from the 32 kHz clock on MCLK2, SYSCLK from FLL1 */
++	ret = snd_soc_component_set_pll(madera, MADERA_FLL1_REFCLK, MADERA_FLL_SRC_MCLK2,
++					TROIKA_FLL_REF, TROIKA_SYSCLK);
++	if (ret)
++		return dev_err_probe(card->dev, ret, "FLL1\n");
++	ret = snd_soc_component_set_sysclk(madera, MADERA_CLK_SYSCLK_1, MADERA_CLK_SRC_FLL1,
++					   TROIKA_SYSCLK, SND_SOC_CLOCK_IN);
++	if (ret)
++		return dev_err_probe(card->dev, ret, "SYSCLK\n");
++
++	/* both AIFs run on SYSCLK 1 */
++	ret = snd_soc_dai_set_sysclk(madera_dai, MADERA_CLK_SYSCLK_1, 0, 0);
++	if (ret)
++		return ret;
++	ret = snd_soc_dai_set_sysclk(aif1, MADERA_CLK_SYSCLK_1, 0, 0);
++	if (ret)
++		return ret;
++
++	/* OPCLK on GPIO6 ("Amp Clock") */
++	ret = snd_soc_component_set_sysclk(madera, MADERA_CLK_OPCLK, 0, TROIKA_OPCLK,
++					   SND_SOC_CLOCK_OUT);
++	if (ret)
++		dev_warn(card->dev, "OPCLK: %d\n", ret);
++
++	/* the amplifier takes its clock from BCLK */
++	ret = snd_soc_component_set_sysclk(amp_dai->component, CS35L41_CLKID_SCLK, 0,
++					   TROIKA_AMP_BCLK, SND_SOC_CLOCK_IN);
++	if (ret)
++		return dev_err_probe(card->dev, ret, "amplifier clock\n");
++
++	/*
++	 * Defaults for a usable path: the amplifier's protection DSP in the
++	 * path (the PCM source "ASP" would bypass it), the mixer fed from
++	 * AIF1RX1 and moderate volumes.
++	 */
++	/* the mixer and source selectors are DAPM controls, created here */
++	snd_soc_dapm_new_widgets(card);
++	troika_set_ctl(card, "SPK DSP1 Preload Switch", false, 1);
++	troika_set_ctl(card, "SPK PCM Source", true, 1);
++	troika_set_ctl(card, "SPK Analog PCM Volume", false, 0);
++	troika_set_ctl(card, "SPK Digital PCM Volume", false, TROIKA_SPK_DIGITAL_VOL);
++	troika_set_ctl(card, "AIF2TX1 Input 1 Volume", false, TROIKA_MIXER_VOL);
++	troika_set_ctl(card, "AIF2TX1 Input 1", true, TROIKA_MIXER_AIF1RX1);
++
++	return 0;
++}
++
++static struct snd_soc_card troika_card = {
++	.name = "troika",
++	.owner = THIS_MODULE,
++	.dai_link = troika_links,
++	.num_links = ARRAY_SIZE(troika_links),
++	.codec_conf = troika_conf,
++	.num_configs = ARRAY_SIZE(troika_conf),
++	.dapm_widgets = troika_widgets,
++	.num_dapm_widgets = ARRAY_SIZE(troika_widgets),
++	.dapm_routes = troika_routes,
++	.num_dapm_routes = ARRAY_SIZE(troika_routes),
++	.late_probe = troika_late_probe,
++};
++
++static int troika_probe(struct platform_device *pdev)
++{
++	troika_card.dev = &pdev->dev;
++
++	return devm_snd_soc_register_card(&pdev->dev, &troika_card);
++}
++
++static const struct of_device_id troika_of_match[] = {
++	{ .compatible = "motorola,troika-sound" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, troika_of_match);
++
++static struct platform_driver troika_driver = {
++	.probe = troika_probe,
++	.driver = {
++		.name = "exynos9610-troika-sound",
++		.of_match_table = troika_of_match,
++	},
++};
++module_platform_driver(troika_driver);
++
++MODULE_DESCRIPTION("Sound card of the Motorola One Action");
++MODULE_LICENSE("GPL");
+-- 
+2.56.0
+

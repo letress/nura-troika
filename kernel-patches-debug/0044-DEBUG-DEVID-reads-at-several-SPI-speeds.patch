@@ -1,7 +1,7 @@
-From 93931e4f46feeb0330a7ba072001ce41be95e15f Mon Sep 17 00:00:00 2001
+From 67b5fe1ed64eadcbe35fe44b81eb0affa9fb1915 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:40:16 +0100
-Subject: [PATCH 44/63] DEBUG: DEVID reads at several SPI speeds
+Subject: [PATCH 44/73] DEBUG: DEVID reads at several SPI speeds
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

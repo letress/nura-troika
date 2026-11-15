@@ -1,7 +1,7 @@
-From 8bb85cd9ea18e4065a6064fd85ace3fe07688e39 Mon Sep 17 00:00:00 2001
+From 7ba181ad71f07985fbc33cf68b78743c1c4f0687 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 15:12:09 +0100
-Subject: [PATCH 61/63] DEBUG: allow-listed writes to three Madera clock
+Subject: [PATCH 61/73] DEBUG: allow-listed writes to three Madera clock
  registers
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

@@ -1,0 +1,398 @@
+From b7bff150279164c446b7175630955ca42a079988 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 02:25:29 +0100
+Subject: [PATCH 72/73] regulator: add the ACPM LDO42 driver; ASoC: card
+ without gating, retry of the ABOX start (test branch)
+
+---
+ .../boot/dts/exynos/exynos9610-troika.dts     |  35 +++-
+ drivers/regulator/Kconfig                     |   8 +
+ drivers/regulator/Makefile                    |   1 +
+ drivers/regulator/exynos-acpm-ldo.c           | 153 ++++++++++++++++++
+ sound/soc/samsung/exynos9610-abox.c           |  35 +++-
+ sound/soc/samsung/exynos9610-troika.c         |  13 --
+ 6 files changed, 228 insertions(+), 17 deletions(-)
+ create mode 100644 drivers/regulator/exynos-acpm-ldo.c
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index e749244..0ce11f4 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -408,9 +408,34 @@ abox: audio-controller@14a50000 {
+ 	};
+ };
+ 
++/*
++ * LDO42 of the S2MPU09 PMIC (vdd_ldo42, "always-on" in the vendor tree). It
++ * powers the audio codec and the amplifier and is off after a cold start. The
++ * values are those of the vendor driver: the PMIC is reached through the ACPM
++ * channel 2 (acpm-ipc-channel of the s2mpu09mfd node), its address is
++ * I2C_ADDR_PMIC = 1, the control register is S2MPU09_PMIC_REG_L42CTRL (0x63)
++ * with the enable bits 7:6 (S2MPU09_ENABLE_MASK) and the voltage code 0x2c in
++ * the rest (700 mV + 44 * 25 mV = 1.8 V, left by the bootloader).
++ */
++/ {
++	ldo42: regulator-ldo42 {
++		compatible = "samsung,exynos9610-acpm-ldo";
++		samsung,acpm-ipc = <&acpm>;
++		samsung,acpm-channel = <2>;
++		samsung,pmic-type = <1>;
++		samsung,register = <0x63>;
++		samsung,enable-mask = <0xc0>;
++		samsung,voltage-code = <0x2c>;
++		regulator-name = "vdd_ldo42";
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++		regulator-always-on;
++	};
++};
++
+ /*
+  * Speaker amplifier on SPI6, values from the live device tree of the stock
+- * system. Its supplies (LDO42 and V_SYS) are on from boot and not described.
++ * system. Its supply V_SYS is on from boot and not described.
+  */
+ &spi_6 {
+ 	pinctrl-0 = <&spi6_bus &spi6_cs_func>;
+@@ -423,6 +448,7 @@ speaker_amp: amplifier@0 {
+ 		interrupt-parent = <&gpa0>;
+ 		interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
+ 		reset-gpios = <&gpg3 3 GPIO_ACTIVE_HIGH>;
++		VA-supply = <&ldo42>;
+ 		#sound-dai-cells = <1>;
+ 		cirrus,boost-type = <0>;
+ 		cirrus,boost-peak-milliamp = <4500>;
+@@ -437,8 +463,7 @@ controller-data {
+ 
+ /*
+  * Audio codec CS47L35 (Madera) on SPI9, values from the live device tree of
+- * the stock system. Its supplies are on from boot (LDO42, V_SYS) and not
+- * described. No clock is described yet: the vendor system feeds it a 26 MHz
++ * the stock system. Its supply V_SYS is on from boot and not described. No clock is described yet: the vendor system feeds it a 26 MHz
+  * reference from xclkout.
+  */
+ &spi_9 {
+@@ -456,6 +481,10 @@ audio_codec: codec@0 {
+ 		gpio-controller;
+ 		#gpio-cells = <2>;
+ 		reset-gpios = <&gpg3 2 GPIO_ACTIVE_HIGH>;
++		AVDD-supply = <&ldo42>;
++		DBVDD1-supply = <&ldo42>;
++		DBVDD2-supply = <&ldo42>;
++		CPVDD1-supply = <&ldo42>;
+ 		#sound-dai-cells = <1>;
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&codec_pins>;
+diff --git a/drivers/regulator/Kconfig b/drivers/regulator/Kconfig
+index 89789ac..9777fbf 100644
+--- a/drivers/regulator/Kconfig
++++ b/drivers/regulator/Kconfig
+@@ -1460,6 +1460,14 @@ config REGULATOR_S2MPA01
+ 	 This driver controls Samsung S2MPA01 voltage output regulator
+ 	 via I2C bus. S2MPA01 has 10 Bucks and 26 LDO outputs.
+ 
++config REGULATOR_EXYNOS_ACPM_LDO
++	tristate "LDO of the Exynos9610 PMIC through the ACPM firmware"
++	depends on EXYNOS_ACPM_PROTOCOL || COMPILE_TEST
++	help
++	  This enables an always-on LDO of the S2MPU09 PMIC of the Exynos9610
++	  that is switched by asking the ACPM firmware to update its control
++	  register. It cannot be switched off and does not change the voltage.
++
+ config REGULATOR_S2MPS11
+ 	tristate "Samsung S2MPS11/13/14/15/S2MPU02/05 voltage regulator"
+ 	depends on MFD_SEC_CORE || COMPILE_TEST
+diff --git a/drivers/regulator/Makefile b/drivers/regulator/Makefile
+index 5a764ce..ba7317c 100644
+--- a/drivers/regulator/Makefile
++++ b/drivers/regulator/Makefile
+@@ -217,6 +217,7 @@ obj-$(CONFIG_REGULATOR_WM831X) += wm831x-isink.o
+ obj-$(CONFIG_REGULATOR_WM831X) += wm831x-ldo.o
+ obj-$(CONFIG_REGULATOR_WM8350) += wm8350-regulator.o
+ obj-$(CONFIG_REGULATOR_WM8400) += wm8400-regulator.o
++obj-$(CONFIG_REGULATOR_EXYNOS_ACPM_LDO) += exynos-acpm-ldo.o
+ obj-$(CONFIG_REGULATOR_WM8994) += wm8994-regulator.o
+ 
+ ccflags-$(CONFIG_REGULATOR_DEBUG) += -DDEBUG
+diff --git a/drivers/regulator/exynos-acpm-ldo.c b/drivers/regulator/exynos-acpm-ldo.c
+new file mode 100644
+index 0000000..7caf8da
+--- /dev/null
++++ b/drivers/regulator/exynos-acpm-ldo.c
+@@ -0,0 +1,153 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * One LDO of the Samsung S2MPU09 PMIC of the Exynos9610, switched through the
++ * ACPM firmware.
++ *
++ * The firmware owns the I2C bus of the PMIC; the kernel asks it to read and
++ * to update a register (FUNC_READ and FUNC_UPDATE of the vendor acpm_mfd.h).
++ * The driver only touches the enable bits of one control register and does
++ * not set the voltage: before it switches the LDO on it checks that the rest
++ * of the register still holds the voltage code the bootloader left, which the
++ * device tree names. There is no disable operation; the regulator is meant to
++ * be always on, as the vendor device tree has it, because other devices may
++ * share the rail.
++ */
++
++#include <linux/firmware/samsung/exynos-acpm-protocol.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/regulator/driver.h>
++#include <linux/regulator/of_regulator.h>
++
++struct acpm_ldo {
++	struct device *dev;
++	struct acpm_handle *acpm;
++	u32 chan;		/* ACPM IPC channel of the PMIC */
++	u32 type;		/* PMIC address as the firmware numbers it */
++	u32 reg;		/* control register */
++	u32 enable_mask;	/* enable bits of the control register */
++	u32 voltage_code;	/* the other bits: the voltage left by the bootloader */
++};
++
++static int acpm_ldo_read(struct acpm_ldo *ldo, u8 *val)
++{
++	return ldo->acpm->ops->pmic.read_reg(ldo->acpm, ldo->chan, ldo->type,
++					     ldo->reg, 0, val);
++}
++
++static int acpm_ldo_is_enabled(struct regulator_dev *rdev)
++{
++	struct acpm_ldo *ldo = rdev_get_drvdata(rdev);
++	u8 val;
++	int ret;
++
++	ret = acpm_ldo_read(ldo, &val);
++	if (ret)
++		return ret;
++
++	return (val & ldo->enable_mask) == ldo->enable_mask;
++}
++
++static int acpm_ldo_enable(struct regulator_dev *rdev)
++{
++	struct acpm_ldo *ldo = rdev_get_drvdata(rdev);
++	u8 val;
++	int ret;
++
++	ret = acpm_ldo_read(ldo, &val);
++	if (ret)
++		return ret;
++	if ((val & ~ldo->enable_mask) != ldo->voltage_code) {
++		dev_err(ldo->dev, "voltage code %#x differs from the expected %#x, not enabling\n",
++			val & ~ldo->enable_mask, ldo->voltage_code);
++		return -EINVAL;
++	}
++
++	if ((val & ldo->enable_mask) == ldo->enable_mask)
++		return 0;
++
++	dev_info(ldo->dev, "switching on (register %#x)\n", val);
++
++	return ldo->acpm->ops->pmic.update_reg(ldo->acpm, ldo->chan, ldo->type,
++					       ldo->reg, 0, ldo->enable_mask,
++					       ldo->enable_mask);
++}
++
++static const struct regulator_ops acpm_ldo_ops = {
++	.enable		= acpm_ldo_enable,
++	.is_enabled	= acpm_ldo_is_enabled,
++	.list_voltage	= regulator_list_voltage_linear,
++};
++
++static int acpm_ldo_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct device_node *np = dev->of_node;
++	struct regulator_config config = { };
++	struct regulator_desc *desc;
++	struct regulator_init_data *init;
++	struct regulator_dev *rdev;
++	struct acpm_ldo *ldo;
++	u32 uv;
++	int ret;
++
++	ldo = devm_kzalloc(dev, sizeof(*ldo), GFP_KERNEL);
++	desc = devm_kzalloc(dev, sizeof(*desc), GFP_KERNEL);
++	if (!ldo || !desc)
++		return -ENOMEM;
++	ldo->dev = dev;
++
++	ldo->acpm = devm_acpm_get_by_phandle(dev);
++	if (IS_ERR(ldo->acpm))
++		return dev_err_probe(dev, PTR_ERR(ldo->acpm), "no ACPM handle\n");
++
++	ret = of_property_read_u32(np, "samsung,acpm-channel", &ldo->chan);
++	ret |= of_property_read_u32(np, "samsung,pmic-type", &ldo->type);
++	ret |= of_property_read_u32(np, "samsung,register", &ldo->reg);
++	ret |= of_property_read_u32(np, "samsung,enable-mask", &ldo->enable_mask);
++	ret |= of_property_read_u32(np, "samsung,voltage-code", &ldo->voltage_code);
++	ret |= of_property_read_u32(np, "regulator-min-microvolt", &uv);
++	if (ret)
++		return dev_err_probe(dev, -EINVAL, "missing properties\n");
++
++	/* a fixed voltage: the driver does not change it */
++	desc->name = dev_name(dev);
++	desc->type = REGULATOR_VOLTAGE;
++	desc->owner = THIS_MODULE;
++	desc->ops = &acpm_ldo_ops;
++	desc->n_voltages = 1;
++	desc->min_uV = uv;
++
++	init = of_get_regulator_init_data(dev, np, desc);
++	if (!init)
++		return -EINVAL;
++
++	config.dev = dev;
++	config.init_data = init;
++	config.driver_data = ldo;
++	config.of_node = np;
++	rdev = devm_regulator_register(dev, desc, &config);
++	if (IS_ERR(rdev))
++		return dev_err_probe(dev, PTR_ERR(rdev), "cannot register the regulator\n");
++
++	return 0;
++}
++
++static const struct of_device_id acpm_ldo_of_match[] = {
++	{ .compatible = "samsung,exynos9610-acpm-ldo" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, acpm_ldo_of_match);
++
++static struct platform_driver acpm_ldo_driver = {
++	.probe = acpm_ldo_probe,
++	.driver = {
++		.name = "exynos9610-acpm-ldo",
++		.of_match_table = acpm_ldo_of_match,
++	},
++};
++module_platform_driver(acpm_ldo_driver);
++
++MODULE_DESCRIPTION("LDO of the Exynos9610 PMIC switched through the ACPM firmware");
++MODULE_LICENSE("GPL");
+diff --git a/sound/soc/samsung/exynos9610-abox.c b/sound/soc/samsung/exynos9610-abox.c
+index c1390cd..f58ea03 100644
+--- a/sound/soc/samsung/exynos9610-abox.c
++++ b/sound/soc/samsung/exynos9610-abox.c
+@@ -107,6 +107,7 @@
+ #define ABOX_IPC_PCMPLAYBACK		2
+ #define ABOX_IPC_ABOX_CONFIG		0xa
+ #define ABOX_SYS_BOOT_DONE		3
++#define ABOX_SYS_REPORT_FAULT		0xfa
+ #define PCM_OPEN			0xb
+ #define PCM_CLOSE			0xc
+ #define PCM_HW_PARAMS			0xe
+@@ -120,6 +121,7 @@
+ 
+ #define ABOX_IPC_GAP_MS			300
+ #define ABOX_BOOT_SETTLE_MS		2000
++#define ABOX_START_TRIES		4
+ #define ABOX_RATE			48000
+ #define ABOX_PERIOD_BYTES		3840
+ #define ABOX_PERIODS			4
+@@ -143,6 +145,7 @@ struct abox {
+ 	struct snd_pcm_substream *substream;
+ 	u32 ptr;			/* position of the RDMA in bytes, from the last period interrupt */
+ 	bool irq_requested;
++	bool fault;			/* the firmware reported a fault */
+ 	struct mutex lock;		/* firmware state and mailbox */
+ 	struct delayed_work rx_work;
+ 	struct completion boot_done;
+@@ -165,6 +168,13 @@ static void abox_rx_work(struct work_struct *work)
+ 			 readl(abox->sram + ABOX_IPC_RX_OFFSET + 20));
+ 		if (ipcid == ABOX_IPC_SYSTEM && type == ABOX_SYS_BOOT_DONE)
+ 			complete(&abox->boot_done);
++		if (ipcid == ABOX_IPC_SYSTEM && type == ABOX_SYS_REPORT_FAULT) {
++			WRITE_ONCE(abox->fault, true);
++			dev_err(abox->dev, "the firmware reports a fault (%#x, %#x, %#x)\n",
++				readl(abox->sram + ABOX_IPC_RX_OFFSET + 12),
++				readl(abox->sram + ABOX_IPC_RX_OFFSET + 16),
++				readl(abox->sram + ABOX_IPC_RX_OFFSET + 20));
++		}
+ 		writel(0, abox->sram + ABOX_IPC_RX_ACK_OFFSET);
+ 	}
+ 	schedule_delayed_work(&abox->rx_work, msecs_to_jiffies(5));
+@@ -185,6 +195,8 @@ static int abox_ipc(struct abox *abox, u32 ipcid, u32 task, u32 type,
+ 
+ 	end = jiffies + msecs_to_jiffies(1000);
+ 	while (readl(abox->sram + ABOX_IPC_TX_ACK_OFFSET)) {
++		if (READ_ONCE(abox->fault))
++			return -EIO;
+ 		if (time_after(jiffies, end)) {
+ 			dev_err(abox->dev, "no ack for message %u/%#x\n", ipcid, type);
+ 			return -ETIMEDOUT;
+@@ -335,13 +347,14 @@ static irqreturn_t abox_irq(int irq, void *data)
+ 	return ret;
+ }
+ 
+-static int abox_load_and_start(struct abox *abox)
++static int abox_try_start(struct abox *abox)
+ {
+ 	const struct firmware *fw_sram, *fw_dram;
+ 	struct device *dev = abox->dev;
+ 	unsigned int i, status = 0;
+ 	int ret;
+ 
++	WRITE_ONCE(abox->fault, false);
+ 	ret = request_firmware(&fw_sram, "calliope_sram.bin", dev);
+ 	if (ret)
+ 		return ret;
+@@ -431,6 +444,26 @@ static int abox_load_and_start(struct abox *abox)
+ 	return ret;
+ }
+ 
++/*
++ * The firmware sometimes reports a fault soon after it starts (an undefined
++ * exception in the code it has just been loaded with); a restart gets over it.
++ */
++static int abox_load_and_start(struct abox *abox)
++{
++	int i, ret = -EIO;
++
++	for (i = 0; i < ABOX_START_TRIES; i++) {
++		ret = abox_try_start(abox);
++		if (!ret)
++			return 0;
++		dev_warn(abox->dev, "firmware start failed (%d), try %d of %d\n", ret, i + 1,
++			 ABOX_START_TRIES);
++		msleep(500);
++	}
++
++	return ret;
++}
++
+ static void abox_rdma_regs(struct abox *abox, bool on)
+ {
+ 	/* the whole registers as the vendor driver leaves them, see 33.35/33.36 */
+diff --git a/sound/soc/samsung/exynos9610-troika.c b/sound/soc/samsung/exynos9610-troika.c
+index 8b18bc8..796042d 100644
+--- a/sound/soc/samsung/exynos9610-troika.c
++++ b/sound/soc/samsung/exynos9610-troika.c
+@@ -196,21 +196,8 @@ static struct snd_soc_card troika_card = {
+ 	.late_probe = troika_late_probe,
+ };
+ 
+-/*
+- * The speaker needs LDO42, which is off after a cold start and is switched
+- * on by hand for now, so the card stays unbound until it is asked for:
+- *   echo 1 > /sys/module/exynos9610_troika/parameters/enable
+- *   echo sound > /sys/bus/platform/drivers/exynos9610-troika-sound/bind
+- */
+-static bool enable;
+-module_param(enable, bool, 0644);
+-MODULE_PARM_DESC(enable, "Register the card (set before binding it by hand)");
+-
+ static int troika_probe(struct platform_device *pdev)
+ {
+-	if (!enable)
+-		return -ENODEV;
+-
+ 	troika_card.dev = &pdev->dev;
+ 
+ 	return devm_snd_soc_register_card(&pdev->dev, &troika_card);
+-- 
+2.56.0
+

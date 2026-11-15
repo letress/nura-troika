@@ -1,7 +1,7 @@
-From 81538d6c42fe9b11f28f71b4f83f0ccb847bdc76 Mon Sep 17 00:00:00 2001
+From 43535e5c23874d0108d794a2b8760ae47b77198e Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:49:40 +0100
-Subject: [PATCH 55/63] DEBUG: print the CS35L41 state when the power-up fails
+Subject: [PATCH 55/73] DEBUG: print the CS35L41 state when the power-up fails
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

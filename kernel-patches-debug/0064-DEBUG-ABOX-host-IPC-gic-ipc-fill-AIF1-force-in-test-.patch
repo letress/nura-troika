@@ -1,0 +1,220 @@
+From 46bd84358ee39dadfe0f9ec0d49b2e212c9f8c70 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 18:56:37 +0100
+Subject: [PATCH 64/73] DEBUG: ABOX host IPC (gic, ipc, fill), AIF1 force in
+ test card
+
+---
+ drivers/iommu/abox-sysmmu-test.c    | 112 ++++++++++++++++++++++++++++
+ sound/soc/codecs/troika-test-card.c |  30 +++++++-
+ 2 files changed, 141 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/iommu/abox-sysmmu-test.c b/drivers/iommu/abox-sysmmu-test.c
+index 8a245f7..c15419c 100644
+--- a/drivers/iommu/abox-sysmmu-test.c
++++ b/drivers/iommu/abox-sysmmu-test.c
+@@ -49,6 +49,14 @@
+ #define ABOX_IPC_TX_ACK_OFFSET	0x222FC		/* ipc_tx_ack_offset */
+ #define ABOX_IPC_RX_ACK_OFFSET	0x225FC		/* ipc_rx_ack_offset */
+ #define ABOX_DRAM_FW_SIZE	(SZ_8M + SZ_4M)	/* DRAM_FIRMWARE_SIZE */
++#define ABOX_GICD_BASE		0x14af1000UL	/* "gicd" of abox_gic */
++#define ABOX_GICC_BASE		0x14af2000UL	/* "gicc" of abox_gic */
++#define ABOX_GIC_DIST_CTRL	0x000
++#define ABOX_GIC_DIST_PRI	0x400
++#define ABOX_GIC_DIST_SOFTINT	0xf00
++#define ABOX_GIC_CPU_CTRL	0x000
++#define ABOX_GIC_CPU_PRIMASK	0x004
++#define ABOX_PCM_BYTES		0x3c00
+ #define ABOX_PMU_CPU_CONFIGURATION	0x2520	/* ABOX_CPU_CONFIGURATION */
+ #define ABOX_PMU_CPU_STATUS		0x2524	/* ABOX_CPU_STATUS */
+ #define ABOX_PMU_CPU_OPTION		0x2528	/* ABOX_CPU_OPTION */
+@@ -60,6 +68,9 @@ static struct {
+ 	struct regmap *pmu;
+ 	void *dram;			/* firmware memory, mapped at IOVA 0x80000000 */
+ 	void __iomem *sram;
++	void __iomem *gicd;		/* abox_gic distributor, 0x14af1000 */
++	void __iomem *gicc;		/* abox_gic CPU interface, 0x14af2000 */
++	s16 *pcm;			/* RDMA test buffer, IOVA 0x81100000 */
+ 	bool loaded;
+ 	bool started;
+ } abox_fw;
+@@ -289,6 +300,101 @@ static int abox_fw_ack_set(void *data, u64 val)
+ }
+ DEFINE_DEBUGFS_ATTRIBUTE(abox_fw_ack_fops, NULL, abox_fw_ack_set, "%llu\n");
+ 
++
++/*
++ * abox_gic_init_gic() of the vendor driver (GIC_IS_SECURE_FREE variant):
++ * CPU interface priority mask, distributor on, 40 priority words, CPU
++ * interface on.
++ */
++static int abox_fw_gic_set(void *data, u64 val)
++{
++	unsigned int i;
++
++	if (!abox_fw.started || !abox_fw.gicd)
++		return -EINVAL;
++
++	writel(0xff, abox_fw.gicc + ABOX_GIC_CPU_PRIMASK);
++	writel(0x3, abox_fw.gicd + ABOX_GIC_DIST_CTRL);
++	for (i = 0; i < 40; i++)
++		writel(0x10101010, abox_fw.gicd + ABOX_GIC_DIST_PRI + 4 * i);
++	writel(0x3, abox_fw.gicc + ABOX_GIC_CPU_CTRL);
++	dev_info(abox_fw.dev, "ABOXFW: gic initialised\n");
++
++	return 0;
++}
++DEFINE_DEBUGFS_ATTRIBUTE(abox_fw_gic_fops, NULL, abox_fw_gic_set, "%llu\n");
++
++/*
++ * Host to firmware message as in __abox_process_ipc(): words into the TX
++ * area, ack = 1, SOFTINT with the ipcid (first word) as interrupt number,
++ * wait for the firmware to clear the ack. Input: hex words, e.g.
++ * "2 1 14 1 81100000 3c0 4" (PCMPLAYBACK, task 1, SET_BUFFER, ...).
++ */
++static ssize_t abox_fw_ipc_write(struct file *f, const char __user *ubuf,
++				 size_t len, loff_t *ppos)
++{
++	char buf[256], *p = buf, *tok;
++	u32 w[16] = {};
++	unsigned int n = 0, i;
++	unsigned long end;
++
++	if (!abox_fw.started || !abox_fw.gicd || len >= sizeof(buf))
++		return -EINVAL;
++	if (copy_from_user(buf, ubuf, len))
++		return -EFAULT;
++	buf[len] = 0;
++	while ((tok = strsep(&p, " \t\n")) && n < ARRAY_SIZE(w)) {
++		if (!*tok)
++			continue;
++		if (kstrtou32(tok, 16, &w[n++]))
++			return -EINVAL;
++	}
++	if (n < 2 || w[0] > 15)
++		return -EINVAL;
++
++	for (i = 0; i < ARRAY_SIZE(w); i++)
++		writel(w[i], abox_fw.sram + ABOX_IPC_TX_OFFSET + 4 * i);
++	writel(1, abox_fw.sram + ABOX_IPC_TX_ACK_OFFSET);
++	writel((1 << 16) | (w[0] & 0xf), abox_fw.gicd + ABOX_GIC_DIST_SOFTINT);
++	end = jiffies + msecs_to_jiffies(1000);
++	while (readl(abox_fw.sram + ABOX_IPC_TX_ACK_OFFSET) &&
++	       time_before(jiffies, end))
++		usleep_range(100, 200);
++	dev_info(abox_fw.dev, "ABOXFW: ipc %08x %08x %08x %08x %08x %08x %08x: %s\n",
++		 w[0], w[1], w[2], w[3], w[4], w[5], w[6],
++		 readl(abox_fw.sram + ABOX_IPC_TX_ACK_OFFSET) ? "NO ACK" : "acked");
++
++	return len;
++}
++
++static const struct file_operations abox_fw_ipc_fops = {
++	.write = abox_fw_ipc_write,
++	.open = simple_open,
++};
++
++/* Fill the RDMA test buffer with a 1 kHz sine, 48 kHz stereo S16, amplitude VAL */
++static int abox_fw_fill_set(void *data, u64 val)
++{
++	static const s16 sine[48] = {
++		0, 4276, 8480, 12539, 16383, 19948, 23170, 25996, 28378, 30273,
++		31650, 32487, 32767, 32487, 31650, 30273, 28378, 25996, 23170,
++		19948, 16383, 12539, 8480, 4276, 0, -4276, -8480, -12539, -16383,
++		-19948, -23170, -25996, -28378, -30273, -31650, -32487, -32767,
++		-32487, -31650, -30273, -28378, -25996, -23170, -19948, -16383,
++		-12539, -8480, -4276,
++	};
++	unsigned int i;
++
++	if (!abox_fw.pcm || val > 8000)
++		return -EINVAL;
++	for (i = 0; i < ABOX_PCM_BYTES / 4; i++)
++		abox_fw.pcm[2 * i] = abox_fw.pcm[2 * i + 1] =
++			(s32)sine[i % 48] * (s32)val / 32767;
++
++	return 0;
++}
++DEFINE_DEBUGFS_ATTRIBUTE(abox_fw_fill_fops, NULL, abox_fw_fill_set, "%llu\n");
++
+ /*
+  * The log buffer the firmware announced (REPORT_LOG, IOVA 0x80b00000), read
+  * from the DRAM image: struct ABOX_LOG_BUFFER { writer, reader, size, data[] }.
+@@ -393,6 +499,9 @@ static int abox_test_probe(struct platform_device *pdev)
+ 	 * Nothing happens to the audio processor until somebody writes to the
+ 	 * files below, in this order: load, start (stop to hold it again).
+ 	 */
++	abox_fw.pcm = (s16 *)buf;
++	abox_fw.gicd = devm_ioremap(dev, ABOX_GICD_BASE, SZ_4K);
++	abox_fw.gicc = devm_ioremap(dev, ABOX_GICC_BASE, SZ_4K);
+ 	abox_fw.pmu = syscon_regmap_lookup_by_compatible("samsung,exynos9610-pmu");
+ 	if (!IS_ERR(abox_fw.pmu) && abox_fw.dram) {
+ 		struct dentry *dir = debugfs_create_dir("abox-fw", NULL);
+@@ -403,6 +512,9 @@ static int abox_test_probe(struct platform_device *pdev)
+ 		debugfs_create_file("log", 0400, dir, NULL, &abox_fw_log_fops);
+ 		debugfs_create_file("ack", 0200, dir, NULL, &abox_fw_ack_fops);
+ 		debugfs_create_file("stop", 0200, dir, NULL, &abox_fw_stop_fops);
++		debugfs_create_file("gic", 0200, dir, NULL, &abox_fw_gic_fops);
++		debugfs_create_file("ipc", 0200, dir, NULL, &abox_fw_ipc_fops);
++		debugfs_create_file("fill", 0200, dir, NULL, &abox_fw_fill_fops);
+ 		dev_info(dev, "ABOXFW: debugfs files ready, nothing done\n");
+ 	}
+ 
+diff --git a/sound/soc/codecs/troika-test-card.c b/sound/soc/codecs/troika-test-card.c
+index ae91ca1..0689928 100644
+--- a/sound/soc/codecs/troika-test-card.c
++++ b/sound/soc/codecs/troika-test-card.c
+@@ -104,7 +104,7 @@ static ssize_t troika_test_amp_write(struct file *file, const char __user *buf,
+ static ssize_t troika_test_mwr_write(struct file *file, const char __user *buf,
+ 				     size_t len, loff_t *off)
+ {
+-	static const unsigned int allowed[] = { 0x101, 0x149, 0x540, 0x559 };
++	static const unsigned int allowed[] = { 0x101, 0x149, 0x500, 0x504, 0x506, 0x507, 0x508, 0x540, 0x559 };
+ 	char tmp[32] = { };
+ 	unsigned int reg, val, i;
+ 
+@@ -123,6 +123,33 @@ static ssize_t troika_test_mwr_write(struct file *file, const char __user *buf,
+ 	return len;
+ }
+ 
++/* write 1/0: force the Madera AIF1 receive widgets on/off (no stream behind them yet) */
++static ssize_t troika_test_aif1_write(struct file *file, const char __user *buf,
++				      size_t len, loff_t *off)
++{
++	struct snd_soc_dapm_context *dapm;
++	char tmp[4] = { };
++
++	if (!dbg_madera || len >= sizeof(tmp) || copy_from_user(tmp, buf, len))
++		return -EINVAL;
++	dapm = snd_soc_component_to_dapm(dbg_madera);
++	if (tmp[0] == '1') {
++		snd_soc_dapm_force_enable_pin(dapm, "AIF1RX1");
++		snd_soc_dapm_force_enable_pin(dapm, "AIF1RX2");
++	} else {
++		snd_soc_dapm_disable_pin(dapm, "AIF1RX1");
++		snd_soc_dapm_disable_pin(dapm, "AIF1RX2");
++	}
++	snd_soc_dapm_sync(dapm);
++	pr_info("troika-test: AIF1RX forced %c\n", tmp[0]);
++
++	return len;
++}
++
++static const struct file_operations troika_test_aif1_fops = {
++	.write = troika_test_aif1_write,
++};
++
+ static const struct file_operations troika_test_mwr_fops = {
+ 	.write = troika_test_mwr_write,
+ };
+@@ -166,6 +193,7 @@ static int troika_test_late_probe(struct snd_soc_card *card)
+ 	dbg_madera = madera;
+ 	dbg_amp = amp_dai->component;
+ 	debugfs_create_file("troika-test-amp", 0600, NULL, NULL, &troika_test_amp_fops);
++	debugfs_create_file("troika-test-aif1", 0200, NULL, NULL, &troika_test_aif1_fops);
+ 	debugfs_create_file("troika-test-madera-wr", 0200, NULL, NULL, &troika_test_mwr_fops);
+ 	debugfs_create_file("troika-test-madera", 0400, NULL, NULL, &troika_test_regs_fops);
+ 
+-- 
+2.56.0
+

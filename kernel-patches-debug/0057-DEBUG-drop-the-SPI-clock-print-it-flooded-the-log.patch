@@ -1,7 +1,7 @@
-From 773dcf4454f12f17b0ba41dc035f27a731617e04 Mon Sep 17 00:00:00 2001
+From 8d166e513385e72cfa11f624f9ddabb575a5def6 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:56:57 +0100
-Subject: [PATCH 57/63] DEBUG: drop the SPI clock print, it flooded the log
+Subject: [PATCH 57/73] DEBUG: drop the SPI clock print, it flooded the log
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 ---

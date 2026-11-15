@@ -1,0 +1,55 @@
+From 78a1a25beaf06e95bba318788921c1244524a49e Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 01:58:59 +0100
+Subject: [PATCH 71/73] ASoC: troika card defaults as in the stock system (test
+ branch)
+
+---
+ sound/soc/samsung/exynos9610-troika.c | 20 ++++++++++++++------
+ 1 file changed, 14 insertions(+), 6 deletions(-)
+
+diff --git a/sound/soc/samsung/exynos9610-troika.c b/sound/soc/samsung/exynos9610-troika.c
+index 0a776d9..8b18bc8 100644
+--- a/sound/soc/samsung/exynos9610-troika.c
++++ b/sound/soc/samsung/exynos9610-troika.c
+@@ -30,12 +30,18 @@
+ #define TROIKA_AMP_RATE		48000
+ #define TROIKA_AMP_BCLK		(TROIKA_AMP_RATE * 16 * 2)
+ 
+-/* Mixer source "AIF1RX1" in the Madera input selectors */
++/* Mixer sources "AIF1RX1" and "AIF1RX2" in the Madera input selectors */
+ #define TROIKA_MIXER_AIF1RX1	20
+-/* Defaults of the user controls: the protection DSP of the amplifier in
+- * the path, -20 dB at the amplifier and the mixer at its maximum. */
+-#define TROIKA_SPK_DIGITAL_VOL	657
+-#define TROIKA_MIXER_VOL	32
++#define TROIKA_MIXER_AIF1RX2	21
++/*
++ * Defaults of the user controls, as the stock system leaves them during
++ * playback (register dumps): the protection DSP of the amplifier in the
++ * path, 0 dB digital and 17 dB analog gain at the amplifier. The amplifier
++ * is mono, so both channels are mixed at -3 dB each (32 is 0 dB, 1 dB steps).
++ */
++#define TROIKA_SPK_DIGITAL_VOL	817
++#define TROIKA_SPK_ANALOG_GAIN	17
++#define TROIKA_MIXER_VOL	29
+ 
+ static struct snd_soc_pcm_stream troika_amp_params = {
+ 	.formats = SNDRV_PCM_FMTBIT_S16_LE,
+@@ -166,10 +172,12 @@ static int troika_late_probe(struct snd_soc_card *card)
+ 	snd_soc_dapm_new_widgets(card);
+ 	troika_set_ctl(card, "SPK DSP1 Preload Switch", false, 1);
+ 	troika_set_ctl(card, "SPK PCM Source", true, 1);
+-	troika_set_ctl(card, "SPK Analog PCM Volume", false, 0);
++	troika_set_ctl(card, "SPK Analog PCM Volume", false, TROIKA_SPK_ANALOG_GAIN);
+ 	troika_set_ctl(card, "SPK Digital PCM Volume", false, TROIKA_SPK_DIGITAL_VOL);
+ 	troika_set_ctl(card, "AIF2TX1 Input 1 Volume", false, TROIKA_MIXER_VOL);
++	troika_set_ctl(card, "AIF2TX1 Input 2 Volume", false, TROIKA_MIXER_VOL);
+ 	troika_set_ctl(card, "AIF2TX1 Input 1", true, TROIKA_MIXER_AIF1RX1);
++	troika_set_ctl(card, "AIF2TX1 Input 2", true, TROIKA_MIXER_AIF1RX2);
+ 
+ 	return 0;
+ }
+-- 
+2.56.0
+

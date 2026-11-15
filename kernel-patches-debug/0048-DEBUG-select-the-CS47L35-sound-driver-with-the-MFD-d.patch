@@ -1,7 +1,7 @@
-From 1809ced45cffb8b6095f9166150f90a9c2d67ba0 Mon Sep 17 00:00:00 2001
+From bae0ec49d0574f841adcbaaf8b716ea664d980a7 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:29:16 +0100
-Subject: [PATCH 48/63] DEBUG: select the CS47L35 sound driver with the MFD
+Subject: [PATCH 48/73] DEBUG: select the CS47L35 sound driver with the MFD
  driver
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
