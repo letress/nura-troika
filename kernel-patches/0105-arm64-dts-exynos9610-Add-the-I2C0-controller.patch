@@ -1,0 +1,61 @@
+From cf8bf947741700db74426056956574aefa8d2c6f Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 03:46:07 +0100
+Subject: [PATCH 105/106] arm64: dts: exynos9610: Add the I2C0 controller
+
+The bus of the fuel gauge, the charger and the USB PD controller in the
+stock device tree.
+
+Signed-off-by: letress <vikypl@gmail.com>
+---
+ arch/arm64/boot/dts/exynos/exynos9610-troika.dts |  8 ++++++++
+ arch/arm64/boot/dts/exynos/exynos9610.dtsi       | 14 ++++++++++++++
+ 2 files changed, 22 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index 89f80d4..d4ead3f 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -197,6 +197,14 @@ key_volup: key-volup-pins {
+  * panel, which the bootloader leaves on. There is a second source of this
+  * panel with a Novatek controller at 0x62; it is not described.
+  */
++/*
++ * I2C0 carries the fuel gauge S2MU106 (0x3b), the charger S2MCS02 (0x41) and
++ * the USB PD controller (0x3c) in the stock device tree (adapter "8" there).
++ */
++&i2c_0 {
++	status = "okay";
++};
++
+ &i2c_4 {
+ 	samsung,i2c-max-bus-freq = <400000>;
+ 	status = "okay";
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610.dtsi b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+index 680230d..69a3315 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos9610.dtsi
+@@ -559,6 +559,20 @@ ufs_phy: phy@13524000 {
+ 			status = "disabled";
+ 		};
+ 
++		i2c_0: i2c@13830000 {
++			compatible = "samsung,s3c2440-i2c";
++			reg = <0x13830000 0x100>;
++			interrupts = <GIC_SPI 247 IRQ_TYPE_LEVEL_HIGH>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			pinctrl-names = "default";
++			pinctrl-0 = <&i2c0_bus>;
++			clocks = <&cmu_peri CLK_GOUT_PERI_I2C_0_PCLK>;
++			clock-names = "i2c";
++
++			status = "disabled";
++		};
++
+ 		i2c_4: i2c@13870000 {
+ 			compatible = "samsung,s3c2440-i2c";
+ 			reg = <0x13870000 0x100>;
+-- 
+2.56.0
+

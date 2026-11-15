@@ -5116,3 +5116,26 @@ zásahu.
   1 536 000 Hz zaokrouhlil nahoru na 33 a dal 1 489 455 Hz (o 3 % míň, kodek
   čekal 48 kHz). Ovladač teď žádá o 0,1 % víc (dělič 32) a výsledek je
   `bit clock 1536001 Hz`.
+
+## 34. Baterie, Bluetooth, fotoaparát, displej (noční autonomní práce 2026-11-15)
+
+### 34.1 Baterie: palivoměr S2MU106 na I2C0, jen čtení
+
+Z živého DT původního systému (`device-info/live.dts` 6096–6120) a dmesg:
+palivoměr `s2mu106-fuelgauge` na adrese 0x3b sběrnice `i2c@13830000` (u výrobce
+„adapter 8“), vedle něj nabíječ `s2mcs02-charger` 0x41 a USB PD `usbpd-s2mu106`
+0x3c; baterie `SB18C43601`. Mainline nemá ovladač S2MU106 (jen starší S2MU005).
+
+- **DT:** `i2c_0` (`0x13830000`, SPI 247, `i2c0_bus`, hodiny
+  `CLK_GOUT_PERI_I2C_0_PCLK`) – patch 0105, uzel `fuel-gauge@3b` – patch 0106.
+- **Čtení (test BAT1, jen čtení, uživatel povolil):** registry 0x04 (napětí),
+  0x06 (proud), 0x08 (nabití), podle `s2mu106_fuelgauge.c` výrobce: napětí =
+  (raw·1000)>>13 mV, proud = (raw & 0x7fff)·1000>>12 mA (bit 15 = nabíjení,
+  záporně), nabití = raw/2^14. Hodnoty 0x865a, 0x01e5, 0x3ae8 dávají 4198 mV,
+  118 mA vybíjení, 92 %; registr 0x48 (FG_ID) = 1.
+- **Ovladač `drivers/power/supply/s2mu106-fuelgauge.c`** (jen čtení, nic se
+  nezapisuje; teplotu vynechán, protože výrobce ji čte po zápisu voliče
+  monitoru): napájecí zdroj `battery` s `STATUS` (podle znaménka proudu),
+  `PRESENT`, `TECHNOLOGY`, `VOLTAGE_NOW`, `CURRENT_NOW`, `CAPACITY`. Test BAT2:
+  `voltage_now=4247314`, `capacity=91`, `status=Not charging`. Nabíječ
+  S2MCS02/S2MU106 zatím není popsán, nabíjení se neřídí ani nečte.

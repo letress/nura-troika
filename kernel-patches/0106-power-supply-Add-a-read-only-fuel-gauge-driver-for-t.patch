@@ -1,0 +1,256 @@
+From 6c36dafa734a54b46ac30351f17607156ce72ac0 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 03:46:09 +0100
+Subject: [PATCH 106/106] power: supply: Add a read-only fuel gauge driver for
+ the Samsung S2MU106
+
+Reads the battery voltage, current and charge level of the gauge of the
+Motorola One Action with the conversions of the vendor driver. Nothing is
+written to the chip.
+
+Signed-off-by: letress <vikypl@gmail.com>
+---
+ .../boot/dts/exynos/exynos9610-troika.dts     |   5 +
+ drivers/power/supply/Kconfig                  |   8 +
+ drivers/power/supply/Makefile                 |   1 +
+ drivers/power/supply/s2mu106-fuelgauge.c      | 184 ++++++++++++++++++
+ 4 files changed, 198 insertions(+)
+ create mode 100644 drivers/power/supply/s2mu106-fuelgauge.c
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+index d4ead3f..357bb73 100644
+--- a/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
++++ b/arch/arm64/boot/dts/exynos/exynos9610-troika.dts
+@@ -203,6 +203,11 @@ key_volup: key-volup-pins {
+  */
+ &i2c_0 {
+ 	status = "okay";
++
++	fuel-gauge@3b {
++		compatible = "samsung,s2mu106-fuelgauge";
++		reg = <0x3b>;
++	};
+ };
+ 
+ &i2c_4 {
+diff --git a/drivers/power/supply/Kconfig b/drivers/power/supply/Kconfig
+index b89ef40..9ac881c 100644
+--- a/drivers/power/supply/Kconfig
++++ b/drivers/power/supply/Kconfig
+@@ -103,6 +103,14 @@ config CHARGER_ADP5061
+ 	  This driver can be built as a module. If so, the module will be
+ 	  called adp5061.
+ 
++config BATTERY_S2MU106
++	tristate "Samsung S2MU106 fuel gauge (read-only)"
++	depends on I2C
++	help
++	  Say Y to read the voltage, current and charge level of the battery
++	  from the fuel gauge of the Samsung S2MU106 power-management chip
++	  (Motorola One Action). The driver only reads the gauge.
++
+ config BATTERY_ACT8945A
+ 	tristate "Active-semi ACT8945A charger driver"
+ 	depends on MFD_ACT8945A || COMPILE_TEST
+diff --git a/drivers/power/supply/Makefile b/drivers/power/supply/Makefile
+index f3c0d10..6f59ffa 100644
+--- a/drivers/power/supply/Makefile
++++ b/drivers/power/supply/Makefile
+@@ -135,3 +135,4 @@ obj-$(CONFIG_CHARGER_QCOM_SMB2)	+= qcom_smbx.o
+ obj-$(CONFIG_FUEL_GAUGE_MM8013)	+= mm8013.o
+ obj-$(CONFIG_MACSMC_POWER)	+= macsmc-power.o
+ obj-$(CONFIG_CHARGER_MAX77759)	+= max77759_charger.o
++obj-$(CONFIG_BATTERY_S2MU106)	+= s2mu106-fuelgauge.o
+diff --git a/drivers/power/supply/s2mu106-fuelgauge.c b/drivers/power/supply/s2mu106-fuelgauge.c
+new file mode 100644
+index 0000000..514d0fe
+--- /dev/null
++++ b/drivers/power/supply/s2mu106-fuelgauge.c
+@@ -0,0 +1,184 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Fuel gauge of the Samsung S2MU106 power-management chip (Motorola One Action).
++ *
++ * Read-only: battery voltage, current and charge level from the gauge
++ * registers, with the conversions of the vendor driver (s2mu106_fuelgauge.c of
++ * the Motorola kernel). Nothing is written to the chip, no calibration or
++ * learning is done, so the charge level is the raw state of charge of the
++ * gauge. The temperature needs a write (a monitor selector) and is left out.
++ */
++
++#include <linux/i2c.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/power_supply.h>
++
++#define S2MU106_FG_REG_RVBAT		0x04	/* voltage, 16 bit, LSB first */
++#define S2MU106_FG_REG_RCUR_CC		0x06	/* current, sign and magnitude... */
++#define S2MU106_FG_REG_RSOC		0x08	/* state of charge, 16 bit */
++
++#define S2MU106_FG_CUR_CHARGING		BIT(15)	/* two's complement, set when charging */
++
++struct s2mu106_fg {
++	struct i2c_client *client;
++	struct power_supply *psy;
++};
++
++static int s2mu106_fg_read(struct s2mu106_fg *fg, u8 reg, u16 *val)
++{
++	int ret = i2c_smbus_read_word_data(fg->client, reg);
++
++	if (ret < 0)
++		return ret;
++	*val = ret;
++
++	return 0;
++}
++
++/* microvolts: (raw * 1000) >> 13 millivolts in the vendor driver */
++static int s2mu106_fg_voltage_uv(struct s2mu106_fg *fg, int *uv)
++{
++	u16 raw;
++	int ret = s2mu106_fg_read(fg, S2MU106_FG_REG_RVBAT, &raw);
++
++	if (ret)
++		return ret;
++	*uv = (int)(((u64)raw * 1000 * 1000) >> 13);
++
++	return 0;
++}
++
++/* microamps, positive while discharging as in the vendor driver */
++static int s2mu106_fg_current_ua(struct s2mu106_fg *fg, int *ua)
++{
++	u16 raw;
++	int ret = s2mu106_fg_read(fg, S2MU106_FG_REG_RCUR_CC, &raw);
++
++	if (ret)
++		return ret;
++	if (raw & S2MU106_FG_CUR_CHARGING)
++		*ua = -(int)((((u32)(~raw & 0xffff) + 1) * 1000 * 1000) >> 12);
++	else
++		*ua = (int)((((u32)raw & 0x7fff) * 1000 * 1000) >> 12);
++
++	return 0;
++}
++
++/* percent: raw / 2^14 is the fraction of the full charge */
++static int s2mu106_fg_capacity(struct s2mu106_fg *fg, int *pct)
++{
++	u16 raw;
++	int ret = s2mu106_fg_read(fg, S2MU106_FG_REG_RSOC, &raw);
++
++	if (ret)
++		return ret;
++	if (raw & BIT(15))
++		*pct = 0;
++	else
++		*pct = clamp_t(int, (raw * 100) >> 14, 0, 100);
++
++	return 0;
++}
++
++static int s2mu106_fg_get_property(struct power_supply *psy,
++				   enum power_supply_property psp,
++				   union power_supply_propval *val)
++{
++	struct s2mu106_fg *fg = power_supply_get_drvdata(psy);
++	int ua, pct;
++	int ret;
++
++	switch (psp) {
++	case POWER_SUPPLY_PROP_PRESENT:
++		val->intval = 1;
++		return 0;
++	case POWER_SUPPLY_PROP_TECHNOLOGY:
++		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
++		return 0;
++	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
++		return s2mu106_fg_voltage_uv(fg, &val->intval);
++	case POWER_SUPPLY_PROP_CURRENT_NOW:
++		return s2mu106_fg_current_ua(fg, &val->intval);
++	case POWER_SUPPLY_PROP_CAPACITY:
++		return s2mu106_fg_capacity(fg, &val->intval);
++	case POWER_SUPPLY_PROP_STATUS:
++		/* the charger is not described; the sign of the current tells */
++		ret = s2mu106_fg_current_ua(fg, &ua);
++		if (ret)
++			return ret;
++		ret = s2mu106_fg_capacity(fg, &pct);
++		if (ret)
++			return ret;
++		if (ua < -20000)
++			val->intval = pct >= 100 ? POWER_SUPPLY_STATUS_FULL :
++						   POWER_SUPPLY_STATUS_CHARGING;
++		else if (ua > 20000)
++			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
++		else
++			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
++		return 0;
++	default:
++		return -EINVAL;
++	}
++}
++
++static const enum power_supply_property s2mu106_fg_props[] = {
++	POWER_SUPPLY_PROP_STATUS,
++	POWER_SUPPLY_PROP_PRESENT,
++	POWER_SUPPLY_PROP_TECHNOLOGY,
++	POWER_SUPPLY_PROP_VOLTAGE_NOW,
++	POWER_SUPPLY_PROP_CURRENT_NOW,
++	POWER_SUPPLY_PROP_CAPACITY,
++};
++
++static const struct power_supply_desc s2mu106_fg_desc = {
++	.name = "battery",
++	.type = POWER_SUPPLY_TYPE_BATTERY,
++	.properties = s2mu106_fg_props,
++	.num_properties = ARRAY_SIZE(s2mu106_fg_props),
++	.get_property = s2mu106_fg_get_property,
++};
++
++static int s2mu106_fg_probe(struct i2c_client *client)
++{
++	struct power_supply_config cfg = { };
++	struct device *dev = &client->dev;
++	struct s2mu106_fg *fg;
++	u16 raw;
++	int ret;
++
++	fg = devm_kzalloc(dev, sizeof(*fg), GFP_KERNEL);
++	if (!fg)
++		return -ENOMEM;
++	fg->client = client;
++
++	/* is there a gauge at all? */
++	ret = s2mu106_fg_read(fg, S2MU106_FG_REG_RVBAT, &raw);
++	if (ret)
++		return dev_err_probe(dev, ret, "no answer from the fuel gauge\n");
++
++	cfg.drv_data = fg;
++	cfg.fwnode = dev_fwnode(dev);
++	fg->psy = devm_power_supply_register(dev, &s2mu106_fg_desc, &cfg);
++
++	return PTR_ERR_OR_ZERO(fg->psy);
++}
++
++static const struct of_device_id s2mu106_fg_of_match[] = {
++	{ .compatible = "samsung,s2mu106-fuelgauge" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, s2mu106_fg_of_match);
++
++static struct i2c_driver s2mu106_fg_driver = {
++	.driver = {
++		.name = "s2mu106-fuelgauge",
++		.of_match_table = s2mu106_fg_of_match,
++	},
++	.probe = s2mu106_fg_probe,
++};
++module_i2c_driver(s2mu106_fg_driver);
++
++MODULE_DESCRIPTION("Read-only fuel gauge of the Samsung S2MU106");
++MODULE_LICENSE("GPL");
+-- 
+2.56.0
+
