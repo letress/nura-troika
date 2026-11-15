@@ -1,7 +1,7 @@
 From c1e113c9e2324f2e778c79b47ba8041721441d21 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:17:35 +0100
-Subject: [PATCH 101/112] spi: s3c64xx: Deselect the hardware chip select after
+Subject: [PATCH 101/113] spi: s3c64xx: Deselect the hardware chip select after
  a message
 
 A controller that drives its own chip select pin in manual mode selected

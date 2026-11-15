@@ -1,7 +1,7 @@
 From b5449e42f365b9fc90e2aa80a5fb325b58f2b005 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 13:46:25 +0100
-Subject: [PATCH 103/112] clk: samsung: exynos9610: Pass SPI rate requests to
+Subject: [PATCH 103/113] clk: samsung: exynos9610: Pass SPI rate requests to
  the dividers
 
 The SPI controllers set the rate of their IPCLK gate to get the bus clock,

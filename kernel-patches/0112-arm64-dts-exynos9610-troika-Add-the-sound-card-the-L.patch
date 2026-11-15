@@ -1,7 +1,7 @@
 From 5ccd9d984db59ef6dc8087aa14ac7d2f23317c69 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 22:04:33 +0100
-Subject: [PATCH 112/112] arm64: dts: exynos9610: troika: Add the sound card,
+Subject: [PATCH 112/113] arm64: dts: exynos9610: troika: Add the sound card,
  the LDO42 regulator and the display controller
 
 The display controller replaces the simple-framebuffer of the bootloader.

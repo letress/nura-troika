@@ -1,7 +1,7 @@
 From 2a3b22e776e0a4e07bf29c42fb3a953efb7647b4 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 05:28:26 +0100
-Subject: [PATCH 108/112] arm64: dts: exynos9610: Add the I2C1 controller
+Subject: [PATCH 108/113] arm64: dts: exynos9610: Add the I2C1 controller
 
 The bus of the S2MU106 PMIC (0x3d) and of the charger S2MCS02 in the stock
 device tree.

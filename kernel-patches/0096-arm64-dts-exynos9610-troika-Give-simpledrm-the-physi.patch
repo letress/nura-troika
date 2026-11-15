@@ -1,7 +1,7 @@
 From cbeffdf104be56d4af684e89e215f6154bf10fe5 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 04:30:54 +0100
-Subject: [PATCH 096/112] arm64: dts: exynos9610-troika: Give simpledrm the
+Subject: [PATCH 096/113] arm64: dts: exynos9610-troika: Give simpledrm the
  physical size of the panel
 
 The framebuffer left by the bootloader carries no physical size, so

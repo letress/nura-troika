@@ -1,7 +1,7 @@
 From cf534f40c8f341bb9ea7b98d4f15ad79d05ca53c Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 14:28:36 +0100
-Subject: [PATCH 104/112] arm64: dts: exynos9610: Add the SPI9 controller
+Subject: [PATCH 104/113] arm64: dts: exynos9610: Add the SPI9 controller
 
 The controller of the audio codec on the Motorola One Action. The
 vendor tree gives it a FIFO of 256 bytes; the driver keeps using 64.

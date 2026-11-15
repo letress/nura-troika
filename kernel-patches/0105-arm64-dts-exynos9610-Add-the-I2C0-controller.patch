@@ -1,7 +1,7 @@
 From cf8bf947741700db74426056956574aefa8d2c6f Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 03:46:07 +0100
-Subject: [PATCH 105/112] arm64: dts: exynos9610: Add the I2C0 controller
+Subject: [PATCH 105/113] arm64: dts: exynos9610: Add the I2C0 controller
 
 The bus of the fuel gauge, the charger and the USB PD controller in the
 stock device tree.

@@ -1,7 +1,7 @@
 From 988121aa38dfc8c222ee5c6d1d454f18a0605da7 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 15:59:38 +0100
-Subject: [PATCH 098/112] dt-bindings: spi: samsung: Add the Exynos9610 SPI
+Subject: [PATCH 098/113] dt-bindings: spi: samsung: Add the Exynos9610 SPI
  controller
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

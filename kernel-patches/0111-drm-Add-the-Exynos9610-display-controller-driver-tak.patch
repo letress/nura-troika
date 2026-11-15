@@ -1,7 +1,7 @@
 From cd0876b55e13bbaf39758bff8973e190dd96e706 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 22:04:33 +0100
-Subject: [PATCH 111/112] drm: Add the Exynos9610 display controller driver
+Subject: [PATCH 111/113] drm: Add the Exynos9610 display controller driver
  (takes over the bootloader state)
 
 DECON0 window 0 with its read DMA: flips frame buffers, reports vblank and

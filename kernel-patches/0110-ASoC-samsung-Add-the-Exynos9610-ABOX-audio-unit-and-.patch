@@ -1,7 +1,7 @@
 From 5c67f4f645ea39cfb7b8ac0eee97187cf618517e Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 22:04:33 +0100
-Subject: [PATCH 110/112] ASoC: samsung: Add the Exynos9610 ABOX audio unit and
+Subject: [PATCH 110/113] ASoC: samsung: Add the Exynos9610 ABOX audio unit and
  the Motorola One Action card
 
 ABOX runs the Calliope firmware (SRAM mailbox, IPC, read DMA 1 to UAIF0); the

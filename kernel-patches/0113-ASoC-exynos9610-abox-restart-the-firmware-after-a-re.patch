@@ -1,0 +1,79 @@
+From e202d346dfae4e3e2ad6ca65cdd550c518150759 Mon Sep 17 00:00:00 2001
+From: letress <212964567+letress@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 22:11:19 +0100
+Subject: [PATCH 113/113] ASoC: exynos9610-abox: restart the firmware after a
+ reported fault
+
+The Calliope firmware sometimes reports a fault long after it started and
+does not recover; every later open of the stream then failed with -EIO. Stop
+the audio processor and load the firmware again on the next open.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+---
+ sound/soc/samsung/exynos9610-abox.c | 39 +++++++++++++++++++++++------
+ 1 file changed, 32 insertions(+), 7 deletions(-)
+
+diff --git a/sound/soc/samsung/exynos9610-abox.c b/sound/soc/samsung/exynos9610-abox.c
+index 50baba4..7ee3519 100644
+--- a/sound/soc/samsung/exynos9610-abox.c
++++ b/sound/soc/samsung/exynos9610-abox.c
+@@ -441,6 +441,15 @@ static int abox_load_and_start(struct abox *abox)
+ 	return ret;
+ }
+ 
++/* Stop the audio processor; the next open loads the firmware again */
++static void abox_stop(struct abox *abox)
++{
++	cancel_delayed_work_sync(&abox->rx_work);
++	regmap_update_bits(abox->pmu, ABOX_PMU_CPU_OPTION, ABOX_PMU_CPU_ENABLE, 0);
++	clk_bulk_disable_unprepare(abox->num_clks, abox->clks);
++	abox->started = false;
++}
++
+ static void abox_rdma_regs(struct abox *abox, bool on)
+ {
+ 	/* the whole registers as the vendor driver leaves them, see 33.35/33.36 */
+@@ -460,20 +469,36 @@ static int abox_dai_startup(struct snd_pcm_substream *substream,
+ 			    struct snd_soc_dai *dai)
+ {
+ 	struct abox *abox = snd_soc_dai_get_drvdata(dai);
+-	int ret = 0;
++	int i, ret = 0;
+ 
+ 	guard(mutex)(&abox->lock);
+ 
+ 	WRITE_ONCE(abox->substream, substream);
+ 	WRITE_ONCE(abox->ptr, 0);
+-	if (!abox->started) {
+-		ret = abox_load_and_start(abox);
+-		if (ret)
+-			return ret;
++
++	/*
++	 * The firmware may report a fault at any time (see abox_load_and_start()),
++	 * also long after it started; it does not recover by itself, so load it
++	 * again and repeat the open.
++	 */
++	for (i = 0; i < ABOX_START_TRIES; i++) {
++		if (abox->started && READ_ONCE(abox->fault)) {
++			dev_warn(abox->dev, "restarting the firmware after a fault\n");
++			abox_stop(abox);
++		}
++		if (!abox->started) {
++			ret = abox_load_and_start(abox);
++			if (ret)
++				return ret;
++		}
++
++		ret = abox_ipc(abox, ABOX_IPC_PCMPLAYBACK, ABOX_RDMA_CH, PCM_OPEN,
++			       ABOX_RDMA_CH, 0, 0, 0);
++		if (!ret || !READ_ONCE(abox->fault))
++			break;
+ 	}
+ 
+-	return abox_ipc(abox, ABOX_IPC_PCMPLAYBACK, ABOX_RDMA_CH, PCM_OPEN,
+-			ABOX_RDMA_CH, 0, 0, 0);
++	return ret;
+ }
+ 
+ static void abox_dai_shutdown(struct snd_pcm_substream *substream,

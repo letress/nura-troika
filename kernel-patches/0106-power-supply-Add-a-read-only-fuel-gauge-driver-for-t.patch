@@ -1,7 +1,7 @@
 From 6c36dafa734a54b46ac30351f17607156ce72ac0 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 03:46:09 +0100
-Subject: [PATCH 106/112] power: supply: Add a read-only fuel gauge driver for
+Subject: [PATCH 106/113] power: supply: Add a read-only fuel gauge driver for
  the Samsung S2MU106
 
 Reads the battery voltage, current and charge level of the gauge of the

@@ -1,7 +1,7 @@
 From 11e6466520a1d988e9f15214beb342770fb42916 Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Fri, 13 Nov 2026 15:59:39 +0100
-Subject: [PATCH 099/112] spi: s3c64xx: Add the Exynos9610 SPI controller
+Subject: [PATCH 099/113] spi: s3c64xx: Add the Exynos9610 SPI controller
 
 The controller has the status layout of the older Exynos SPI blocks:
 receive level in bits 21:15 and transmit level in bits 12:6, with a

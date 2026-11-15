@@ -1,7 +1,7 @@
 From 17c9d030c4450579cd68d8c38c9eb8ae2623576d Mon Sep 17 00:00:00 2001
 From: letress <212964567+letress@users.noreply.github.com>
 Date: Sun, 15 Nov 2026 22:04:32 +0100
-Subject: [PATCH 109/112] regulator: Add a driver for the LDO42 of the
+Subject: [PATCH 109/113] regulator: Add a driver for the LDO42 of the
  Exynos9610 PMIC behind the ACPM
 
 The S2MPU09 PMIC of the Exynos9610 is reached through the ACPM firmware; LDO42
