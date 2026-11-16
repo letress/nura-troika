@@ -11,21 +11,27 @@ fyzická akce, zvuk, pozorování displeje). Platí stálá pravidla: nic neflas
 záloha jen ke čtení, žádné hodnoty hardwaru bez zdroje, žádné změny regulátorů a
 napájení bez výslovného souhlasu, před slyšitelným testem potvrzení „Jsem tu a poslouchám“.
 
-## Stav po noční přípravě (2026-11-16)
+## Stav po noční práci (2026-11-16)
 
-Podrobně ve FINDINGS 35. Shrnutí:
+Podrobně ve FINDINGS 35 (35.1a, 35.3a, 35.4a/b). Vše z noci je jen v testovací větvi `troika-clk-test` a v
+testovacích obrazech; balíček ani čistá větev se nezměnily (kromě ověřeného PKG9).
 
-- **cpufreq:** kód a DT hotové a přeložené (commity v `troika-clk-test`: `0174b8f`, `5189340`,
-  `f34b4ba`). Nezkoušeno na telefonu. Kernel pro zkušební obraz se staví s nízkou
-  prioritou v `build/linux-cpu` (governor `userspace`); po jeho dokončení stačí
-  `TROIKA_BUILD=$PWD/build/linux-cpu tools/make-clk-test-bootimg.sh CPU1`.
-- **Uspání:** rozbor hotový (stavy cpuidle z vendorového DT, vlastní `exynos-pm` v původním
-  kernelu); kód nepsán, protože další krok je rizikový a chce dohled.
-- **SD karta:** data řadiče, pinů a regulátorů (LDO2 reg 0x3A, LDO35 reg 0x5C) doložena;
-  DT nenapsáno do souhlasu se zapnutím regulátorů; zbývá přiřadit hodiny `ciu`.
-- **Fotoaparát:** senzor 12a10 = OmniVision OV12A10, v mainline není; kód nepsán.
-- **Modem:** studie hotová, doporučení „zatím nejít“.
-- Na telefon se přes noc nic nezapisovalo (testovací obraz CPU1 se nespouštěl).
+- **Balíčky:** r9/r9/r2 ověřeny na telefonu (PKG9): displej, baterie, zvuk, Bluetooth, Wi-Fi.
+- **cpufreq (jen dolů a zpět, se souhlasem):** HOTOVO. Žádosti o frekvenci přes ACPM fungují pro A53 (CPUCL0) i A73
+  (CPUCL1): výkon škáluje lineárně s frekvencí (403–1053 MHz a 936–1456 MHz), teploty beze změny, bez zamrznutí; obě
+  domény vráceny na výchozí. Nahoru nad frekvenci z bootloaderu se nešlo. Obraz `CPU3`.
+- **SD karta (se souhlasem, karta vložená):** HOTOVO pro základ. Řadič, piny, LDO35/LDO2 (3,0 V) fungují; SDHC karta
+  7,29 GiB se rozpoznala, první blok přečten, po `unbind` se regulátory vypnou. Sběrnice jen ~10 MHz (hodiny `ciu`),
+  UHS nezkoušeno. Obraz `SD2`.
+- **Fotoaparát (OV12A10, jen ID čipu):** HOTOVO. Napájení, MCLK 26 MHz a I2C fungují (po doplnění USI obalu
+  CAMI2C_0 do DT), ID čipu `0x561241`. Obraz `CAM5`.
+- **Uspání:** NEZKOUŠENO. V DT není RTC a jediný zdroj probuzení je tlačítko napájení (fyzický stisk), takže s2idle
+  v noci jen s rizikem, že se telefon do rána neprobudí. Zkusit s tebou u telefonu.
+- **Modem:** studie hotová (FINDINGS 35.5), doporučení „zatím nejít".
+
+Co je dál (podle tebe): (1) přenést cpufreq, SD a zdrojové části z `troika-clk-test` do čisté větve a do balíčku (po
+tvém souhlasu), (2) s2idle s dohledem a případně RTC, (3) cpufreq nahoru po stupních (s dohledem), SD rychlost
+(`ciu` 800 MHz) a UHS, (4) ovladač senzoru OV12A10 a příjem obrazu (CSIS), (5) modem až nakonec.
 
 ## 0. Ověření balíčku (první krok)
 

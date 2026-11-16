@@ -5496,5 +5496,5 @@ napájení z vendorového `power_up` (reset nízko, AVDD, DVDD, IOVDD + 1 ms, re
 `CIS_CLK0` dává 26 MHz bez zásahu do PMU nebo napájecí domény. Nikam se nezapsalo kromě režimu USI v SYSREG_PERI
 (`0x1020`) a pinů/hodin senzoru. Po testu zůstávají řídicí piny jako výstupy v nízké úrovni (před testem to byly
 vstupy v nízké úrovni; po restartu telefonu zpět).
-Další: ovladač senzoru (V2L2 subdev, registry z `fimc-is-cis-12a10-setA.h`), CSIS + D-PHY + DMA pro příjem, LDO38
+Další: ovladač senzoru (V4L2 subdev, registry z `fimc-is-cis-12a10-setA.h`), CSIS + D-PHY + DMA pro příjem, LDO38
 pro AF, aktuátor `lc898217`, blesk S2MU106; to už je mimo noční zkoušku.
