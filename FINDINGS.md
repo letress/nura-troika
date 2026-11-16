@@ -5477,3 +5477,24 @@ pull-down), řídicí GPIO `gpc1-0` reset, `gpg2-6/4/5` AVDD/DVDD/IOVDD. Pořad�
   `GATE_CAMI2C_0_QCH`) nebo nastavení sysreg PERI; (2) zda vendorové `samsung,reset-before-trans`,
   `check-transdone-int` a `fast-plus-mode` jsou nutné (mainline `i2c-exynos5` je nemá); (3) porovnat inicializaci
   `HSI2C_CTL`/`CONF` s vendorovým `i2c-exynos5.c`. ID čipu OV12A10 se tedy zatím nepřečetlo.
+
+### 35.4b Fotoaparát: ID čipu OV12A10 přečteno (2026-11-16, noc, obraz CAM5)
+
+Příčinou `tx timeout` (35.4a) byl chybějící **USI obal sběrnice CAMI2C_0**: ve vendorovém DT je
+`usi_peri_cami2c_0` (`live.dts` 4949; registr `0x10011020` = SYSREG_PERI `0x10010000` + `0x1020`, `usi_v2_mode =
+"i2c"`), který v mainline DT nebyl, takže řadič HSI2C nebyl v režimu I2C (přerušení nikdy nepřišlo). Po doplnění
+(`sysreg_peri@10010000` s `samsung,exynos9610-peri-sysreg`, `usi_cam_i2c0@138a00c0` s `samsung,sysreg = <&sysreg_peri
+0x1020>`, `samsung,mode = <USI_MODE_I2C>`, řadič se stejnými `compatible` jako `hsi2c_3`: `samsung,exynos9610-hsi2c`,
+`samsung,exynosautov9-hsi2c`) čtení hned prošlo:
+
+    cam-idtest: MCLK rate 26000000 Hz
+    cam-idtest: chip ID registers 0x300a..0x300c: 56 12 41
+    cam-idtest: after: reset/avdd/dvdd/iovdd všechny vypnuté (0)
+
+ID `0x561241` je OmniVision OV12A10 (shoduje se s označením `OV12A10` ve vendorovém `fimc-is-cis-12a10.c`). Sekvence
+napájení z vendorového `power_up` (reset nízko, AVDD, DVDD, IOVDD + 1 ms, reset vysoko + 6 ms, MCLK + 1 ms) funguje,
+`CIS_CLK0` dává 26 MHz bez zásahu do PMU nebo napájecí domény. Nikam se nezapsalo kromě režimu USI v SYSREG_PERI
+(`0x1020`) a pinů/hodin senzoru. Po testu zůstávají řídicí piny jako výstupy v nízké úrovni (před testem to byly
+vstupy v nízké úrovni; po restartu telefonu zpět).
+Další: ovladač senzoru (V2L2 subdev, registry z `fimc-is-cis-12a10-setA.h`), CSIS + D-PHY + DMA pro příjem, LDO38
+pro AF, aktuátor `lc898217`, blesk S2MU106; to už je mimo noční zkoušku.
