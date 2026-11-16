@@ -5432,3 +5432,27 @@ the Exynos9610 (test)"; regulátory LDO35/LDO2 jako nastavitelné ACPM LDO, 3,0 
   800 MHz z vendorového DT (`clock-frequency = 0x2faf0800`); nastavit by se musel dělič
   `dout_cmu_fsys_mmc_card` a PLL MMC. UHS (SDR50/104) vyžaduje ještě přepínání `vqmmc` na 1,8 V
   (kód 0x00) a ladění (sample). Zatím nezkoušeno.
+
+### 35.1a cpufreq: zkouška „jen dolů a zpět" (2026-11-16, noc, autonomně se souhlasem)
+
+Obraz `out/troika-test-CPU3.img` (jádro z `troika-clk-test`: hodiny `acpm_cpucl0/1`, OPP tabulky, governor
+`userspace`); měřič `test-initramfs/cpu-bench.c` (připne se na jádro, 1 s počítá smyčky podle `cntvct_el0`;
+na malých jádrech A53 firmware nenastavil `cntfrq_el0`, proto se frekvence čítače 26 MHz zadává argumentem).
+- Start: obě politiky (`policy0` = jádra 0–3, `policy4` = jádra 4–7) vznikly, governor `userspace`, `scaling_cur_freq`
+  1053000 a 1456000 kHz (shodují se se stupni „init" v tabulce firmwaru), `cpuinfo_transition_latency`
+  1000000 ns (eternal), teploty 42–45 °C.
+- **Žádosti o frekvenci přes ACPM fungují pro obě domény** (CPUCL0 = ID 2, CPUCL1 = ID 3), firmware je přijímá a
+  změní skutečnou frekvenci: výkon smyčky roste lineárně s požadovanou frekvencí (odchylka do 1 %).
+  A53 (jádro 1): 1053 MHz → 1 026 641 k smyček/s; 910 → 886 882; 806 → 785 053; 702 → 683 568; 598 → 581 848;
+  403 → 391 093 (poměr k 1053 MHz 0,864 / 0,765 / 0,666 / 0,567 / 0,381 odpovídá poměru frekvencí).
+  A73 (jádro 5): 1456 → 627 749; 1352 → 582 844; 1248 → 537 783; 1144 → 492 900; 1040 → 448 225;
+  936 → 403 187 (poměr 0,929 / 0,857 / 0,785 / 0,714 / 0,642).
+- Po každém kroku teplota beze změny (limit pro přerušení 75 °C nebyl ani blízko), žádné zamrznutí, žádné
+  chyby v `dmesg`. Obě domény vráceny po stupních na výchozí hodnoty (A53 1053, A73 1456 MHz).
+- Nahoru (nad frekvenci z bootloaderu) se nešlo: nevyzkoušeno, A53 1118–1638 MHz a A73 1508–2210 MHz.
+- Pozn.: absolutní výkon na A73 se mezi dvěma bootováními lišil (1,10 M vs 0,63 M při 1456 MHz) kvůli
+  rozdílné verzi měřiče a obejití čítače (`arch_timer: CPU7: Trapping CNTVCT access`, erratum 858921), škálování
+  ve stejném bootu je přesné; absolutní hodnoty neberte jako výkon.
+- Pozor při práci s `scaling_setspeed`: žádost se stejnou frekvencí, jakou jádro považuje za aktuální, se
+  neodešle (jádro to přeskočí). Telnet relace skriptu v testu trvá nejvýš 20 s, delší sekvenci zabije na
+  polovině (A73 zůstala dočasně na 936 MHz); při vypršení vrátit po stupních.

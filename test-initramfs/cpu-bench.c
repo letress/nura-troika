@@ -4,7 +4,10 @@
  * počítá smyčky podle čítače ARM (cntvct_el0, frekvenci čte z cntfrq_el0).
  * Nic nezapisuje.
  *
- *   cpu-bench JÁDRO     vypíše: tisíce smyček za sekundu
+ *   cpu-bench JÁDRO [FREKVENCE_ČÍTAČE]   vypíše: tisíce smyček za sekundu
+ *
+ * Na malých jádrech A53 firmware čítač cntfrq_el0 nenastavil (čte se 0), proto
+ * jde frekvenci čítače (26000000) zadat druhým argumentem.
  */
 #define SYS_write		64
 #define SYS_exit		93
@@ -44,6 +47,13 @@ void __attribute__((noreturn)) c_main(long argc, char **argv)
 	mask <<= cpu;
 	sys(SYS_sched_setaffinity, 0, sizeof(mask), (long)&mask);
 	asm volatile("mrs %0, cntfrq_el0" : "=r"(freq));
+	if (argc > 2) {
+		char *a = argv[2];
+
+		freq = 0;
+		while (*a >= '0' && *a <= '9')
+			freq = freq * 10 + *a++ - '0';
+	}
 	asm volatile("mrs %0, cntvct_el0" : "=r"(t0));
 	do {
 		unsigned long i;
