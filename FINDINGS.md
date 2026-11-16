@@ -5456,3 +5456,24 @@ na malých jádrech A53 firmware nenastavil `cntfrq_el0`, proto se frekvence č�
 - Pozor při práci s `scaling_setspeed`: žádost se stejnou frekvencí, jakou jádro považuje za aktuální, se
   neodešle (jádro to přeskočí). Telnet relace skriptu v testu trvá nejvýš 20 s, delší sekvenci zabije na
   polovině (A73 zůstala dočasně na 936 MHz); při vypršení vrátit po stupních.
+
+### 35.4a Fotoaparát: napájení senzoru a čtení ID čipu (2026-11-16, noc, autonomně se souhlasem)
+
+Zkušební modul `drivers/misc/exynos9610-cam-idtest.c` (jen `troika-clk-test`, spouští se ručně přes debugfs
+`cam-idtest/run`, `power`), DT: uzel `cam_i2c0` (HSI2C `138a0000`, `samsung,exynos7-hsi2c`, SPI 257, hodiny
+`CLK_GOUT_PERI_CAMI2C_0_IPCLK/PCLK`), piny `gpc0-0/1` funkce 2 (I2C), `gpc2-0` MCLK (funkce 2, vypnuto funkce 1 s
+pull-down), řídicí GPIO `gpc1-0` reset, `gpg2-6/4/5` AVDD/DVDD/IOVDD. Pořadí podle vendorového `power_up`
+(`fimc-is-device-module-12a10.c`): reset nízko, AVDD, DVDD, IOVDD (+1 ms), reset vysoko (+6 ms), MCLK funkce a hodiny
+(+1 ms), čtení, MCLK pryč, reset nízko, AVDD, DVDD, IOVDD vypnout. Napájení AF (LDO38 PMIC) se nezapínalo.
+- **Proběhlo bez zamrznutí a bez chyby napájení**: piny před testem vstupy (nízká úroveň), po testu výstupy nízko (po
+  restartu zpět); `CIS_CLK0` 26 MHz z CMU_TOP (`assigned-clock-rates`), I2C sběrnice při zapnutém IOVDD vysoko
+  (`DAT` gpc0 po zapnutí 0xff, před 0x00), tj. pull-upy fungují.
+- **Čtení po I2C selže:** `exynos5-hsi2c 138a0000.i2c: tx timeout`, jak u senzoru (0x36), tak u EEPROM kalibrace (0x50),
+  přerušení `138a0000.i2c` (GIC 289) se ani jednou neobjevilo. Chyba je tedy v řadiči/jeho nastavení, ne v tom, že
+  senzor neodpovídá. Registry řadiče po neúspěšném přenosu: `CTL 0x08` (master, bez FUNC_MODE_I2C), `FIFO_STATUS
+  0x01000100`, `INT_ENABLE/INT_STATUS/ERR_STATUS` 0, `CONF 0x980120ff`, `TRANS_STATUS 0x00080000`, časování `FS1
+  0x0180ff00 FS2 0x030003f8 FS3 0x00ff0000`; IPCLK 199,875 MHz, PCLK 66,6 MHz (obojí zapnuté při přenosu).
+- **Neznámé / další kroky:** (1) zda řadič CAMI2C vyžaduje kromě hodin ještě Q-kanál (`QCH`, vendor
+  `GATE_CAMI2C_0_QCH`) nebo nastavení sysreg PERI; (2) zda vendorové `samsung,reset-before-trans`,
+  `check-transdone-int` a `fast-plus-mode` jsou nutné (mainline `i2c-exynos5` je nemá); (3) porovnat inicializaci
+  `HSI2C_CTL`/`CONF` s vendorovým `i2c-exynos5.c`. ID čipu OV12A10 se tedy zatím nepřečetlo.
