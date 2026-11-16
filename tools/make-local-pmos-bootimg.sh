@@ -41,7 +41,7 @@ done
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 unpack_bootimg --boot_img "$src" --out "$tmp" > "$tmp/info"
-cmdline="$(sed -n 's/^command line args: //p' "$tmp/info")"
+cmdline="$(sed -n 's/^command line args: //p' "$tmp/info") ${TROIKA_CMDLINE_EXTRA:-}"
 [ -s "$tmp/ramdisk" ] && [ -s "$tmp/second" ] && [ -n "$cmdline" ] || {
 	echo "CHYBA: $src nemá ramdisk, second nebo cmdline" >&2
 	exit 1

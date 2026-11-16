@@ -5511,3 +5511,11 @@ pro AF, aktuátor `lc898217`, blesk S2MU106; to už je mimo noční zkoušku.
 - **Ladicí kód mimo commit:** `pmskip=` (drivers/base/power/main.c), `pinstage=`/`pinname=` (pinctrl-samsung.c), ramoops v DT, `TROIKA_CMDLINE_EXTRA` v tools/make-clk-test-bootimg.sh.
 
 **Opakování (2026-11-16, testovací initramfs PM12, bez zvuku/Wi-Fi/BT/displeje):** 5 cyklů `freeze` + krátký stisk tlačítka napájení za sebou, všechny se probudily, USB síť se vrátila, UFS po každém probuzení čte (1 MiB z `sda`), teplota 38,7 °C. Při každém probuzení přibude jedno `WARNING: unbalanced disables for regulator-dummy` z `madera_runtime_suspend` (DCVDD není v DT popsané, madera používá dummy; MCLK2 v tomto obrazu chybí). Zvuk, displej, Wi-Fi a Bluetooth po probuzení se musí ověřit v obrazu s Phoshem (balíček s opravou pinctrlu ještě není).
+
+**s2idle v Phoshu (2026-11-16, lokální obrazy PS1–PS5, kořenový systém přes NBD po USB):**
+
+- **Displej a dotyk** po probuzení fungují (PS1).
+- **Šum z reproduktoru při usnutí:** příčina nebyla `ignore_suspend` u spojení `codec-left-amp`, ale chybějící `.pm = &snd_soc_pm_ops` v `platform_driver` karty. Bez něj zůstanou PCM proudy ve stavu RUNNING a zesilovač CS35L41 hraje šum s mrtvými hodinami. Oprava: `.pm = &snd_soc_pm_ops`, `ignore_suspend` odstraněno (commit `76f7008`, PS3/PS4). Po ní při usnutí ticho.
+- **ABOX:** firmware občas přestane odpovídat na IPC („no ack for message“), karta pak zmizela („Dummy output“). Timeout teď nastaví `abox->fault`, takže další otevření PCM firmware znovu načte (PS4). Při startu se občas stane „firmware did not report BOOT_DONE“ (try 1 of 4), opakování to vyřeší.
+- **Artefakt NBD:** při usnutí se v netbootu vypne USB gadget a ext4 na NBD přerušení nepřežije (žurnál se přeruší, `dmesg: I/O error`, Phosh se točí v smyčce, Wi-Fi/BT vypadají rozbitě, i když je ovladač v pořádku). Obejití pro test: `pmskip=a:13200000,a:131d0000` (prefix `a:` přeskočí i běžné suspend/resume callbacky řadiče USB a PHY; jen testovací parametr, PS5).
+- **Výsledek PS5:** po `freeze` a probuzení krátkým stiskem funguje zvuk (bez šumu), Wi-Fi, Bluetooth i Phosh bez I/O chyb. Nezkoušeno: 20 cyklů, skutečné `mem`. Opravy zatím jen ve testovací větvi (ne v troika-clk ani v balíčku pmaports).
