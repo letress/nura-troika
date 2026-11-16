@@ -27,7 +27,7 @@ out="$root/out"
 for f in "$image" "$dtb" "$stock_dtb" "$busybox" "$root/test-initramfs/init"; do
 	[ -f "$f" ] || { echo "CHYBA: chybí $f" >&2; exit 1; }
 done
-grep -q CLKDBG "$image" || { echo "CHYBA: $image není z větve troika-clk-test" >&2; exit 1; }
+# (dříve: kontrola ladicích řetězců CLKDBG; větev troika-clk-test je od 2026-11-16 bez ladění)
 grep -q samsung,exynos9610-cmu-top "$dtb" || { echo "CHYBA: $dtb nemá uzly CMU" >&2; exit 1; }
 
 tmp="$(mktemp -d)"
@@ -44,6 +44,9 @@ aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
 # Čtení registrů přes /dev/mem (test TMU): busybox devmem nemá. Jen čte.
 aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
 	-o "$tmp/bin/mem-rd" "$root/test-initramfs/mem-rd.c"
+# Měření rychlosti jádra (test cpufreq): počítá smyčky 1 s, nic nezapisuje.
+aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \
+	-o "$tmp/bin/cpu-bench" "$root/test-initramfs/cpu-bench.c"
 # Zápis do vybraných registrů zvukové jednotky (test ABOX): jen adresy ze
 # seznamu v abox-wr.c. Sám se nespouští.
 aarch64-linux-gcc -nostdlib -static -O2 -ffreestanding -fno-stack-protector \

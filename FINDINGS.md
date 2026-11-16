@@ -5414,3 +5414,21 @@ v initramfs; obsahuje ovladače `exynos9610-dpu`, `s2mu106`, moduly ABOX/karty/C
 Spuštěno přes netboot a `fastboot boot`: displej, baterie, zvuk (reproduktor), Bluetooth a Wi-Fi
 fungují z balíčků (uživatel potvrdil 2026-11-16). Pomocí `unpack_bootimg` a `tar tzf` ověřeno před
 spuštěním.
+
+### 35.3a SD karta: test v obrazu SD2 (2026-11-16, noc, autonomně se souhlasem)
+
+Obraz `out/troika-test-SD2.img` (větev `troika-clk-test`, commit „mmc: dw_mmc: Add the SD card of
+the Exynos9610 (test)"; regulátory LDO35/LDO2 jako nastavitelné ACPM LDO, 3,0 V; sd2 piny; ovladač
+`dw_mmc-exynos` s `samsung,exynos7-dw-mshc-smu`). Výsledek:
+- Řadič `13550000.mmc` naběhl (ID 270a, 64 slov FIFO, IDMAC), detekce karty `gpa0-7` — **polarita:**
+  vendorový ovladač při `card-detect-invert` bere kartu jako přítomnou při vysoké úrovni
+  (`dw_mci_exynos_check_cd`), proto `GPIO_ACTIVE_HIGH` (s `ACTIVE_LOW` se karta nedetekovala).
+- Karta: `mmc0: new high speed SDHC card`, `SA08G`, 7,29 GiB (15 278 080 sektorů), výrobce 0x02, oddíl
+  `mmcblk0p1`; první blok přečten (tabulka oddílů), nic se nepřipojilo ani nezapsalo.
+- Při registraci regulátoru jádro „vqmmc: Bringing 2800000uV into 3000000-3000000uV": před tím byl
+  v registru kód pro 2,8 V (zápis kódu do vypnutého LDO). Po připojení karty obě napájení `enabled`
+  3,0 V; po odpojení řadiče (`unbind`) `disabled`.
+- Rychlost sběrnice: `Bus speed = 9993750 Hz` (žádáno 50 MHz): hodiny `ciu` běží na ~40 MHz místo
+  800 MHz z vendorového DT (`clock-frequency = 0x2faf0800`); nastavit by se musel dělič
+  `dout_cmu_fsys_mmc_card` a PLL MMC. UHS (SDR50/104) vyžaduje ještě přepínání `vqmmc` na 1,8 V
+  (kód 0x00) a ladění (sample). Zatím nezkoušeno.
