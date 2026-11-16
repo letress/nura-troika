@@ -5498,3 +5498,14 @@ napájení z vendorového `power_up` (reset nízko, AVDD, DVDD, IOVDD + 1 ms, re
 vstupy v nízké úrovni; po restartu telefonu zpět).
 Další: ovladač senzoru (V4L2 subdev, registry z `fimc-is-cis-12a10-setA.h`), CSIS + D-PHY + DMA pro příjem, LDO38
 pro AF, aktuátor `lc898217`, blesk S2MU106; to už je mimo noční zkoušku.
+
+### 35.5 s2idle: příčina zaseknutí a první úspěšné probuzení (2026-11-16)
+
+- **Příznak:** po `echo freeze > /sys/power/state` telefon zhasl a nereagoval (ani na tlačítko napájení). Bez konzole nešlo zjistit proč.
+- **Hledání:** testovací kernel s `CONFIG_PM_DEBUG` (bez něj je `pm_test` nedostupný a moje dřívější „lehčí“ testy byly ve skutečnosti plná uspání). `pm_test=devices` prošel, `pm_test=platform` se zasekl. Přidal jsem ladicí parametr `pmskip=` (přeskočí callbacky `early/late/noirq` zadaných zařízení): přeskočení všech prošlo, přeskočení pinctrlů prošlo, přeskočení trojice `14a60000,139b0000,13490000` prošlo, `139b0000` (TOP) samo vedlo k zasekávání jen v kombinaci s FSYS; `pinstage=2` (konec suspendu pinctrlu před callbacky bank) prošel, hang je tedy v callbacku bank.
+- **Příčina:** řadiče TOP (`139b0000`) a FSYS (`13490000`) nemají `eint_gpio_init`, takže jejich banky nemají `irq_chip` ani uložený stav, ale `exynos_pinctrl_suspend/resume` na něj sahaly (`bank->irq_chip->eint_mask`). NULL dereference v pozdní fázi uspání, bez konzole to vypadá jako zaseknutí.
+- **Oprava (commit `08ba915` ve větvi troika-clk-test):** callbacky přeskočí GPIO banky bez `irq_chip`; TOP používá `gs101_pinctrl_suspend/resume` (banky mají zvláštní `eint_fltcon_offset`).
+- **Výsledek:** `pm_test=platform` projde bez přeskakování; skutečné `s2idle` s probuzením krátkým stiskem tlačítka napájení projde, USB síť, UFS (čtení 1 MiB z `sda`) a SD řadič po probuzení fungují. Nezkoušeno: opakování (cíl 20×), displej a zvuk po probuzení, Wi-Fi, Bluetooth.
+- **Varování při obnovení (zatím neřešeno):** `samsung-ufs-phy 13524000.phy: failed to get phy cdr lock acquisition -110` a `unbalanced disables for regulator-dummy` (pracovní fronta `pm_runtime_work`).
+- **Slepá ulička:** ramoops/pstore v `log_pstore` (0xf9c10000, vendorová oblast) se zaregistruje, ale po restartu je prázdný ani po čistém restartu; bootloader paměť nejspíš maže.
+- **Ladicí kód mimo commit:** `pmskip=` (drivers/base/power/main.c), `pinstage=`/`pinname=` (pinctrl-samsung.c), ramoops v DT, `TROIKA_CMDLINE_EXTRA` v tools/make-clk-test-bootimg.sh.

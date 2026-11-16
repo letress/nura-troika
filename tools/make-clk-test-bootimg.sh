@@ -133,7 +133,7 @@ mkbootimg --header_version 1 \
 	--ramdisk_offset 0x00000000 --second_offset 0x00000000 \
 	--tags_offset 0x00000000 --pagesize 2048 \
 	--os_version 15.0.0 --os_patch_level 2025-04 \
-	--cmdline "console=tty0 fbcon=font:TER16x32 clk_ignore_unused scsi_mod.scan=sync pmos_test=${name,,}" \
+	--cmdline "console=tty0 ${TROIKA_CMDLINE_EXTRA:-} fbcon=font:TER16x32 clk_ignore_unused scsi_mod.scan=sync pmos_test=${name,,}" \
 	--kernel "$out/uniLoader-troika-clk" --ramdisk "$out/test-initramfs-$name.cpio.gz" \
 	--second "$stock_dtb" \
 	-o "$out/troika-test-$name.img"
