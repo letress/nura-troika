@@ -1871,3 +1871,34 @@ jeho image nemám a postup jsem neověřoval.
 - fotky displeje z každé fáze (čitelné, klidně víc),
 - časy: kdy se objevil uniLoader, konzole, rámeček; případně kdy se telefon restartoval,
 - u fáze 5, co vypsalo každé tlačítko.
+
+## Test PLASMA1 – Plasma Mobile místo Phoshe (2026-11-16)
+
+Jen vrstva nad jádrem, kernel i balíčky troiky zůstávají stejné. Nic se
+nenahrává. `~/.config/pmbootstrap_plasma.cfg` je kopie konfigurace s
+`ui = plasma-mobile`; původní konfigurace (Phosh) zůstává beze změny.
+
+Pozor: `install` přepíše rootfs i `images_netboot/motorola-troika.img`
+(Phosh). Phosh se vrátí stejným postupem s původní konfigurací. Na disku je
+volných jen asi 16 GB, Plasma zabere několik GB navíc.
+
+1. Obraz (sudo a heslo uživatele zadáš ty):
+
+```bash
+pmbootstrap -c ~/.config/pmbootstrap_plasma.cfg -p ~/nura-troika/pmaports install
+```
+
+2. Export boot.img a pojmenování pro zkoušku:
+
+```bash
+pmbootstrap -c ~/.config/pmbootstrap_plasma.cfg -p ~/nura-troika/pmaports export
+```
+
+3. Server a start (`fastboot boot` spouštíš ty, mimo zvuk):
+
+```bash
+pmbootstrap -c ~/.config/pmbootstrap_plasma.cfg -p ~/nura-troika/pmaports netboot serve --replace
+```
+
+Co sledovat a zapsat do FINDINGS: nastartuje kwin a Plasma, dotyk, orientace
+a měřítko, klávesnice, jas, WiFi, plynulost (simpledrm bez ovladače panelu).
