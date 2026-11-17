@@ -1,0 +1,24 @@
+diff --git a/drivers/block/nbd.c b/drivers/block/nbd.c
+index ffce519..f9f18fd 100644
+--- a/drivers/block/nbd.c
++++ b/drivers/block/nbd.c
+@@ -16,6 +16,7 @@
+ #include <linux/major.h>
+ 
+ #include <linux/blkdev.h>
++#include <linux/freezer.h>
+ #include <linux/module.h>
+ #include <linux/init.h>
+ #include <linux/sched.h>
+@@ -1593,8 +1594,9 @@ static int nbd_start_device_ioctl(struct nbd_device *nbd)
+ 	if (max_part)
+ 		set_bit(GD_NEED_PART_SCAN, &nbd->disk->state);
+ 	mutex_unlock(&nbd->config_lock);
+-	ret = wait_event_interruptible(config->recv_wq,
+-					 atomic_read(&config->recv_threads) == 0);
++	/* TEST ONLY: the freezer must not look like a signal that tears the connection down */
++	ret = wait_event_freezable(config->recv_wq,
++				   atomic_read(&config->recv_threads) == 0);
+ 	if (ret) {
+ 		sock_shutdown(nbd);
+ 		nbd_clear_que(nbd);
